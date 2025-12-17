@@ -72,7 +72,7 @@ msgid "Import from Workflowy or other outliners."
 msgstr ""
 
 #: Elm:TimelineTemplate
-msgid "Timeline 2025"
+msgid "Timeline 2026"
 msgstr ""
 
 #: Elm:TimelineTemplateDesc
