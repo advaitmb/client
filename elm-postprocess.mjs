@@ -1,29 +1,37 @@
-import zh_hans from "./i18n/zh_hans.json" with { type: "json" };
-import zh_hant from "./i18n/zh_hant.json" with { type: "json" };
-import es from "./i18n/es.json" with { type: "json" };
-import ar from "./i18n/ar.json" with { type: "json" };
-import fr from "./i18n/fr.json" with { type: "json" };
-import ru from "./i18n/ru.json" with { type: "json" };
-import de from "./i18n/de.json" with { type: "json" };
-import ja from "./i18n/ja.json" with { type: "json" };
-import mr from "./i18n/mr.json" with { type: "json" };
-import pes from "./i18n/pes.json" with { type: "json" };
-import it from "./i18n/it.json" with { type: "json" };
-import ro from "./i18n/ro.json" with { type: "json" };
-import hr from "./i18n/hr.json" with { type: "json" };
-import nl from "./i18n/nl.json" with { type: "json" };
-import hu from "./i18n/hu.json" with { type: "json" };
-import sv from "./i18n/sv.json" with { type: "json" };
-import ca from "./i18n/ca.json" with { type: "json" };
-import br from "./i18n/br.json" with { type: "json" };
-import cs from "./i18n/cs.json" with { type: "json" };
-import fa from "./i18n/fa.json" with { type: "json" };
-import id from "./i18n/id.json" with { type: "json" };
-import ko from "./i18n/ko.json" with { type: "json" };
-import pl from "./i18n/pl.json" with { type: "json" };
-import uk from "./i18n/uk.json" with { type: "json" };
-import nb from "./i18n/nb.json" with { type: "json" };
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import config from "./config.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load JSON files using fs.readFileSync for Node 16+ compatibility
+const zh_hans = JSON.parse(readFileSync(join(__dirname, "./i18n/zh_hans.json"), "utf-8"));
+const zh_hant = JSON.parse(readFileSync(join(__dirname, "./i18n/zh_hant.json"), "utf-8"));
+const es = JSON.parse(readFileSync(join(__dirname, "./i18n/es.json"), "utf-8"));
+const ar = JSON.parse(readFileSync(join(__dirname, "./i18n/ar.json"), "utf-8"));
+const fr = JSON.parse(readFileSync(join(__dirname, "./i18n/fr.json"), "utf-8"));
+const ru = JSON.parse(readFileSync(join(__dirname, "./i18n/ru.json"), "utf-8"));
+const de = JSON.parse(readFileSync(join(__dirname, "./i18n/de.json"), "utf-8"));
+const ja = JSON.parse(readFileSync(join(__dirname, "./i18n/ja.json"), "utf-8"));
+const mr = JSON.parse(readFileSync(join(__dirname, "./i18n/mr.json"), "utf-8"));
+const pes = JSON.parse(readFileSync(join(__dirname, "./i18n/pes.json"), "utf-8"));
+const it = JSON.parse(readFileSync(join(__dirname, "./i18n/it.json"), "utf-8"));
+const ro = JSON.parse(readFileSync(join(__dirname, "./i18n/ro.json"), "utf-8"));
+const hr = JSON.parse(readFileSync(join(__dirname, "./i18n/hr.json"), "utf-8"));
+const nl = JSON.parse(readFileSync(join(__dirname, "./i18n/nl.json"), "utf-8"));
+const hu = JSON.parse(readFileSync(join(__dirname, "./i18n/hu.json"), "utf-8"));
+const sv = JSON.parse(readFileSync(join(__dirname, "./i18n/sv.json"), "utf-8"));
+const ca = JSON.parse(readFileSync(join(__dirname, "./i18n/ca.json"), "utf-8"));
+const br = JSON.parse(readFileSync(join(__dirname, "./i18n/br.json"), "utf-8"));
+const cs = JSON.parse(readFileSync(join(__dirname, "./i18n/cs.json"), "utf-8"));
+const fa = JSON.parse(readFileSync(join(__dirname, "./i18n/fa.json"), "utf-8"));
+const id = JSON.parse(readFileSync(join(__dirname, "./i18n/id.json"), "utf-8"));
+const ko = JSON.parse(readFileSync(join(__dirname, "./i18n/ko.json"), "utf-8"));
+const pl = JSON.parse(readFileSync(join(__dirname, "./i18n/pl.json"), "utf-8"));
+const uk = JSON.parse(readFileSync(join(__dirname, "./i18n/uk.json"), "utf-8"));
+const nb = JSON.parse(readFileSync(join(__dirname, "./i18n/nb.json"), "utf-8"));
 
 const prepTranslation = (langCode, langData) => {
   return langData.flatMap(t => {
