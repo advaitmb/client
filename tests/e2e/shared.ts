@@ -61,3 +61,7 @@ function deleteTestData() {
 export function card(colNum: number, groupNum: number, cardNum: number) {
   return `#column-container > .column:nth-child(${colNum}) > .group:nth-child(${groupNum + 1}) > .card:nth-child(${cardNum})`;
 }
+
+export function group(colNum: number, groupNum: number) {
+  return `#column-container > .column:nth-child(${colNum}) > .group:nth-child(${groupNum + 1})`;
+}
