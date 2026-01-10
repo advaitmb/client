@@ -111,3 +111,8 @@ Cypress.Commands.add('getGroup', (colNum, groupNum) => {
 Cypress.Commands.add('getCard', (colNum, groupNum, cardNum) => {
   cy.get(`#column-container > .column:nth-child(${colNum}) > .group:nth-child(${groupNum + 1}) > .card:nth-child(${cardNum})`)
 })
+
+
+Cypress.Commands.add('waitForSync', () => {
+  cy.get('#save-indicator', {timeout: 10000}).should('contain', 'Synced')
+})

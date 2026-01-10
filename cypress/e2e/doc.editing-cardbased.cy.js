@@ -22,11 +22,9 @@ describe('Document Editing', () => {
     cy.url().as('testTreeUrl').should('match', /\/[a-zA-Z0-9]{7}$/)
 
     cy.contains('Untitled')
-    cy.contains('Synced')
+    cy.waitForSync()
 
     // Can edit and save card
-    cy.wait(250)
-
     cy.get('textarea').should('have.focus')
       .type('Hello World :)')
 
@@ -34,17 +32,14 @@ describe('Document Editing', () => {
 
     cy.getCard(1,1,1).get('.view').contains('Hello World :)')
 
-    cy.contains('Synced')
-
-    cy.contains('Synced')
-    cy.wait(250)
+    cy.waitForSync()
 
     // Create a new child on clicking right + button
     cy.getCard(1,1,1)
       .should('have.class', 'active')
       .trigger('mouseover')
 
-    cy.get('.ins-right').click()
+    cy.get('.ins-right').should('exist').click()
 
     cy.get('textarea').should('have.focus')
       .type('A child')
@@ -53,7 +48,7 @@ describe('Document Editing', () => {
     cy.get('.card-btn')
       .click()
 
-    cy.contains('Synced')
+    cy.waitForSync()
 
     cy.get('div.card.active')
       .contains('A child')
@@ -62,6 +57,7 @@ describe('Document Editing', () => {
     // make them both have the same content (bug)
     cy.getCard(1,1,1).click()
     cy.shortcut('{enter}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('XYZ')
     cy.getCard(2,1,1).click()
     cy.getCard(2,1,1).should('not.contain', 'XYZ')
@@ -70,6 +66,7 @@ describe('Document Editing', () => {
     // Clicking outside a card while editing should save that card
     cy.getCard(1,1,1).click()
     cy.shortcut('{enter}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('UVW')
     cy.get('.left-padding-column').click()
     cy.get('#save-indicator').should('not.contain', 'Unsaved Changes...')
@@ -89,9 +86,7 @@ describe('Document Editing', () => {
     cy.get('div.card.active')
       .contains('Another one below')
 
-    cy.contains('Synced')
-
-    cy.wait(500)
+    cy.waitForSync()
 
     // Cancels changes correctly after confirmation
     let confirmCalled
@@ -99,7 +94,9 @@ describe('Document Editing', () => {
       expect(str).to.eq(tr.areYouSureCancel["en"])
       confirmCalled = true
     })
+    cy.get('div.card.active').should('exist')
     cy.shortcut('{enter}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard(' changes to cancel xxx')
     cy.shortcut('{esc}')
     cy.should(() => {
@@ -109,12 +106,12 @@ describe('Document Editing', () => {
       .should('not.contain', 'to cancel xxx')
 
     // Can cancel renaming the document
-    cy.get('#title-rename').click({force: true}) // force hack : Upgrade button covers it only on headless runs
+    cy.get('#title-rename').should('be.visible').click()
     cy.shortcut('{esc}')
     cy.get('#title-rename').should('not.be.focused')
 
     // Can rename the document
-    cy.get('#title-rename').click({force: true}) // force hack : Upgrade button covers it only on headless runs
+    cy.get('#title-rename').should('be.visible').click()
     cy.get('#title-rename')
       .should('have.focus')
       .type('A new doc title here{enter}')
@@ -122,7 +119,7 @@ describe('Document Editing', () => {
     cy.title().should('eq', 'A new doc title here - Gingko Writer')
     cy.get('#title-rename').should('have.value', 'A new doc title here')
 
-    cy.wait(400)
+    cy.waitForSync()
     cy.get('@testTreeUrl').then((url) => {
       cy.visit(url)
     })
@@ -130,7 +127,7 @@ describe('Document Editing', () => {
       .contains('Another one below')
 
     // Has saved the activation state
-    cy.wait(400)
+    cy.getCard(2,1,2).should('be.visible')
     cy.getCard(1,1,1)
       .should('have.class', 'ancestor')
 
@@ -174,20 +171,22 @@ describe('Document Editing', () => {
 
     cy.get('#history-menu').should('not.exist')
 
-    cy.wait(500)
+    cy.waitForSync()
 
     // Can split card down
+    cy.get('div.card.active').should('exist')
     cy.shortcut('{enter}')
     cy.shortcut('{leftarrow}{leftarrow}{leftarrow}{leftarrow}{leftarrow}{leftarrow}{leftarrow}')
     cy.shortcut('{ctrl}j')
     cy.get('textarea')
       .should('have.value', ')XYZUVW')
-    cy.contains('Synced')
+    cy.waitForSync()
     cy.getCard(1,1,1)
       .should('not.contain',')XYZUVW')
     cy.shortcut('{ctrl}{enter}')
 
     // Correctly splits card up
+    cy.get('div.card.active').should('exist')
     cy.shortcut('{enter}')
     cy.shortcut('{leftarrow}{leftarrow}{leftarrow}')
     cy.shortcut('{ctrl}k')
@@ -196,12 +195,12 @@ describe('Document Editing', () => {
     cy.shortcut('{ctrl}{enter}')
     cy.getCard(1,1,2)
       .should('contain',')XYZ')
-    cy.contains('Synced')
+    cy.waitForSync()
     cy.getCard(1,1,3)
       .should('contain','UVW')
 
     // Copy/Paste tests
-    cy.getCard(2,1,1).click()
+    cy.getCard(2,1,1).should('be.visible').click()
     cy.shortcut('{ctrl}c')
     cy.shortcut('{leftArrow}')
     cy.shortcut('{ctrl}v')
@@ -267,12 +266,12 @@ describe('Document Editing', () => {
     cy.shortcut('{ctrl}{enter}')
     cy.getCard(2,1,4)
       .should('contain.html','<em>italic</em>')
-    cy.contains('Synced')
-
+    cy.waitForSync()
 
     // Test Card moving
+    cy.get('div.card.active').should('exist')
     cy.shortcut('{alt}{uparrow}')
-    cy.contains('Synced')
+    cy.waitForSync()
     cy.getCard(2,1,3)
       .should('contain','italic')
     cy.getCard(2,1,4)
@@ -280,32 +279,39 @@ describe('Document Editing', () => {
 
     // Test card merging
     // First we create children on 1,1,2 and 1,1,3 and 1,1,4
-    cy.getCard(1,1,2).click()
+    cy.getCard(1,1,2).should('be.visible').click()
     cy.shortcut('{ctrl}{rightArrow}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('1')
     cy.shortcut('{ctrl}{j}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('2')
     cy.shortcut('{ctrl}{enter}')
-    cy.getCard(1,1,3).click()
+    cy.getCard(1,1,3).should('be.visible').click()
     cy.shortcut('{ctrl}{rightArrow}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('3')
     cy.shortcut('{ctrl}{j}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('4')
     cy.shortcut('{ctrl}{enter}')
-    cy.getCard(1,1,4).click()
+    cy.getCard(1,1,4).should('be.visible').click()
     cy.shortcut('{ctrl}{rightArrow}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('5')
     cy.shortcut('{ctrl}{j}')
+    cy.get('textarea').should('have.focus')
     cy.writeInCard('6')
     cy.shortcut('{ctrl}{enter}')
 
     // Now we merge them
     // First we merge 1,1,4 up to 1,1,3
-    cy.getCard(1,1,4).invoke('attr', 'id').as('cardId_114')
-    cy.getCard(1,1,3).invoke('attr', 'id').as('cardId_113')
+    cy.waitForSync()
+    cy.getCard(1,1,4).should('be.visible').invoke('attr', 'id').as('cardId_114')
+    cy.getCard(1,1,3).should('be.visible').invoke('attr', 'id').as('cardId_113')
     cy.get('@cardId_114').then((cardId_114) => {
       cy.get('@cardId_113').then((cardId_113) => {
-        cy.get(`#${cardId_114}`).click()
+        cy.get(`#${cardId_114}`).should('be.visible').click()
         cy.shortcut('{ctrl}{shift}{uparrow}')
         cy.get(`#${cardId_113}`).should('not.exist')
         cy.get(`#${cardId_114}`).should('have.class','active')
@@ -318,11 +324,11 @@ describe('Document Editing', () => {
     cy.getCard(2,3,4).should('contain.text', '6')
 
     // Next merge 1,1,2 down to 1,1,3
-    cy.getCard(1,1,2).invoke('attr', 'id').as('cardId_112')
-    cy.getCard(1,1,3).invoke('attr', 'id').as('cardId_new_113')
+    cy.getCard(1,1,2).should('be.visible').invoke('attr', 'id').as('cardId_112')
+    cy.getCard(1,1,3).should('be.visible').invoke('attr', 'id').as('cardId_new_113')
     cy.get('@cardId_112').then((cardId_112) => {
       cy.get('@cardId_new_113').then((cardId_new_113) => {
-        cy.get(`#${cardId_112}`).click()
+        cy.get(`#${cardId_112}`).should('be.visible').click()
         cy.shortcut('{ctrl}{shift}{downarrow}')
         cy.get(`#${cardId_new_113}`).should('not.exist')
         cy.get(`#${cardId_112}`).should('have.class','active')
