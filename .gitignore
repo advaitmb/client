@@ -25,3 +25,4 @@ cypress/videos
 test-results/
 tests/e2e/.auth/
 playwright-report/
+elm-home/
