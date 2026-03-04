@@ -1,4 +1,6 @@
 elm-stuff
+!elm-kernel-replacements/elm-stuff
+!elm-kernel-replacements/elm-stuff/**
 dist/*
 src/elm.js
 src/elm-*.js
