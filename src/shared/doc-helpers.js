@@ -123,8 +123,11 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
     }
 
     _resize() {
+      const col = this.closest('.column');
+      const savedScrollTop = col ? col.scrollTop : null;
       this.textarea_.style.height = 'auto';
       this.textarea_.style.height = this.textarea_.scrollHeight + this.offset_ + 'px';
+      if (col !== null && savedScrollTop !== null) col.scrollTop = savedScrollTop;
     }
 
     _selectionHandler(e) {
