@@ -858,8 +858,6 @@ const fromElm = (msg, elmData) => {
 
     EmptyMessageShown: () => {},
 
-    ShowWidget: () => {},   // Freshdesk widget removed
-
     InitBeamer: () => {
 
     },

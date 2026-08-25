@@ -13,12 +13,10 @@ import Outgoing exposing (Msg(..), send)
 import Page.App
 import Page.Copy
 import Page.DocNew
-import Page.ForgotPassword
 import Page.Import
 import Page.Login
 import Page.Message
 import Page.Public
-import Page.ResetPassword
 import Page.Signup
 import Public
 import Route
@@ -41,8 +39,6 @@ type Model
     = -- Logged Out Pages:
       Signup Page.Signup.Model
     | Login Page.Login.Model
-    | ForgotPassword Page.ForgotPassword.Model
-    | ResetPassword Page.ResetPassword.Model
       -- Logged In Pages:
     | PaymentSuccess WebSessionData
     | Copy Page.Copy.Model
@@ -213,14 +209,6 @@ handleUrlChange url model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                [ "forgot-password" ] ->
-                    Page.ForgotPassword.init navKey globalData guestSession (Dict.get "email" appUrl.queryParameters |> Maybe.andThen List.head)
-                        |> updateWith ForgotPassword GotForgotPasswordMsg
-
-                [ "reset-password", token ] ->
-                    Page.ResetPassword.init navKey globalData guestSession token
-                        |> updateWith ResetPassword GotResetPasswordMsg
-
                 _ ->
                     ( model, Cmd.none )
 
@@ -233,12 +221,6 @@ loginInProgress model =
 
         Login login ->
             Page.Login.transition login
-
-        ForgotPassword forgot ->
-            Page.ForgotPassword.transition forgot
-
-        ResetPassword reset ->
-            Page.ResetPassword.transition reset
 
         _ ->
             Nothing
@@ -255,12 +237,6 @@ toSession model =
 
         Login login ->
             Page.Login.toSession login
-
-        ForgotPassword forgot ->
-            Page.ForgotPassword.toSession forgot
-
-        ResetPassword reset ->
-            Page.ResetPassword.toSession reset
 
         Copy copy ->
             Page.Copy.toSession copy
@@ -290,12 +266,6 @@ toGlobalData model =
         Login login ->
             Page.Login.globalData login
 
-        ForgotPassword forgot ->
-            Page.ForgotPassword.globalData forgot
-
-        ResetPassword reset ->
-            Page.ResetPassword.globalData reset
-
         Copy copy ->
             Page.Copy.globalData copy
 
@@ -324,12 +294,6 @@ getNavKey model =
         Login login ->
             Page.Login.navKey login
 
-        ForgotPassword forgot ->
-            Page.ForgotPassword.navKey forgot
-
-        ResetPassword reset ->
-            Page.ResetPassword.navKey reset
-
         Copy copy ->
             Page.Copy.navKey copy
 
@@ -356,8 +320,6 @@ type Msg
     | SettingsChanged Dec.Value
     | GotSignupMsg Page.Signup.Msg
     | GotLoginMsg Page.Login.Msg
-    | GotForgotPasswordMsg Page.ForgotPassword.Msg
-    | GotResetPasswordMsg Page.ResetPassword.Msg
     | GotCopyMsg Page.Copy.Msg
     | GotImportMsg Page.Import.Msg
     | GotDocNewMsg Page.DocNew.Msg
@@ -427,14 +389,6 @@ update msg model =
             Page.Login.update loginMsg loginModel
                 |> updateWith Login GotLoginMsg
 
-        ( GotForgotPasswordMsg forgotPassMsg, ForgotPassword forgotPassModel ) ->
-            Page.ForgotPassword.update forgotPassMsg forgotPassModel
-                |> updateWith ForgotPassword GotForgotPasswordMsg
-
-        ( GotResetPasswordMsg resetPassMsg, ResetPassword resetPassModel ) ->
-            Page.ResetPassword.update resetPassMsg resetPassModel
-                |> updateWith ResetPassword GotResetPasswordMsg
-
         ( GotCopyMsg copyMsg, Copy copyModel ) ->
             Page.Copy.update copyMsg copyModel
                 |> updateWith Copy GotCopyMsg
@@ -492,12 +446,6 @@ view model =
         Login login ->
             { title = "Gingko Writer - Login", body = [ Html.map GotLoginMsg (Page.Login.view login) ] }
 
-        ForgotPassword forgotPass ->
-            { title = "Gingko - Forgot Password", body = [ Html.map GotForgotPasswordMsg (Page.ForgotPassword.view forgotPass) ] }
-
-        ResetPassword resetPass ->
-            { title = "Gingko - Reset Password", body = [ Html.map GotResetPasswordMsg (Page.ResetPassword.view resetPass) ] }
-
         Copy copyModel ->
             { title = "Duplicating...", body = [ UI.viewAppLoadingSpinner (Session.fileMenuOpen copyModel.session) ] }
 
@@ -535,12 +483,6 @@ subscriptions model =
 
         Signup pageModel ->
             Sub.map GotSignupMsg (Page.Signup.subscriptions pageModel)
-
-        ForgotPassword pageModel ->
-            Sub.map GotForgotPasswordMsg (Page.ForgotPassword.subscriptions pageModel)
-
-        ResetPassword pageModel ->
-            Sub.map GotResetPasswordMsg (Page.ResetPassword.subscriptions pageModel)
 
         Login pageModel ->
             Sub.map GotLoginMsg (Page.Login.subscriptions pageModel)

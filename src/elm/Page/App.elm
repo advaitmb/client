@@ -5,7 +5,6 @@ import Browser.Dom exposing (Element)
 import Browser.Navigation as Nav
 import Bytes exposing (Bytes)
 import Coders exposing (sortByEncoder)
-import Doc.ContactForm as ContactForm
 import Doc.Data as Data
 import Doc.HelpScreen as HelpScreen
 import Doc.History as History
@@ -14,7 +13,6 @@ import Doc.Metadata as Metadata exposing (Metadata)
 import Doc.Switcher
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.UI as UI
-import Doc.VideoViewer as VideoViewer
 import Feature
 import Features exposing (Feature(..))
 import File exposing (File)
@@ -113,11 +111,9 @@ type ModalState
     | SidebarContextMenu String ( Float, Float )
     | TemplateSelector
     | HelpScreen
-    | VideoViewer VideoViewer.Model
     | Wordcount Page.Doc.Model
     | ImportModal ImportModal.Model
     | ImportTextModal ImportText.Model
-    | ContactForm ContactForm.Model
     | UpgradeModal
 
 
@@ -135,12 +131,7 @@ defaultModel nKey session newDocState =
     , sidebarMenuState = NoSidebarMenu
     , headerMenu = NoHeaderMenu
     , exportSettings = ( ExportEverything, DOCX )
-    , modalState =
-        if Session.isFirstRun session then
-            VideoViewer VideoViewer.init
-
-        else
-            NoModal
+    , modalState = NoModal
     , tray = Toast.tray
     , errorState = False
     , tooltip = Nothing
@@ -374,14 +365,7 @@ type Msg
       -- HELP Modal
     | ToggledHelpMenu
     | ClickedShowVideos
-    | VideoViewerOpened
-    | VideoViewerMsg VideoViewer.Msg
-    | ClickedShowWidget
-    | ClickedEmailSupport
-    | ContactFormMsg ContactForm.Model ContactForm.Msg
     | CopyEmailClicked Bool
-    | ContactFormSubmitted ContactForm.Model
-    | ContactFormSent (Result Http.Error ())
       -- Account menu
     | ToggledAccountMenu Bool
     | LanguageMenuRequested (Maybe String)
@@ -1272,28 +1256,7 @@ update msg model =
             ( { model | modalState = HelpScreen }, Cmd.none )
 
         ClickedShowVideos ->
-            ( { model | modalState = VideoViewer VideoViewer.init, sidebarMenuState = NoSidebarMenu }, Cmd.none )
-
-        VideoViewerOpened ->
-            ( { model | modalState = VideoViewer VideoViewer.init }, Cmd.none )
-
-        VideoViewerMsg videoViewerMsg ->
-            ( { model | modalState = VideoViewer (VideoViewer.update videoViewerMsg) }, Cmd.none )
-
-        ClickedShowWidget ->
-            ( { model | modalState = NoModal }, send <| ShowWidget )
-
-        ClickedEmailSupport ->
-            let
-                fromEmail =
-                    Session.name session
-            in
-            ( { model | modalState = ContactForm (ContactForm.init fromEmail), sidebarMenuState = NoSidebarMenu }
-            , Task.attempt (\_ -> NoOp) (Browser.Dom.focus "contact-body")
-            )
-
-        ContactFormMsg formModel formMsg ->
-            ( { model | modalState = ContactForm (ContactForm.update formMsg formModel) }, Cmd.none )
+            ( model, Cmd.none )
 
         CopyEmailClicked isUrgent ->
             if isUrgent then
@@ -1301,17 +1264,6 @@ update msg model =
 
             else
                 ( model, send <| CopyToClipboard "{%SUPPORT_EMAIL%}" "#email-copy-btn" )
-
-        ContactFormSubmitted formModel ->
-            ( model, ContactForm.send ContactFormSent formModel )
-
-        ContactFormSent res ->
-            case res of
-                Ok _ ->
-                    ( { model | modalState = NoModal }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
 
         -- Account menu TODO
         ToggledAccountMenu isOpen ->
@@ -1678,18 +1630,6 @@ update msg model =
 
         ModalClosed ->
             case model.modalState of
-                VideoViewer _ ->
-                    if Session.isFirstRun session then
-                        ( { model | modalState = NoModal } |> updateSession (Session.endFirstRun session)
-                        , Cmd.none
-                        )
-
-                    else
-                        ( { model | modalState = HelpScreen }, Cmd.none )
-
-                ContactForm _ ->
-                    ( { model | modalState = HelpScreen }, Cmd.none )
-
                 _ ->
                     ( { model | modalState = NoModal }, Cmd.none )
 
@@ -2086,8 +2026,6 @@ view ({ documentState } as model) =
             , tooltipClosed = TooltipClosed
             , clickedSwitcher = SwitcherOpened
             , clickedHelp = ToggledHelpMenu
-            , clickedEmailSupport = ClickedEmailSupport
-            , clickedShowVideos = ClickedShowVideos
             , languageMenuRequested = LanguageMenuRequested
             , logout = LogoutRequested
             , toggledAccount = ToggledAccountMenu
@@ -2267,7 +2205,7 @@ view ({ documentState } as model) =
 
         DocNotFound globalData _ ->
             div [ id "app-root" ]
-                (Page.DocMessage.viewNotFound ClickedEmailSupport
+                (Page.DocMessage.viewNotFound
                     ++ [ viewSidebar globalData
                             session
                             sidebarMsgs
@@ -2374,13 +2312,7 @@ viewModal globalData session modalState =
             HelpScreen.view language
                 (GlobalData.isMac globalData)
                 { closeModal = ModalClosed
-                , showVideoTutorials = VideoViewerOpened
-                , showWidget = ClickedShowWidget
-                , contactSupport = ClickedEmailSupport
                 }
-
-        VideoViewer videoViewerState ->
-            VideoViewer.view language ModalClosed VideoViewerMsg videoViewerState
 
         Wordcount docModel ->
             UI.viewWordCount
@@ -2399,15 +2331,6 @@ viewModal globalData session modalState =
             ImportText.view
                 { closeMsg = TemplateSelectorOpened, tagger = ImportTextModalMsg }
                 modalModel
-
-        ContactForm contactFormModel ->
-            ContactForm.view language
-                { closeMsg = ModalClosed
-                , submitMsg = ContactFormSubmitted
-                , tagger = ContactFormMsg contactFormModel
-                , copyEmail = CopyEmailClicked
-                }
-                contactFormModel
 
         UpgradeModal ->
             let

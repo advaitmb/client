@@ -37,8 +37,6 @@ type alias SidebarMsgs msg =
     , tooltipClosed : msg
     , clickedSwitcher : msg
     , clickedHelp : msg
-    , clickedEmailSupport : msg
-    , clickedShowVideos : msg
     , languageMenuRequested : Maybe String -> msg
     , toggledAccount : Bool -> msg
     , upgrade : msg
@@ -192,9 +190,7 @@ viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList
          ]
             ++ (viewSidebarMenu session
                     lang
-                    { clickedEmailSupport = msgs.clickedEmailSupport
-                    , clickedShowVideos = msgs.clickedShowVideos
-                    , helpClosed = msgs.clickedHelp
+                    { helpClosed = msgs.clickedHelp
                     , languageMenuRequested = msgs.languageMenuRequested
                     , languageChanged = msgs.languageChanged
                     , logout = msgs.logout
@@ -214,9 +210,7 @@ viewSidebarMenu :
     LoggedIn
     -> Language
     ->
-        { clickedEmailSupport : msg
-        , clickedShowVideos : msg
-        , helpClosed : msg
+        { helpClosed : msg
         , languageMenuRequested : Maybe String -> msg
         , languageChanged : Language -> msg
         , logout : msg

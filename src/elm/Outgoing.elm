@@ -69,7 +69,6 @@ type Msg
       -- === Misc ===
     | IntegrationTestEvent String
     | EmptyMessageShown
-    | ShowWidget
     | CheckoutButtonClicked Enc.Value
     | ConsoleLogRequested String
 
@@ -260,9 +259,6 @@ send info =
 
         EmptyMessageShown ->
             dataToSend "EmptyMessageShown" null
-
-        ShowWidget ->
-            dataToSend "ShowWidget" null
 
         CheckoutButtonClicked checkoutData ->
             dataToSend "CheckoutButtonClicked" checkoutData

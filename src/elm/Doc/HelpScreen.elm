@@ -34,7 +34,7 @@ emptyText =
 -- VIEW
 
 
-view : Language -> Bool -> { closeModal : msg, showVideoTutorials : msg, showWidget : msg, contactSupport : msg } -> List (Html msg)
+view : Language -> Bool -> { closeModal : msg } -> List (Html msg)
 view lang isMac msg =
     [ div [ class "modal-overlay", onClick msg.closeModal ] []
     , div [ class "max-width-grid" ]
@@ -45,11 +45,6 @@ view lang isMac msg =
                 ]
             , div [ class "modal-guts" ]
                 (viewShortcuts lang isMac)
-            , div [ class "modal-buttons" ]
-                [ div [ onClick msg.showVideoTutorials ] [ text lang HelpVideos ]
-                , div [ onClick msg.showWidget ] [ text lang FAQAndDocs ]
-                , div [ id "email-support", onClick msg.contactSupport ] [ text lang ContactSupport ]
-                ]
             ]
         ]
     ]

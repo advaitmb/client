@@ -9,8 +9,6 @@ type Route
     = Root
     | Signup
     | Login
-    | ForgotPassword (Maybe String)
-    | ResetPassword String
     | EmailConfirmed
     | DocNew
     | DocUntitled String
@@ -32,17 +30,6 @@ toString route =
 
         Login ->
             "/login"
-
-        ForgotPassword email_ ->
-            case email_ of
-                Just email ->
-                    "/forgot-password" ++ ([ Builder.string "email" email ] |> Builder.toQuery)
-
-                Nothing ->
-                    "/forgot-password"
-
-        ResetPassword token ->
-            "/reset-password/" ++ token
 
         EmailConfirmed ->
             "/confirm/"

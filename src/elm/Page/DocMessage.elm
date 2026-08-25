@@ -24,18 +24,13 @@ viewEmpty msgs =
     ]
 
 
-viewNotFound : msg -> List (Html msg)
-viewNotFound contactSupport =
+viewNotFound : List (Html msg)
+viewNotFound =
     [ div [ id "document-header" ] []
     , div [ id "doc-error-message" ]
         [ h1 [] [ text "Hmm, we couldn't find this document" ]
         , p [] [ text "The file might have been moved, or deleted." ]
         , br [] []
-        , p [] [ text "Is it still in your list of documents?" ]
-        , p [] [ text "If so, let us know and we'll help you fix it!" ]
-        , br [] []
-        , div [ class "modal-buttons" ]
-            [ div [ id "email-support", onClick contactSupport ] [ text "Contact Support" ]
-            ]
+        , p [] [ text "Check your list of documents in the sidebar." ]
         ]
     ]
