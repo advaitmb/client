@@ -44,7 +44,6 @@ viewHeader :
     , titleEditCanceled : msg
     , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
     , tooltipClosed : msg
-    , collabBtnClicked : msg
     , migrateClicked : msg
     , toggledHistory : Bool -> msg
     , checkoutTree : String -> msg

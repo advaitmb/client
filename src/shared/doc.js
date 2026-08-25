@@ -617,13 +617,7 @@ const fromElm = (msg, elmData) => {
     },
 
     // === Collaboration ===
-    AddCollabRequest: () => {
-      wsSend('rt:addCollab', { tr: elmData[0], c: elmData[1] }, true);
-    },
 
-    RemoveCollabRequest: () => {
-      wsSend('rt:removeCollab', { tr: elmData[0], c: elmData[1] }, true);
-    },
 
     SendCollabState: () => {
       COLLAB_STATE = elmData;

@@ -1,4 +1,4 @@
-module UI.Collaborators exposing (viewHeader, viewOnCard)
+module UI.Collaborators exposing (viewOnCard)
 
 import Ant.Icons.Svg as AntIcons
 import Html exposing (Html, div, img, span, text)

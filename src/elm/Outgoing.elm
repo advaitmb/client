@@ -38,8 +38,6 @@ type Msg
     | SaveImportedData Enc.Value
     | SaveBulkImportedData Enc.Value
       -- === Collaboration ===
-    | AddCollabRequest String String
-    | RemoveCollabRequest String String
     | SendCollabState Enc.Value
       -- === Desktop ===
     | SaveToFile String String
@@ -149,11 +147,7 @@ send info =
             dataToSend "NoDataToSave" null
 
         -- === Collaboration ===
-        AddCollabRequest treeId collabEmail ->
-            dataToSend "AddCollabRequest" (tupleToValue string ( treeId, collabEmail ))
 
-        RemoveCollabRequest treeId collabEmail ->
-            dataToSend "RemoveCollabRequest" (tupleToValue string ( treeId, collabEmail ))
 
         SendCollabState collabState ->
             dataToSend "SendCollabState" collabState
