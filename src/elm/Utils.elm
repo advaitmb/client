@@ -65,17 +65,12 @@ delay ms msg =
 
 
 gravatar : Int -> String -> String
-gravatar size rawEmail =
-    let
-        email =
-            rawEmail |> String.trim |> String.toLower
-
-        emailHash =
-            email
-                |> SHA256.fromString
-                |> SHA256.toHex
-    in
-    "https://www.gravatar.com/avatar/" ++ emailHash ++ "?s=" ++ String.fromInt size ++ "&d=identicon"
+gravatar _ _ =
+    -- Self-host: upstream hashed the account email and fetched an avatar from
+    -- gravatar.com, sending a hash of the address to a third party on every
+    -- render (this helper also feeds the collaborators UI in the header, so it
+    -- fired even with no collaborators). Serve a local icon instead.
+    "/leaf128.png"
 
 
 

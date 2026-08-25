@@ -68,14 +68,6 @@ viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList
         lang =
             GlobalData.language globalData
 
-        custId_ =
-            case Session.paymentStatus session of
-                Customer custId ->
-                    Just custId
-
-                _ ->
-                    Nothing
-
         isOpen =
             not (sidebarState == SidebarClosed)
 
@@ -196,35 +188,10 @@ viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList
                 ++ ternary (docList == DocList.Success []) [ class "disabled" ] []
             )
             [ AntIcons.fileSearchOutlined [] |> fromUnstyled ]
-         , div
-            [ id "help-icon"
-            , css [ sidebarButtonCss, property "grid-area" "bott-row1" ]
-            , onClickStopStyled msgs.clickedHelp
-            , onMouseEnter <| msgs.tooltipRequested "help-icon" RightTooltip Help
-            , onMouseLeave msgs.tooltipClosed
-            ]
-            [ AntIcons.questionCircleFilled [] |> fromUnstyled ]
-         , div
-            [ id "notifications-icon"
-            , css [ sidebarButtonCss, property "grid-area" "bott-row2" ]
-            , onClickStopStyled <| msgs.noOp
-            , onMouseEnter <| msgs.tooltipRequested "notifications-icon" RightTooltip WhatsNew
-            , onMouseLeave msgs.tooltipClosed
-            ]
-            [ AntIcons.bellOutlined [] |> fromUnstyled ]
-         , div
-            ([ id "account-icon"
-             , css ([ sidebarButtonCss, property "grid-area" "bott-row3" ] ++ ternary accountOpen [ sidebarButtonOpen ] [])
-             , onClickStopStyled <| msgs.toggledAccount (not accountOpen)
-             , onMouseLeave msgs.tooltipClosed
-             ]
-                ++ ternary (not accountOpen) [ onMouseEnter <| msgs.tooltipRequested "account-icon" RightTooltip AccountTooltip ] []
-            )
-            [ AntIcons.userOutlined [] |> fromUnstyled ]
+
          ]
             ++ (viewSidebarMenu session
                     lang
-                    custId_
                     { clickedEmailSupport = msgs.clickedEmailSupport
                     , clickedShowVideos = msgs.clickedShowVideos
                     , helpClosed = msgs.clickedHelp
@@ -246,7 +213,6 @@ viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList
 viewSidebarMenu :
     LoggedIn
     -> Language
-    -> Maybe String
     ->
         { clickedEmailSupport : msg
         , clickedShowVideos : msg
@@ -261,34 +227,17 @@ viewSidebarMenu :
     -> String
     -> SidebarMenuState
     -> List (Html msg)
-viewSidebarMenu session lang custId_ msgs accountEmail dropdownState =
+viewSidebarMenu session lang msgs accountEmail dropdownState =
     case dropdownState of
         Account langMenuEl_ ->
             let
                 gravatarImg =
-                    img
-                        [ src ("https://www.gravatar.com/avatar/" ++ (accountEmail |> String.trim |> String.toLower |> MD5.hex) ++ "?d=mp")
-                        , class "icon"
-                        ]
-                        []
+                    -- Self-host: upstream fetched this from gravatar.com, which
+                    -- sends an MD5 of the account email to a third party every
+                    -- time the menu opens. Render the initial locally instead.
+                    div [ class "icon" ]
+                        [ text (accountEmail |> String.trim |> String.left 1 |> String.toUpper) ]
 
-                manageSubBtn =
-                    case custId_ of
-                        Just custId ->
-                            form [ method "POST", action "/create-portal-session" ]
-                                [ input [ type_ "hidden", name "customer_id", value custId ] []
-                                , button [ id "manage-subscription-button", type_ "submit" ]
-                                    [ div [ class "icon" ] [ AntIcons.creditCardOutlined [] |> fromUnstyled ]
-                                    , textElmCss lang ManageSubscription
-                                    ]
-                                ]
-
-                        Nothing ->
-                            div
-                                [ onClickStopStyled msgs.upgrade
-                                , class "sidebar-menu-item"
-                                ]
-                                [ div [ class "icon" ] [ AntIcons.creditCardOutlined [] |> fromUnstyled ], textElmCss lang Upgrade ]
             in
             [ div
                 [ id "account-menu"
@@ -300,29 +249,6 @@ viewSidebarMenu session lang custId_ msgs accountEmail dropdownState =
                 ]
                 [ div [ onClickStopStyled msgs.noOp, class "sidebar-menu-item", class "no-action" ]
                     [ gravatarImg, text accountEmail ]
-                , hr [] []
-                , ternary (Feature.enabled VotingAppLinkInMenu session)
-                    (a [ href ("https://gingkowriter.voxemporium.com#" ++ Utils.voxEmporiumHash (Session.name session)), onClickStopStyled msgs.noOp, A.target "_blank", class "sidebar-menu-item" ]
-                        [ div [ class "icon" ] [ Octicons.megaphone Octicons.defaultOptions |> fromUnstyled ]
-                        , text "Vote on Improvements"
-                        ]
-                    )
-                    (text "")
-                , ternary (Feature.enabled VotingAppLinkInMenu session) (hr [] []) (text "")
-                , manageSubBtn
-                , div
-                    [ id "language-option"
-                    , class "sidebar-menu-item"
-                    , if langMenuEl_ == Nothing then
-                        onClickStopStyled <| msgs.languageMenuRequested (Just "language-option")
-
-                      else
-                        onClickStopStyled <| msgs.languageMenuRequested Nothing
-                    ]
-                    [ div [ class "icon" ] [ AntIcons.globalOutlined [] |> fromUnstyled ]
-                    , text (languageName lang)
-                    , div [ class "right-icon" ] [ AntIcons.rightOutlined [] |> fromUnstyled ]
-                    ]
                 , hr [] []
                 , div
                     [ id "logout-button", class "sidebar-menu-item", onClickStopStyled msgs.logout ]

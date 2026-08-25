@@ -5,15 +5,15 @@
   <meta charset="UTF-8">
 
   <!-- FONTS -->
-  <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,400;0,700;1,400;1,700&family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Self-host: local @font-face instead of Google Fonts (no external request). -->
+  <link rel="stylesheet" href="/desktop-fonts.css">
 
   <!-- Stylesheets -->
   <link rel="preload" href="./handmadepaper.png" as="image">
   <link rel="stylesheet" href="/style.css">
 
   <!-- External Scripts -->
-  <script src="https://js.stripe.com/v3/"></script>
+  <!-- Self-host patch: payment-provider CDN script removed (see ~/gingko/patches). -->
 
   <!-- Client -->
   <script src="/elm.js" defer></script>
@@ -21,7 +21,7 @@
 
   <!-- Other Meta -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="shortcut icon" href="https://gingkowriter.com/img/leaf32.png" type="image/x-icon">
+  <link rel="shortcut icon" href="/leaf128.png" type="image/x-icon">
 </head>
 
 <body>

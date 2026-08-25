@@ -5,10 +5,9 @@ import * as data from './data.js'
 //import Worker from "worker-loader!./data.worker.js";
 import hlc from '@tpp/hybrid-logical-clock'
 import uuid from '@tpp/simple-uuid'
-// Initialize Error Reporting
-import * as Sentry from '@sentry/browser'
-import LogRocket from 'logrocket'
-import PouchDB from 'pouchdb'
+// Self-host: Sentry, LogRocket and PouchDB removed. LogRocket contacted
+// cdn.lr-ingest.io on *import*, so gating its .init() never stopped the
+// request. PouchDB only backed legacy CouchDB documents.
 import { ImmortalStorage, IndexedDbStore, LocalStorageStore, SessionStorageStore } from 'immortal-db'
 
 const dataWorker = new Worker('/data.worker.js');
@@ -21,20 +20,6 @@ const platform = require("platform");
 const config = require("../../config.js");
 const mycrypt = require("./encrypt.js");
 const PersistentWebSocket = require("pws");
-
-if(window.location.origin === config.PRODUCTION_SERVER) {
-  Sentry.init({ dsn: config.SENTRY_DSN
-    , integrations: [new Sentry.BrowserTracing()]
-    , tracesSampleRate: 1.0
-  });
-
-  LogRocket.init(config.LOGROCKET_APPID);
-  LogRocket.getSessionURL(sessionURL => {
-    Sentry.configureScope(scope => {
-      scope.setExtra("sessionURL", sessionURL);
-    });
-  });
-}
 
 const Dexie = require("dexie").default;
 let ImmortalDB;
@@ -107,6 +92,35 @@ initElmAndPorts();
 async function initElmAndPorts() {
   let flags = getFlags();
 
+  // Self-host: there is no login screen. The client keeps its session in
+  // localStorage and its document list in Dexie, so a fresh browser has
+  // neither. Adopt the single local account and seed the document cache before
+  // Elm starts.
+  //
+  // Seeding matters because `gingko <project>` opens /<treeId> directly: with an
+  // empty cache the router resolves the id against nothing and renders
+  // "document not found" before the websocket tree sync arrives.
+  let treeCount = 0;
+  try { treeCount = await dexie.trees.count(); } catch (e) { console.error(e); }
+
+  if (!flags.email || treeCount === 0) {
+    try {
+      const res = await fetch("/me");
+      if (res.ok) {
+        const me = await res.json();
+        setSessionData(Object.assign({}, getSessionData() || {}, me), "AutoLogin");
+        if (Array.isArray(me.documents) && me.documents.length > 0) {
+          await dexie.trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
+        }
+        flags = getFlags();
+      } else {
+        console.error("auto-login: /me returned", res.status);
+      }
+    } catch (e) {
+      console.error("auto-login failed", e);
+    }
+  }
+
   if (flags.email) {
     await setUserDbs(flags.email);
   }
@@ -157,23 +171,15 @@ async function setUserDbs(eml) {
   // HEAD request to /session to check if we're logged in
   let sessionResponse = await fetch("/session", { method: "HEAD" });
   if (sessionResponse.status === 401) {
-    Sentry.captureMessage('401: Unauthorized', { extra: { email } });
+    console.warn('401: Unauthorized', email);
     await logout();
     return;
   }
 
   userDbName = `userdb-${helpers.toHex(email)}`;
-  let userDbUrl = window.location.origin + "/db/" + userDbName;
-  var remoteOpts = { skip_setup: true };
-  remoteDB = new PouchDB(userDbUrl, remoteOpts);
-  // Check remoteDB exists and accessible before continuing
-  let remoteDBinfo = await remoteDB.info().catch((e) => {console.error(e)});
-  if (remoteDBinfo.error === "unauthorized") {
-    await logout();
-    return;
-  }
-
-  db = new PouchDB(userDbName);
+  // remoteDB was the CouchDB replica for legacy documents; there is no CouchDB.
+  remoteDB = null;
+  db = null;  // local PouchDB replica: legacy documents only
   initWebSocket();
 
   // Sync document list with server
@@ -193,7 +199,6 @@ async function setUserDbs(eml) {
     firstLoad = false;
   });
 
-  thirdPartyScriptsInit(eml)
 }
 
 
@@ -250,9 +255,9 @@ function initWebSocket () {
 
             // send encrypted unsynced local cards to Sentry
             const unsyncedCards = await dexie.cards.where('treeId').equals(TREE_ID).and(c => !c.synced).toArray();
-            Sentry.captureMessage('cardsConflict: cards conflict ' + TREE_ID, { extra: { unsyncedCards , error: data.e} })
+            console.warn('cardsConflict: cards conflict ' + TREE_ID, { unsyncedCards, error: data.e })
           } else {
-            Sentry.captureMessage('cardsConflict: no cards ' + TREE_ID, { extra: { error: data.e} })
+            console.warn('cardsConflict: no cards ' + TREE_ID, { error: data.e })
             const numberUnsynced = await dexie.cards.where('treeId').equals(TREE_ID).and(c => !c.synced).count();
             const msg = `Error syncing ${numberUnsynced} change${numberUnsynced == 1 ? "" : "s"}. Try refreshing the page.\n\nIf this error persists, please contact support!`;
             toElm(msg, 'appMsgs', 'ErrorAlert');
@@ -364,7 +369,7 @@ function initWebSocket () {
   }
 
   ws.onerror = (e) => {
-    Sentry.captureException(e);
+    console.error('websocket error', e);
     if (wsErrorCount == 3 || wsErrorCount == 10 || wsErrorCount >= 20) {
       let msg = `Error with the current session.\nTry refreshing.\n\nIf it persists, export a JSON backup of recent work, and log out and back in.`
       toElm(msg, 'appMsgs', 'ErrorAlert');
@@ -378,63 +383,6 @@ function initWebSocket () {
     toElm([], 'docMsgs', 'RecvCollabUsers');
 
     clearInterval(interval)
-  }
-}
-
-
-/* === Third-Party Scripts === */
-
-// Stripe
-const stripe = Stripe(config.STRIPE_PUBLIC_KEY);
-
-const createCheckoutSession = function(userEmail, priceId) {
-  return fetch("/create-checkout-session", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      priceId: priceId,
-      customer_email: userEmail
-    })
-  }).then(function(result) {
-    return result.json();
-  });
-}
-
-// LogRocket and Beamer
-function thirdPartyScriptsInit (email) {
-  LogRocket.identify(email)
-
-  if (email !== 'cypress@testing.com') {
-    self.fwSettings = {
-      'widget_id': config.FRESHDESK_APPID
-    }
-    !function () {
-      if ('function' != typeof window.FreshworksWidget) {
-        var n = function () {n.q.push(arguments)}
-        n.q = [], window.FreshworksWidget = n
-      }
-    }()
-    let freshdeskScript = document.createElement('script')
-    freshdeskScript.setAttribute('src', `https://euc-widget.freshworks.com/widgets/${config.FRESHDESK_APPID}.js`)
-    freshdeskScript.setAttribute('async', '')
-    freshdeskScript.setAttribute('defer', '')
-    document.head.appendChild(freshdeskScript)
-    FreshworksWidget('hide', 'launcher')
-  }
-
-  if (window.location.origin === config.PRODUCTION_SERVER) {
-    self.beamer_config = {
-      product_id: config.BEAMER_APPID,
-      selector: '#notifications-icon',
-      user_id: email,
-      user_email: email
-    }
-    let beamerScript = document.createElement('script')
-    beamerScript.setAttribute('src', 'https://app.getbeamer.com/js/beamer-embed.js')
-    beamerScript.setAttribute('defer', 'defer')
-    document.head.appendChild(beamerScript)
   }
 }
 
@@ -576,39 +524,9 @@ const fromElm = (msg, elmData) => {
     },
 
     CopyDocument: async () => {
-      // Load title
-      let metadata = await data.loadMetadata(db, elmData);
-
-      // Load local document data.
-      let localExists;
-      let [loadedData, savedIds] = await data.load(db, elmData);
-      savedIds.forEach(item => savedObjectIds.add(item));
-
-      if (loadedData.hasOwnProperty("commit") && loadedData.commit.length > 0) {
-        toElm([metadata.name, loadedData], "copyLoaded");
-      } else {
-        localExists = false;
-        let remoteExists;
-        PULL_LOCK = true;
-        try {
-          let pullResult = await data.pull(db, remoteDB, elmData, "LoadDocument");
-
-          if (pullResult !== null) {
-            pullResult[1].forEach(item => savedObjectIds.add(item));
-            toElm([metadata.name, pullResult[0]], "copyLoaded");
-          } else {
-            remoteExists = false;
-            if (!localExists && !remoteExists) {
-              toElm(elmData, "appMsgs", "NotFound")
-            }
-          }
-        } catch (e){
-          console.error(e)
-        } finally {
-          PULL_LOCK = false;
-        }
-      }
-
+      // Legacy CouchDB-format path: produced documents stored only in this
+      // browser, never synced or backed up. See src/shared/data.js.
+      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
     },
 
     GetDocumentList: () => {
@@ -748,40 +666,15 @@ const fromElm = (msg, elmData) => {
     },
 
     SaveImportedData: async () => {
-      const now = Date.now();
-      let savedImmutables = (await data.newSave(userDbName, elmData.metadata.docId, elmData, now, savedObjectIds))[1];
-
-      const treeDoc = {...treeDocDefaults, id: elmData.metadata.docId, name: elmData.metadata.name, owner: email, createdAt: now, updatedAt: now};
-      await dexie.trees.add(treeDoc);
-
-      // Add saved immutables to cache.
-      savedImmutables.forEach(item => savedObjectIds.add(item));
-
-      toElm(elmData.metadata.docId, "importComplete")
+      // Legacy CouchDB-format path: produced documents stored only in this
+      // browser, never synced or backed up. See src/shared/data.js.
+      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
     },
 
     SaveBulkImportedData: async () => {
-      const now = Date.now();
-
-      let localSavePromises =
-        elmData.map(async commitReq => {
-          await data.newSave(userDbName, commitReq.metadata.docId, commitReq, commitReq.metadata.updatedAt, savedObjectIds);
-        });
-
-      let treeDocPromises =
-        elmData.map(async commitReq => {
-          const treeDoc = {...treeDocDefaults, id: commitReq.metadata.docId, name: commitReq.metadata.name, owner: email, createdAt: now, updatedAt: now};
-          await dexie.trees.add(treeDoc);
-        });
-
-      await Promise.all(localSavePromises.concat(treeDocPromises));
-
-      // Push newly imported trees to remote
-      elmData.map(async commitReq => {
-        await data.sync(db, remoteDB, commitReq.metadata.docId, null, () => {}, pushSuccessHandler);
-      });
-
-      toElm(null, "importComplete");
+      // Legacy CouchDB-format path: produced documents stored only in this
+      // browser, never synced or backed up. See src/shared/data.js.
+      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
     },
 
     // === AI ===
@@ -995,19 +888,10 @@ const fromElm = (msg, elmData) => {
 
     EmptyMessageShown: () => {},
 
-    ShowWidget: () => {
-      FreshworksWidget('open');
-    },
+    ShowWidget: () => {},   // Freshdesk widget removed
 
     InitBeamer: () => {
 
-    },
-
-    CheckoutButtonClicked: async () => {
-      let priceId = config.PRICE_DATA[elmData.currency][elmData.billing][elmData.plan];
-      let userEmail = elmData.email;
-      let data = await createCheckoutSession(userEmail, priceId);
-      stripe.redirectToCheckout({ sessionId: data.sessionId })
     },
 
     SocketSend: () => {},
@@ -1525,3 +1409,233 @@ const cleanBodyHelp = () => {
     )
     .forEach((el) => document.body.after(el));
 };
+
+
+/* === Sync with GitHub =====================================================
+ * A writing session should never need a terminal. This calls POST /sync, which
+ * runs ~/gingko/bin/gingko-sync (pull, export to LaTeX, commit, push) for
+ * whichever project this document maps to.
+ *
+ * Mounted on <body> rather than inside #document-header: Elm owns that subtree
+ * and its virtual DOM drops foreign children on re-render, so a button injected
+ * there disappears mid-session. Instead it is fixed-positioned and measured
+ * against #history-icon each tick, so it sits flush in the top bar, to the left
+ * of the header icons, without ever colliding with them (or with the search
+ * button in the bottom-right corner, where it used to live).
+ * ======================================================================== */
+
+const syncUI = (() => {
+  let btn, status, wrap, lastCheckedId = null, busy = false;
+
+  function build() {
+    wrap = document.createElement("div");
+    wrap.id = "gh-sync";
+    wrap.style.cssText =
+      "position:fixed;z-index:60;display:none;align-items:center;gap:8px;" +
+      "font:12px/1 'Open Sans',-apple-system,sans-serif;";
+
+    status = document.createElement("span");
+    status.id = "gh-sync-status";
+    status.style.cssText = "color:#666;white-space:nowrap;display:none;";
+
+    btn = document.createElement("button");
+    btn.id = "gh-sync-button";
+    btn.type = "button";
+    btn.textContent = "Sync with GitHub";
+    btn.style.cssText =
+      "cursor:pointer;border:1px solid #cfd6cf;border-radius:5px;padding:5px 11px;" +
+      "font:600 12px/1 'Open Sans',-apple-system,sans-serif;color:#33691e;" +
+      "background:#f1f7ef;white-space:nowrap;";
+    btn.addEventListener("mouseenter", () => { if (!busy) btn.style.background = "#e4efe0"; });
+    btn.addEventListener("mouseleave", () => { if (!busy) btn.style.background = "#f1f7ef"; });
+    btn.addEventListener("click", run);
+
+    wrap.appendChild(status);
+    wrap.appendChild(btn);
+    document.body.appendChild(wrap);
+  }
+
+  // Sit in the header bar, just left of the first header icon.
+  function place() {
+    const anchor =
+      document.getElementById("history-icon") ||
+      document.getElementById("doc-settings-icon") ||
+      document.getElementById("export-icon");
+    const header = document.getElementById("document-header");
+    if (!anchor || !header) { wrap.style.display = "none"; return false; }
+    const a = anchor.getBoundingClientRect();
+    const h = header.getBoundingClientRect();
+    if (a.width === 0 || h.height === 0) return false;
+    wrap.style.right = Math.round(window.innerWidth - a.left + 10) + "px";
+    wrap.style.top = Math.round(h.top + (h.height - 26) / 2) + "px";
+    return true;
+  }
+
+  function say(text, colour) {
+    status.textContent = text;
+    status.style.color = colour || "#666";
+    status.style.display = text ? "inline" : "none";
+  }
+
+  async function run() {
+    if (busy || !TREE_ID) return;
+    busy = true;
+    btn.disabled = true;
+    btn.style.opacity = ".6";
+    btn.textContent = "Syncing...";
+    say("");
+    try {
+      const res = await fetch("/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: TREE_ID }),
+      });
+      const data = await res.json();
+      const msg = data.message || "";
+      if (data.ok) {
+        // "no changes" matters as much as a push, so report which happened.
+        const nothing = /no changes/.test(msg);
+        const pushed = /pushed/.test(msg);
+        say(nothing ? "Already up to date" : pushed ? "Pushed to GitHub" : "Committed locally", "#2c6e2c");
+      } else {
+        say("Sync failed - see console", "#b00020");
+        console.error("gingko sync:", msg);
+      }
+      // Somebody edited the generated file upstream; it just got overwritten.
+      if (/WARNING/.test(msg)) {
+        say("Overwrote an upstream edit - see console", "#a15c00");
+        console.warn("gingko sync:", (msg.match(/WARNING:[^\n]*/) || [""])[0]);
+      }
+    } catch (e) {
+      say("Sync failed - see console", "#b00020");
+      console.error("gingko sync:", e);
+    } finally {
+      busy = false;
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.style.background = "#f1f7ef";
+      btn.textContent = "Sync with GitHub";
+      setTimeout(() => { if (!busy) say(""); }, 8000);
+    }
+  }
+
+  // Show only for documents that map to a configured project.
+  async function refresh() {
+    if (!wrap) build();
+    if (!TREE_ID) { wrap.style.display = "none"; lastCheckedId = null; return; }
+    if (TREE_ID !== lastCheckedId) {
+      lastCheckedId = TREE_ID;
+      wrap.dataset.configured = "";
+      try {
+        const info = await (await fetch("/sync/info?docId=" + encodeURIComponent(TREE_ID))).json();
+        wrap.dataset.configured = info.configured ? "yes" : "";
+        if (info.configured) btn.title = "gingko-sync push " + info.project;
+      } catch { wrap.dataset.configured = ""; }
+    }
+    if (wrap.dataset.configured !== "yes") { wrap.style.display = "none"; return; }
+    wrap.style.display = place() ? "flex" : "none";
+  }
+
+  window.addEventListener("resize", () => { if (wrap) refresh(); });
+  return { refresh };
+})();
+
+setInterval(() => syncUI.refresh(), 800);
+
+
+/* === Images ===============================================================
+ * Paste or drop an image while editing a card and it is written into the paper
+ * repo, with `![](figures/gingko/name.png)` inserted at the cursor. That path
+ * resolves both in the browser (served by GET /figures/*) and in LaTeX, where
+ * pandoc turns it into \includegraphics relative to the repo root.
+ * ======================================================================== */
+
+const imageUI = (() => {
+  function toast(text, colour) {
+    let el = document.getElementById("img-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "img-toast";
+      el.style.cssText =
+        "position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;" +
+        "padding:7px 13px;border-radius:5px;background:rgba(30,30,30,.92);color:#fff;" +
+        "font:13px/1.3 'Open Sans',-apple-system,sans-serif;pointer-events:none;";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.background = colour === "error" ? "rgba(150,0,25,.94)" : "rgba(30,30,30,.92)";
+    el.style.display = "block";
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = "none"; }, colour === "error" ? 7000 : 2500);
+  }
+
+  // Elm owns the textarea's value, so write through a real input event or the
+  // model and the DOM drift apart and the edit is lost on save.
+  function insertAtCursor(ta, text) {
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+    const pos = start + text.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function readAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(file);
+    });
+  }
+
+  async function upload(file, ta) {
+    if (!TREE_ID) return;
+    toast("Uploading " + (file.name || "image") + "...");
+    try {
+      const dataUrl = await readAsDataUrl(file);
+      const res = await fetch("/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: TREE_ID, dataUrl, name: file.name || "image" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || "Upload failed", "error"); return; }
+      const alt = (file.name || "").replace(/\.[a-z0-9]+$/i, "");
+      insertAtCursor(ta, "![" + alt + "](" + data.path + ")");
+      toast("Added " + data.path);
+    } catch (e) {
+      toast("Upload failed: " + e.message, "error");
+    }
+  }
+
+  function imageFrom(dt) {
+    if (!dt) return null;
+    const items = dt.files && dt.files.length ? Array.from(dt.files) : [];
+    return items.find((f) => f.type && f.type.startsWith("image/")) || null;
+  }
+
+  document.addEventListener("paste", (e) => {
+    const ta = e.target;
+    if (!ta || ta.tagName !== "TEXTAREA") return;
+    const file = imageFrom(e.clipboardData);
+    if (!file) return;              // plain text paste: leave it alone
+    e.preventDefault();
+    upload(file, ta);
+  }, true);
+
+  document.addEventListener("drop", (e) => {
+    const ta = e.target;
+    if (!ta || ta.tagName !== "TEXTAREA") return;
+    const file = imageFrom(e.dataTransfer);
+    if (!file) return;
+    e.preventDefault();
+    upload(file, ta);
+  }, true);
+
+  // Without this the browser navigates away to the dropped file.
+  document.addEventListener("dragover", (e) => {
+    if (e.target && e.target.tagName === "TEXTAREA") e.preventDefault();
+  }, true);
+
+  return {};
+})();

@@ -168,12 +168,8 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
                 [ AntIcons.thunderboltFilled [] ]
 
           else
-            UI.Collaborators.viewHeader
-                { collabBtnClicked = msgs.collabBtnClicked
-                , tooltipRequested = msgs.tooltipRequested
-                , tooltipClosed = msgs.tooltipClosed
-                }
-                collaborators
+            -- Self-host: single author, no collaborators UI.
+            emptyText
         , div
             [ id "history-icon"
             , class "header-button"
@@ -209,14 +205,9 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
             [ AntIcons.controlOutlined [] ]
         , viewIf (headerMenu == Settings) <|
             div [ id "doc-settings-menu", class "header-menu" ]
+                -- Self-host: theme picker removed; the default theme still
+                -- applies via Page.App's applyTheme, so styling is unchanged.
                 [ div [ id "wordcount-menu-item", onClick msgs.wordCountClicked ] [ text language WordCount ]
-                , h4 [] [ text language DocumentTheme ]
-                , div [ onClick <| msgs.themeChanged Default ] [ text language ThemeDefault ]
-                , div [ onClick <| msgs.themeChanged Dark ] [ text language ThemeDarkMode ]
-                , div [ onClick <| msgs.themeChanged Classic ] [ text language ThemeClassic ]
-                , div [ onClick <| msgs.themeChanged Gray ] [ text language ThemeGray ]
-                , div [ onClick <| msgs.themeChanged Green ] [ text language ThemeGreen ]
-                , div [ onClick <| msgs.themeChanged Turquoise ] [ text language ThemeTurquoise ]
                 ]
         , viewIf (headerMenu == Settings) <| div [ id "doc-settings-menu-exit-left", onMouseEnter msgs.toggledDocSettings ] []
         , viewIf (headerMenu == Settings) <| div [ id "doc-settings-menu-exit-bottom", onMouseEnter msgs.toggledDocSettings ] []

@@ -86,7 +86,9 @@ body {
   width: 100%;
   height: 100%;
   position: fixed;
-  background: url("https://gingkowriter.com/img/cork-wallet.png");
+  /* Self-host: was fetched from gingkowriter.com on every load. Uses the
+     already-bundled paper texture instead — no external request. */
+  background: url("handmadepaper.png");
   mix-blend-mode: multiply;
 }
 #form-page .form-header-container {
@@ -1647,16 +1649,6 @@ span.trial-dark {
   color: #2a70a8;
   text-decoration: underline;
 }
-#stripe-climate {
-  display: block;
-  margin-top: 12px;
-  color: lightslategray;
-  text-align: center;
-}
-#stripe-climate-badge {
-  margin-right: 6px;
-}
-
 #pwyw-body ul {
   margin:0;
   padding-left: 36px;
@@ -1756,15 +1748,6 @@ span.trial-dark {
 .payment-button:active {
   margin-top: 1px;
 }
-.climate-link {
-  color: inherit;
-  text-decoration: none;
-  font-weight: bold;
-}
-.climate-link:hover {
-  text-decoration: underline;
-}
-
 #fullscreen-button {
   display: none;
 }
