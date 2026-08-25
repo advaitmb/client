@@ -1823,9 +1823,6 @@ setBlock block ( model, cmd ) =
                         currTime =
                             GlobalData.currentTime globalData
 
-                        lang =
-                            GlobalData.language globalData
-
                         daysLeft =
                             Session.daysLeft currTime (toLoggedInSession model)
                                 -- "Nothing" means "Customer", confusingly
@@ -1879,9 +1876,6 @@ view ({ documentState } as model) =
     let
         session =
             toLoggedInSession model
-
-        lang =
-            GlobalData.language (toGlobalData model)
 
         email =
             Session.name session
@@ -2040,8 +2034,7 @@ view ({ documentState } as model) =
                             , tooltipRequested = TooltipRequested
                             , tooltipClosed = TooltipClosed
                             }
-                            { lang = lang
-                            , isOpen = Session.shortcutTrayOpen session
+                            { isOpen = Session.shortcutTrayOpen session
                             , isMac = GlobalData.isMac globalData
                             , children = workingTree.tree.children
                             , textCursorInfo = Page.Doc.getTextCursorInfo docModel
@@ -2098,9 +2091,6 @@ view ({ documentState } as model) =
 viewModal : GlobalData -> LoggedIn -> ModalState -> List (Html Msg)
 viewModal globalData session modalState =
     let
-        language =
-            GlobalData.language globalData
-
         ctrlOrCmd =
             ctrlOrCmdText (GlobalData.isMac globalData)
     in
@@ -2161,7 +2151,6 @@ viewModal globalData session modalState =
 
         TemplateSelector ->
             UI.viewTemplateSelector session
-                language
                 { modalClosed = ModalClosed
                 , importTextClicked = ImportTextClicked
                 , importOpmlRequested = ImportOpmlRequested

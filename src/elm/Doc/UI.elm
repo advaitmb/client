@@ -33,11 +33,10 @@ import Utils exposing (emptyText, text, textNoTr)
 
 
 viewSaveIndicator :
-    Language
-    -> { m | dirty : Bool, lastLocalSave : Maybe Time.Posix, lastRemoteSave : Maybe Time.Posix }
+    { m | dirty : Bool, lastLocalSave : Maybe Time.Posix, lastRemoteSave : Maybe Time.Posix }
     -> Time.Posix
     -> Html msg
-viewSaveIndicator language { dirty, lastLocalSave, lastRemoteSave } currentTime =
+viewSaveIndicator { dirty, lastLocalSave, lastRemoteSave } currentTime =
     let
         timeDistPast t1 t2 =
             if Time.posixToMillis t1 < Time.posixToMillis t2 then
@@ -193,7 +192,6 @@ viewDocumentLoadingSpinner =
 
 viewTemplateSelector :
     LoggedIn
-    -> Language
     ->
         { modalClosed : msg
         , importTextClicked : msg
@@ -201,7 +199,7 @@ viewTemplateSelector :
         , importJSONRequested : msg
         }
     -> List (Html msg)
-viewTemplateSelector session language msgs =
+viewTemplateSelector session msgs =
     [ div [ id "templates-block" ]
         [ h2 [] [ text New ]
         , div [ class "template-row" ]
@@ -273,9 +271,6 @@ viewWordCount :
     -> List (Html msg)
 viewWordCount model msgs =
     let
-        language =
-            GlobalData.language model.globalData
-
         stats =
             getStats model
 
@@ -314,9 +309,6 @@ viewWordCount model msgs =
 viewSearchField : (String -> msg) -> { m | viewState : ViewState, globalData : GlobalData } -> Html msg
 viewSearchField searchFieldMsg { viewState, globalData } =
     let
-        language =
-            GlobalData.language globalData
-
         maybeSearchIcon =
             if viewState.searchField == Nothing then
                 Icon.search (defaultOptions |> Icon.color "#445" |> Icon.size 12)
@@ -382,15 +374,14 @@ viewMobileButtons msgs isEditing =
 viewShortcuts :
     { toggledShortcutTray : msg, tooltipRequested : String -> TooltipPosition -> TranslationId -> msg, tooltipClosed : msg }
     ->
-        { lang : Language
-        , isOpen : Bool
+        { isOpen : Bool
         , isMac : Bool
         , children : Children
         , textCursorInfo : TextCursorInfo
         , viewMode : ViewMode
         }
     -> List (Html msg)
-viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
+viewShortcuts msgs { isOpen, isMac, children, textCursorInfo, viewMode } =
     let
         isTextSelected =
             textCursorInfo.selected

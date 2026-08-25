@@ -2034,8 +2034,7 @@ view appMsg lastLocalSave lastRemoteSave (Model model) =
         case model.viewState.viewMode of
             FullscreenEditing { cardId, field } ->
                 [ Fullscreen.view
-                    { language = GlobalData.language model.globalData
-                    , isMac = GlobalData.isMac model.globalData
+                    { isMac = GlobalData.isMac model.globalData
                     , dirty = model.dirty
                     , lastLocalSave = lastLocalSave
                     , lastRemoteSave = lastRemoteSave

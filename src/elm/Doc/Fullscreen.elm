@@ -26,8 +26,7 @@ type alias Model =
 
 
 type alias Config msg =
-    { language : Language
-    , isMac : Bool
+    { isMac : Bool
     , dirty : Bool
     , lastLocalSave : Maybe Time.Posix
     , lastRemoteSave : Maybe Time.Posix
@@ -65,7 +64,7 @@ view ({ model, activeId } as config) =
 
 
 viewFullscreenButtons : Config msg -> Html msg
-viewFullscreenButtons { language, isMac, dirty, lastLocalSave, lastRemoteSave, currentTime, msgs } =
+viewFullscreenButtons { isMac, dirty, lastLocalSave, lastRemoteSave, currentTime, msgs } =
     let
         saveShortcutTip =
             if isMac then
@@ -87,7 +86,7 @@ viewFullscreenButtons { language, isMac, dirty, lastLocalSave, lastRemoteSave, c
             [ Icons.fullscreenExitOutlined [ width 24 ] ]
         , div []
             [ div [ id "fullscreen-save-button", onClick msgs.saveChanges, title saveShortcutTip ] [ Icons.saveOutlined [ width 24 ] ]
-            , viewSaveIndicator language { dirty = dirty, lastLocalSave = lastLocalSave, lastRemoteSave = lastRemoteSave } currentTime
+            , viewSaveIndicator { dirty = dirty, lastLocalSave = lastLocalSave, lastRemoteSave = lastRemoteSave } currentTime
             ]
         , div [ id "fullscreen-save-and-exit-button", onClick msgs.saveAndExitFullscreen, title saveAndCloseTip ]
             []

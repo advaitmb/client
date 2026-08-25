@@ -101,8 +101,7 @@ revert model =
 
 
 type alias ViewConfig msg =
-    { lang : Translation.Language
-    , noOp : msg
+    { noOp : msg
     , checkoutTree : String -> msg
     , restore : msg
     , cancel : msg
@@ -122,7 +121,7 @@ view config model =
 
 
 viewHistory : ViewConfig msg -> Zipper Version -> Html msg
-viewHistory { lang, noOp, checkoutTree, restore, cancel, tooltipRequested, tooltipClosed } zipper =
+viewHistory { noOp, checkoutTree, restore, cancel, tooltipRequested, tooltipClosed } zipper =
     let
         maybeTimeDisplay =
             textNoTr ""

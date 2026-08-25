@@ -59,9 +59,6 @@ viewSidebar :
     -> Html msg
 viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList accountEmail contextTarget_ dropdownState sidebarState =
     let
-        lang =
-            GlobalData.language globalData
-
         isOpen =
             not (sidebarState == SidebarClosed)
 

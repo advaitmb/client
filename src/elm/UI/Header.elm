@@ -77,9 +77,6 @@ viewHeader :
     -> Html msg
 viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, exportSettings, data, dirty, lastLocalSave, lastRemoteSave, globalData, collaborators } =
     let
-        language =
-            GlobalData.language globalData
-
         currentTime =
             GlobalData.currentTime globalData
 
@@ -141,7 +138,7 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
                             ]
                             []
                     ]
-                , viewSaveIndicator language
+                , viewSaveIndicator
                     { dirty = dirty, lastLocalSave = lastLocalSave, lastRemoteSave = lastRemoteSave }
                     (GlobalData.currentTime globalData)
                 ]
@@ -181,8 +178,7 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
         , case headerMenu of
             HistoryView historyModel ->
                 History.view
-                    { lang = language
-                    , noOp = msgs.noOp
+                    { noOp = msgs.noOp
                     , checkoutTree = msgs.checkoutTree
                     , restore = msgs.restore
                     , cancel = msgs.cancelHistory
@@ -223,24 +219,22 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
             msgs.toggledUpgradeModal
             globalData
             session
-        , viewIf (headerMenu == ExportPreview) <| viewExportMenu language msgs False exportSettings
+        , viewIf (headerMenu == ExportPreview) <| viewExportMenu msgs False exportSettings
         ]
 
 
 viewExportMenu :
-    Language
-    ->
-        { m
-            | exportSelectionChanged : ExportSelection -> msg
-            , exportFormatChanged : ExportFormat -> msg
-            , toggledExport : msg
-            , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
-            , tooltipClosed : msg
-        }
+    { m
+        | exportSelectionChanged : ExportSelection -> msg
+        , exportFormatChanged : ExportFormat -> msg
+        , toggledExport : msg
+        , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
+        , tooltipClosed : msg
+    }
     -> Bool
     -> ( ExportSelection, ExportFormat )
     -> Html msg
-viewExportMenu language msgs showCloseButton ( exportSelection, exportFormat ) =
+viewExportMenu msgs showCloseButton ( exportSelection, exportFormat ) =
     let
         exportSelectionBtnAttributes expSel expSelString tooltipText =
             [ id <| "export-select-" ++ expSelString
@@ -293,9 +287,6 @@ viewUpgradeButton :
     -> Html msg
 viewUpgradeButton toggledUpgradeModal globalData session =
     let
-        lang =
-            GlobalData.language globalData
-
         upgradeCTA isExpired prepends =
             div
                 [ id "upgrade-cta"
