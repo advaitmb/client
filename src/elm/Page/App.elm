@@ -1939,14 +1939,10 @@ view ({ documentState } as model) =
             , tooltipClosed = TooltipClosed
             , clickedSwitcher = SwitcherOpened
             , clickedHelp = ToggledHelpMenu
-            , languageMenuRequested = LanguageMenuRequested
             , logout = LogoutRequested
-            , toggledAccount = ToggledAccountMenu
-            , upgrade = ToggledUpgradeModal True
             , fileSearchChanged = FileSearchChanged
             , changeSortBy = SortByChanged
             , contextMenuOpened = SidebarContextClicked
-            , languageChanged = LanguageChanged
             }
     in
     case documentState of

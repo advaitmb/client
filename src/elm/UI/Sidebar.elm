@@ -37,14 +37,10 @@ type alias SidebarMsgs msg =
     , tooltipClosed : msg
     , clickedSwitcher : msg
     , clickedHelp : msg
-    , languageMenuRequested : Maybe String -> msg
-    , toggledAccount : Bool -> msg
-    , upgrade : msg
     , logout : msg
     , fileSearchChanged : String -> msg
     , changeSortBy : SortBy -> msg
     , contextMenuOpened : String -> ( Float, Float ) -> msg
-    , languageChanged : Language -> msg
     }
 
 
@@ -188,125 +184,8 @@ viewSidebar globalData session msgs currentDocId sortCriteria fileFilter docList
             [ AntIcons.fileSearchOutlined [] |> fromUnstyled ]
 
          ]
-            ++ (viewSidebarMenu session
-                    lang
-                    { helpClosed = msgs.clickedHelp
-                    , languageMenuRequested = msgs.languageMenuRequested
-                    , languageChanged = msgs.languageChanged
-                    , logout = msgs.logout
-                    , toggledAccount = msgs.toggledAccount
-                    , upgrade = msgs.upgrade
-                    , noOp = msgs.noOp
-                    }
-                    accountEmail
-                    dropdownState
-                    |> List.map fromUnstyled
-               )
         )
         |> toUnstyled
-
-
-viewSidebarMenu :
-    LoggedIn
-    -> Language
-    ->
-        { helpClosed : msg
-        , languageMenuRequested : Maybe String -> msg
-        , languageChanged : Language -> msg
-        , logout : msg
-        , toggledAccount : Bool -> msg
-        , upgrade : msg
-        , noOp : msg
-        }
-    -> String
-    -> SidebarMenuState
-    -> List (Html msg)
-viewSidebarMenu session lang msgs accountEmail dropdownState =
-    case dropdownState of
-        Account langMenuEl_ ->
-            let
-                gravatarImg =
-                    -- Self-host: upstream fetched this from gravatar.com, which
-                    -- sends an MD5 of the account email to a third party every
-                    -- time the menu opens. Render the initial locally instead.
-                    div [ class "icon" ]
-                        [ text (accountEmail |> String.trim |> String.left 1 |> String.toUpper) ]
-
-            in
-            [ div
-                [ id "account-menu"
-                , class "sidebar-menu"
-                , css
-                    [ property "background" "var(--background-sidebar-menu)"
-                    , property "color" "var(--ui-1-fg)"
-                    ]
-                ]
-                [ div [ onClickStopStyled msgs.noOp, class "sidebar-menu-item", class "no-action" ]
-                    [ gravatarImg, text accountEmail ]
-                , hr [] []
-                , div
-                    [ id "logout-button", class "sidebar-menu-item", onClickStopStyled msgs.logout ]
-                    [ div [ class "icon" ] [ AntIcons.logoutOutlined [] |> fromUnstyled ]
-                    , textElmCss lang Logout
-                    ]
-                ]
-            , case langMenuEl_ of
-                Just langMenuEl ->
-                    let
-                        bottPx =
-                            langMenuEl.scene.height - langMenuEl.element.y - langMenuEl.element.height - 8
-
-                        leftPx =
-                            langMenuEl.element.x
-                                + langMenuEl.element.width
-
-                        maxH =
-                            langMenuEl.viewport.height
-                                - 41
-                                - bottPx
-                    in
-                    div
-                        [ id "language-menu"
-                        , class "sidebar-menu"
-                        , css
-                            [ property "background" "var(--background-sidebar-menu)"
-                            , property "color" "var(--ui-1-fg)"
-                            , left (px leftPx)
-                            , bottom (px bottPx)
-                            , maxHeight (px maxH)
-                            ]
-                        ]
-                        ((Translation.activeLanguages
-                            |> List.map
-                                (\( langOpt, langName ) ->
-                                    div
-                                        [ id <| "lang-" ++ langToString langOpt
-                                        , onClickStopStyled <| msgs.languageChanged langOpt
-                                        , class "sidebar-menu-item"
-                                        , classList [ ( "selected", langOpt == lang ) ]
-                                        ]
-                                        [ text langName ]
-                                )
-                         )
-                            ++ [ a
-                                    [ href "https://poeditor.com/join/project?hash=k8Br3k0JVz"
-                                    , A.target "_blank"
-                                    , class "sidebar-menu-item"
-                                    , onClickStopStyled <| msgs.toggledAccount False
-                                    ]
-                                    [ textElmCss lang ContributeTranslations ]
-                               ]
-                        )
-
-                Nothing ->
-                    text ""
-            , ternary (langMenuEl_ == Nothing) (div [ id "help-menu-exit-top", onMouseEnter <| msgs.toggledAccount False ] []) (text "")
-            , ternary (langMenuEl_ == Nothing) (div [ id "help-menu-exit-right", onMouseEnter <| msgs.toggledAccount False ] []) (text "")
-            ]
-                |> List.map toUnstyled
-
-        NoSidebarMenu ->
-            [ text "" |> toUnstyled ]
 
 
 viewSidebarStatic : Bool -> List (Html msg)
