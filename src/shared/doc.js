@@ -740,8 +740,6 @@ const fromElm = (msg, elmData) => {
       });
     },
 
-    SetFonts: () => {},
-
     SaveThemeSetting: () => {
       localStore.set("theme", elmData);
     },

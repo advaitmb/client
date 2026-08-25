@@ -15,9 +15,7 @@ import Page.Copy
 import Page.DocNew
 import Page.Import
 import Page.Login
-import Page.Public
 import Page.Signup
-import Public
 import Route
 import Session exposing (LoggedIn, Session(..))
 import Url exposing (Url)
@@ -44,15 +42,11 @@ type Model
     | DocNew Page.DocNew.Model
     | App Page.App.Model
       -- Public Pages:
-    | Public Page.Public.Model
 
 
 init : Value -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init json url navKey =
     let
-        isPublic =
-            Public.isPublic url
-
         session =
             Session.decode json
 
@@ -67,21 +61,7 @@ init json url navKey =
                 GuestSession guestSession ->
                     Page.Login.init navKey globalData guestSession |> updateWith Login GotLoginMsg
     in
-    if isPublic then
-        case .path (AppUrl.fromUrl url) of
-            [] ->
-                Page.Public.init navKey globalData ""
-                    |> updateWith Public GotPublicMsg
-
-            [ dbName ] ->
-                Page.Public.init navKey globalData dbName
-                    |> updateWith Public GotPublicMsg
-
-            _ ->
-                handleUrlChange url initModel
-
-    else
-        handleUrlChange url initModel
+    handleUrlChange url initModel
 
 
 replaceUrl : String -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
@@ -227,10 +207,6 @@ toSession model =
         App appModel ->
             Page.App.toSession appModel
 
-        Public _ ->
-            Session.public
-
-
 toGlobalData : Model -> GlobalData
 toGlobalData model =
     case model of
@@ -251,10 +227,6 @@ toGlobalData model =
 
         App appModel ->
             Page.App.toGlobalData appModel
-
-        Public _ ->
-            GlobalData.public
-
 
 getNavKey : Model -> Nav.Key
 getNavKey model =
@@ -277,11 +249,6 @@ getNavKey model =
         App appModel ->
             Page.App.navKey appModel
 
-        Public publicModel ->
-            Page.Public.navKey publicModel
-
-
-
 -- UPDATE
 
 
@@ -295,7 +262,6 @@ type Msg
     | GotImportMsg Page.Import.Msg
     | GotDocNewMsg Page.DocNew.Msg
     | GotAppMsg Page.App.Msg
-    | GotPublicMsg Page.Public.Msg
     | UserLoggedOut
 
 
@@ -364,10 +330,6 @@ update msg model =
             Page.App.update appMsg appModel
                 |> updateWith App GotAppMsg
 
-        ( GotPublicMsg publicMsg, Public publicModel ) ->
-            Page.Public.update publicMsg publicModel
-                |> updateWith Public GotPublicMsg
-
         ( UserLoggedOut, _ ) ->
             case toSession model of
                 LoggedInSession session ->
@@ -423,11 +385,6 @@ view model =
             in
             { title = title, body = [ Html.map GotAppMsg (Page.App.view app) ] }
 
-        Public publicModel ->
-            { title = "Gingko Writer", body = [ Html.map GotPublicMsg (Page.Public.view publicModel) ] }
-
-
-
 -- SUBSCRIPTIONS
 
 
@@ -451,10 +408,6 @@ subscriptions model =
 
         App appModel ->
             Sub.map GotAppMsg (Page.App.subscriptions appModel)
-
-        Public publicModel ->
-            Sub.map GotPublicMsg (Page.Public.subscriptions publicModel)
-
 
 globalSubscriptions : Model -> Sub Msg
 globalSubscriptions model =

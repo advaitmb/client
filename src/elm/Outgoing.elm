@@ -1,7 +1,6 @@
 port module Outgoing exposing (Msg(..), infoForOutside, send)
 
 import Coders exposing (..)
-import Doc.Fonts as Fonts
 import Doc.TreeUtils exposing (ScrollPosition, scrollPositionToValue)
 import Json.Encode as Enc exposing (..)
 import Page.Doc.Theme as Theme exposing (Theme)
@@ -63,7 +62,6 @@ type Msg
     | SaveThemeSetting Theme
     | RequestFullscreen
     | Print
-    | SetFonts Fonts.Settings
       -- === Misc ===
     | IntegrationTestEvent String
     | EmptyMessageShown
@@ -244,8 +242,6 @@ send info =
         Print ->
             dataToSend "Print" null
 
-        SetFonts fontSettings ->
-            dataToSend "SetFonts" (fontSettingsEncoder fontSettings)
 
         -- === Misc ===
         IntegrationTestEvent eventData ->

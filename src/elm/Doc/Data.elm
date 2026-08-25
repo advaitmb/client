@@ -1101,6 +1101,10 @@ decodePublicCard =
         (Dec.field "updatedAt" UpdatedAt.decoder)
 
 
+{-| KEEP. The public-documents feature is gone, but ~/gingko/verify/ uses this
+as its entry point into the real toTree implementation -- it is how the
+TypeScript exporter is proven byte-identical to the app.
+-}
 publicDataDecoder : Dec.Decoder ( String, Tree )
 publicDataDecoder =
     Dec.map2 (\n c -> ( n, toTree c ))

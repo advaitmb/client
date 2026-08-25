@@ -1,6 +1,5 @@
-module Coders exposing (collabStateDecoder, collabStateEncoder, fontSettingsEncoder, lazyRecurse, maybeToValue, modeDecoder, normalizeAndParse, normalizeInput, sortByDecoder, sortByEncoder, treeDecoder, treeOrString, treeToJSON, treeToJSONrecurse, treeToMarkdownOutline, treeToMarkdownRecurse, treeToMarkdownString, treeToOPML, treeToValue, treesParser, tupleDecoder, tupleToValue)
+module Coders exposing (collabStateDecoder, collabStateEncoder, lazyRecurse, maybeToValue, modeDecoder, normalizeAndParse, normalizeInput, sortByDecoder, sortByEncoder, treeDecoder, treeOrString, treeToJSON, treeToJSONrecurse, treeToMarkdownOutline, treeToMarkdownRecurse, treeToMarkdownString, treeToOPML, treeToValue, treesParser, tupleDecoder, tupleToValue)
 
-import Doc.Fonts as Fonts
 import Json.Decode as Json exposing (..)
 import Json.Encode as Enc
 import Parser exposing ((|.), (|=), DeadEnd, Parser, Step(..), Trailing(..), chompUntil, getChompedString, loop, symbol)
@@ -351,11 +350,6 @@ sortByEncoder sortBy =
 
 
 -- FONT SETTINGS
-
-
-fontSettingsEncoder : Fonts.Settings -> Enc.Value
-fontSettingsEncoder { heading, content, monospace } =
-    Enc.list Enc.string [ heading, content, monospace ]
 
 
 

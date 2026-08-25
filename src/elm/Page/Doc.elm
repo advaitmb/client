@@ -3,7 +3,6 @@ module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTre
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
 import Coders exposing (collabStateEncoder, treeToJSON, treeToValue)
-import Doc.Fonts as Fonts
 import Doc.Fullscreen as Fullscreen
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.TreeUtils exposing (..)
@@ -52,7 +51,6 @@ type alias ModelData =
 
     -- Settings
     , uid : String
-    , fonts : Fonts.Model
     }
 
 
@@ -88,7 +86,6 @@ init isNew globalData =
         , dirty = False
         , textCursorInfo = { selected = False, position = End, text = ( "", "" ) }
         , fileSearchField = ""
-        , fonts = Fonts.default
         }
 
 
