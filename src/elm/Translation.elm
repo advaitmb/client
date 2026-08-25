@@ -226,33 +226,11 @@ type TranslationId
     | ManageSubscription
 
 
+{-| Self-host: English only. The type is kept as a single constructor so
+the language argument threaded through the view layer still typechecks.
+-}
 type Language
     = En
-    | Zh_HANS
-    | Zh_HANT
-    | Es
-    | Ar
-    | Fr
-    | Ru
-    | De
-    | Ja
-    | Mr
-    | Pes
-    | It
-    | Ro
-    | Hr
-    | Nl
-    | Hu
-    | Sv
-    | Ca
-    | Br
-    | Cs
-    | Fa
-    | Id
-    | Ko
-    | Pl
-    | Uk
-    | Nb
 
 
 tr : Language -> TranslationId -> String
@@ -1123,68 +1101,8 @@ tr lang trans =
 
 
 timeDistInWords : Language -> Time.Posix -> Time.Posix -> String
-timeDistInWords lang t1 t2 =
-    case lang of
-        En ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Zh_HANS ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Zh_HANT ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Es ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.es t1 t2
-
-        Ar ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Fr ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.fr t1 t2
-
-        Ru ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        De ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Ja ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Mr ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Pes ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        It ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.it t1 t2
-
-        Ro ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Hr ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Nl ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Hu ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Sv ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Ca ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        Br ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-        _ ->
-            TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
+timeDistInWords En t1 t2 =
+    TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
 
 languageDecoder : Decoder Language
 languageDecoder =
@@ -1192,170 +1110,10 @@ languageDecoder =
 
 
 langFromString : String -> Language
-langFromString str =
-    case str of
-        "en" ->
-            En
-
-        "zh" ->
-            Zh_HANS
-
-        "zh_HANS" ->
-            Zh_HANS
-
-        "zh_HANT" ->
-            Zh_HANT
-
-        "es" ->
-            Es
-
-        "ar" ->
-            Ar
-
-        "fr" ->
-            Fr
-
-        "ru" ->
-            Ru
-
-        "de" ->
-            De
-
-        "ja" ->
-            Ja
-
-        "mr" ->
-            Mr
-
-        "pes" ->
-            Pes
-
-        "it" ->
-            It
-
-        "ro" ->
-            Ro
-
-        "hr" ->
-            Hr
-
-        "nl" ->
-            Nl
-
-        "hu" ->
-            Hu
-
-        "sv" ->
-            Sv
-
-        "ca" ->
-            Ca
-
-        "br" ->
-            Br
-
-        "cs" ->
-            Cs
-
-        "fa" ->
-            Fa
-
-        "id" ->
-            Id
-
-        "ko" ->
-            Ko
-
-        "pl" ->
-            Pl
-
-        "uk" ->
-            Uk
-
-        "nb" ->
-            Nb
-
-        _ ->
-            En
+langFromString _ =
+    En
 
 
 langToString : Language -> String
-langToString lang =
-    case lang of
-        En ->
-            "en"
-
-        Zh_HANS ->
-            "zh_HANS"
-
-        Zh_HANT ->
-            "zh_HANT"
-
-        Es ->
-            "es"
-
-        Ar ->
-            "ar"
-
-        Fr ->
-            "fr"
-
-        Ru ->
-            "ru"
-
-        De ->
-            "de"
-
-        Ja ->
-            "ja"
-
-        Mr ->
-            "ja"
-
-        Pes ->
-            "pes"
-
-        It ->
-            "it"
-
-        Ro ->
-            "ro"
-
-        Hr ->
-            "hr"
-
-        Nl ->
-            "nl"
-
-        Hu ->
-            "hu"
-
-        Sv ->
-            "sv"
-
-        Ca ->
-            "ca"
-
-        Br ->
-            "br"
-
-        Cs ->
-            "cs"
-
-        Fa ->
-            "fa"
-
-        Id ->
-            "id"
-
-        Ko ->
-            "ko"
-
-        Pl ->
-            "pl"
-
-        Uk ->
-            "uk"
-
-        Nb ->
-            "nb"
+langToString En =
+    "en"
