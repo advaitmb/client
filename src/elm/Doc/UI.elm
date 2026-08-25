@@ -1,4 +1,4 @@
-module Doc.UI exposing (countWords, fillet, renderToast, viewAIButton, viewAIPrompt, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTemplateSelector, viewTooltip, viewWordCount)
+module Doc.UI exposing (countWords, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTemplateSelector, viewTooltip, viewWordCount)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -196,7 +196,6 @@ viewTemplateSelector :
     -> Language
     ->
         { modalClosed : msg
-        , aiNewClicked : msg
         , importBulkClicked : msg
         , importTextClicked : msg
         , importOpmlRequested : msg
@@ -211,14 +210,6 @@ viewTemplateSelector session language msgs =
                 [ div [ classList [ ( "template-thumbnail", True ), ( "new", True ) ] ] []
                 , div [ class "template-title" ] [ text language HomeBlank ]
                 ]
-            , if Feature.enabled AINewDocument session then
-                div [ id "template-ai-new", class "template-item", onClick msgs.aiNewClicked ]
-                    [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.circuitBoard (Icon.defaultOptions |> Icon.size 48) ]
-                    , div [ class "template-title" ] [ textNoTr "Generate with AI" ]
-                    ]
-
-              else
-                textNoTr ""
             ]
         , h2 [] [ text language ImportSectionTitle ]
         , div [ class "template-row" ]
@@ -395,14 +386,12 @@ viewShortcuts :
         { lang : Language
         , isOpen : Bool
         , isMac : Bool
-        , aiFeaturesEnabled : Bool
-        , isAIPromptOpen : Bool
         , children : Children
         , textCursorInfo : TextCursorInfo
         , viewMode : ViewMode
         }
     -> List (Html msg)
-viewShortcuts msgs { lang, isOpen, isMac, aiFeaturesEnabled, isAIPromptOpen, children, textCursorInfo, viewMode } =
+viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
     let
         isTextSelected =
             textCursorInfo.selected
@@ -487,16 +476,6 @@ viewShortcuts msgs { lang, isOpen, isMac, aiFeaturesEnabled, isAIPromptOpen, chi
                          , shortcutSpan [ NoTr ctrlOrCmd, NoTr "↓" ] AddBelowAction
                          , shortcutSpan [ NoTr ctrlOrCmd, NoTr "↑" ] AddAboveAction
                          ]
-                            ++ (if aiFeaturesEnabled then
-                                    [ h5 [] [ text lang AIFeatures ]
-                                    , shortcutSpan [ AltKey, NoTr "I" ] ToOpenAIPrompt
-                                    , viewIf isAIPromptOpen <| shortcutSpan [ NoTr ctrlOrCmd, NoTr "J" ] AIGenerateBelow
-                                    , viewIf isAIPromptOpen <| shortcutSpan [ NoTr ctrlOrCmd, NoTr "L" ] AIGenerateChildren
-                                    ]
-
-                                else
-                                    []
-                               )
                             ++ [ viewIfNotOnly <| h5 [] [ text lang MoveAndDelete ]
                                , viewIfNotOnly <| shortcutSpan [ AltKey, ArrowKeys ] MoveAction
                                , viewIfNotOnly <| shortcutSpan [ NoTr ctrlOrCmd, Backspace ] DeleteAction
@@ -692,58 +671,6 @@ viewTooltip lang ( el, tipPos, content ) =
     in
     div ([ class "tooltip" ] ++ posAttributes)
         [ text lang content, div [ class "tooltip-arrow" ] [] ]
-
-
-viewAIPrompt : String -> Bool -> (String -> msg) -> Html msg
-viewAIPrompt ctrlOrCmd isWaiting promptInputMsg =
-    let
-        shortCutKey k =
-            span [ class "shortcut-key" ] [ textNoTr k ]
-
-        shortCut keys str =
-            div [ class "ai-prompt-instruction" ]
-                (List.map shortCutKey keys
-                    ++ [ textNoTr str ]
-                )
-    in
-    div [ id "ai-prompt-container" ]
-        [ div [ id "ai-prompt" ]
-            [ textarea
-                [ id "ai-prompt-textarea"
-                , disabled isWaiting
-                , classList [ ( "mousetrap", True ) ]
-                , onInput promptInputMsg
-                ]
-                []
-            , if not isWaiting then
-                div [ class "ai-prompt-instructions" ]
-                    [ shortCut [ "Esc" ] " Cancel"
-                    , shortCut [ ctrlOrCmd, "J" ] " Generate Below"
-                    , shortCut [ ctrlOrCmd, "L" ] " Generate Children"
-                    ]
-
-              else
-                div [ class "switcher-instructions" ]
-                    [ div [ class "switcher-instruction" ] [ textNoTr "Generating..." ]
-                    ]
-            ]
-        ]
-
-
-viewAIButton :
-    { openAIPrompt : msg
-    , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
-    , tooltipClosed : msg
-    }
-    -> Html msg
-viewAIButton msgs =
-    div
-        [ id "ai-prompt-button"
-        , onClick msgs.openAIPrompt
-        , onMouseEnter <| msgs.tooltipRequested "ai-prompt-button" RightTooltip TooltipAIPrompt
-        , onMouseLeave msgs.tooltipClosed
-        ]
-        [ AntIcons.robotOutlined [ width 12, height 12 ] ]
 
 
 getStats : { m | activeCardId : String, workingTree : TreeStructure.Model } -> Stats

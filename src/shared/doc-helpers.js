@@ -452,7 +452,6 @@ var shortcuts = [
   "mod+shift+k",
   "mod+shift+up",
   "mod+alt+k",
-  "alt+i",
   "h",
   "j",
   "k",

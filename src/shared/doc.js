@@ -289,17 +289,6 @@ function initWebSocket () {
           }
           break
 
-        case 'ai:generate-new':
-          toElm(data.d, 'appMsgs', 'AIGenerateNewSuccess');
-          break
-
-        case 'ai:success':
-          if (data.d.t === TREE_ID) {
-            let cards = await dexie.cards.where('treeId').equals(TREE_ID).toArray()
-            pull(TREE_ID, getChk(TREE_ID, cards))
-            toElm(data.d.i, 'appMsgs', 'AISuccess')
-          }
-          break
 
         case 'trees':
           await dexie.trees.bulkPut(data.d.map(t => ({ ...t, synced: true })))
@@ -677,25 +666,6 @@ const fromElm = (msg, elmData) => {
       toElm(data.MSG, 'appMsgs', 'ErrorAlert');
     },
 
-    // === AI ===
-    GenerateNew: async () => {
-      wsSend('ai:generate-new', elmData, false);
-    },
-
-    GenerateChildren: async () => {
-      const id = elmData[0];
-      const userPrompt = elmData[1];
-      const prompt = await getTreeString(id, userPrompt, TREE_ID);
-      wsSend('ai:generate-children', {id, prompt}, false);
-    },
-
-    GenerateBelow: async () => {
-      const id = elmData[0];
-      const userPrompt = elmData[1];
-      const prompt = await getTreeString(id, userPrompt, TREE_ID);
-      wsSend('ai:generate-below', {id, prompt}, false);
-    },
-
     // === Collaboration ===
     AddCollabRequest: () => {
       wsSend('rt:addCollab', { tr: elmData[0], c: elmData[1] }, true);
@@ -1019,23 +989,6 @@ function saveBackupToImmortalDB (treeId, cards) {
   if (ImmortalDB) {
     ImmortalDB.set('backup-snapshot:' + treeId, treeString);
   }
-}
-
-async function getTreeString(cardId, prompt, treeId) {
-  const cards = await dexie.cards.where('treeId').equals(treeId).toArray();
-  const snapshot = _.chain(cards).sortBy('updatedAt').reverse().uniqBy('id').value();
-  const snapshotWithModified = snapshot
-    .filter(c => c.deleted === 0)
-    .map(c => {
-      if (c.id === cardId) {
-        return { ...c, content: c.content + "\n\nPROMPT:INSERT_CHILDREN:"+ prompt }
-      } else {
-        return c;
-      }
-  });
-  console.log(snapshotWithModified);
-  const trees = treeHelper(snapshotWithModified, null);
-  return trees.map(treeToHtml).join('\n');
 }
 
 function treeToGkw (tree) {

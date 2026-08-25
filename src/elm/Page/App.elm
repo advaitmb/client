@@ -14,7 +14,6 @@ import Doc.Metadata as Metadata exposing (Metadata)
 import Doc.Switcher
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.UI as UI
-import Doc.UIStyled as UIStyled
 import Doc.VideoViewer as VideoViewer
 import Feature
 import Features exposing (Feature(..))
@@ -110,11 +109,9 @@ type ModalState
     = NoModal
     | FileSwitcher Doc.Switcher.Model
     | CollabModal UI.Collaborators.Modal.Model
-    | AIPrompt Bool String
     | MigrateModal
     | SidebarContextMenu String ( Float, Float )
     | TemplateSelector
-    | AINewPrompt Bool String
     | HelpScreen
     | VideoViewer VideoViewer.Model
     | Wordcount Page.Doc.Model
@@ -407,11 +404,6 @@ type Msg
     | ImportJSONLoaded String String
     | ImportJSONIdGenerated Tree String String
     | ImportSingleCompleted String
-      -- AI
-    | AINewClicked
-    | AINewGenerateClicked
-    | AIButtonClicked
-    | AIPromptFieldChanged String
       -- Misc UI
     | ToastMsg Toast.Msg
     | AddToast ToastPersistence Toast
@@ -568,44 +560,6 @@ update msg model =
                         DocNotFound _ _ ->
                             ( model, Cmd.none )
 
-                AIGenerateNewSuccess json ->
-                    let
-                        ( importTreeDecoder, newSeed ) =
-                            Import.Single.decoder (GlobalData.seed globalData)
-
-                        combinedTitleAndTreeDecoder =
-                            Json.map2 Tuple.pair
-                                (Json.field "items" importTreeDecoder)
-                                (Json.field "document-title" Json.string)
-
-                        newGlobalData =
-                            GlobalData.setSeed newSeed globalData
-                    in
-                    case Json.decodeValue combinedTitleAndTreeDecoder json of
-                        Ok ( tree, title ) ->
-                            ( { model | loading = True } |> updateGlobalData newGlobalData
-                            , RandomId.generate (ImportJSONIdGenerated tree title)
-                            )
-
-                        Err _ ->
-                            ( model |> updateGlobalData newGlobalData, Cmd.none )
-
-                AISuccess _ ->
-                    case model.documentState of
-                        Doc ({ docModel } as docState) ->
-                            let
-                                ( newDocModel, cmd ) =
-                                    Page.Doc.maybeActivate docModel
-                            in
-                            ( { model
-                                | modalState = NoModal
-                                , documentState = Doc { docState | docModel = newDocModel }
-                              }
-                            , Cmd.map GotDocMsg cmd
-                            )
-
-                        _ ->
-                            ( model, Cmd.none )
 
                 GitDataReceived json ->
                     gitDataReceived json model
@@ -705,20 +659,6 @@ update msg model =
 
                                 "esc" ->
                                     ( { model | fileSearchField = "", modalState = NoModal }, Cmd.none )
-
-                                _ ->
-                                    ( model, Cmd.none )
-
-                        AIPrompt _ prompt ->
-                            case shortcut of
-                                "esc" ->
-                                    ( { model | modalState = NoModal }, Cmd.none )
-
-                                "mod+j" ->
-                                    ( { model | modalState = AIPrompt True prompt }, send <| GenerateBelow { id = Page.Doc.getActiveId docModel, prompt = prompt } )
-
-                                "mod+l" ->
-                                    ( { model | modalState = AIPrompt True prompt }, send <| GenerateChildren { id = Page.Doc.getActiveId docModel, prompt = prompt } )
 
                                 _ ->
                                     ( model, Cmd.none )
@@ -1597,34 +1537,6 @@ update msg model =
         ImportSingleCompleted docId ->
             ( model, Route.pushUrl model.navKey (Route.DocUntitled docId) )
 
-        -- AI
-        AINewClicked ->
-            ( { model | modalState = AINewPrompt False "" }
-            , Task.attempt (always NoOp) (Browser.Dom.focus "ai-new-prompt")
-            )
-
-        AINewGenerateClicked ->
-            case model.modalState of
-                AINewPrompt _ promptField ->
-                    ( { model | modalState = AINewPrompt True promptField }, send <| GenerateNew promptField )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        AIButtonClicked ->
-            applyParentMsg OpenAIPrompt ( model, Cmd.none )
-
-        AIPromptFieldChanged newField ->
-            case model.modalState of
-                AINewPrompt isWaiting _ ->
-                    ( { model | modalState = AINewPrompt isWaiting newField }, Cmd.none )
-
-                AIPrompt isWaiting _ ->
-                    ( { model | modalState = AIPrompt isWaiting newField }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
-
         -- Misc UI
         ToastMsg toastMsg ->
             let
@@ -1943,17 +1855,6 @@ applyParentMsg parentMsg ( prevModel, prevCmd ) =
 
         CloseTooltip ->
             ( { prevModel | tooltip = Nothing }, prevCmd )
-
-        OpenAIPrompt ->
-            ( { prevModel
-                | modalState = AIPrompt False ""
-                , tooltip = Nothing
-              }
-            , Cmd.batch
-                [ prevCmd
-                , Task.attempt (always NoOp) (Browser.Dom.focus "ai-prompt-textarea")
-                ]
-            )
 
         LocalSave op ->
             ( prevModel, prevCmd )
@@ -2333,14 +2234,6 @@ view ({ documentState } as model) =
                             { lang = lang
                             , isOpen = Session.shortcutTrayOpen session
                             , isMac = GlobalData.isMac globalData
-                            , aiFeaturesEnabled = Feature.enabled AIPromptFeature session
-                            , isAIPromptOpen =
-                                case model.modalState of
-                                    AIPrompt _ _ ->
-                                        True
-
-                                    _ ->
-                                        False
                             , children = workingTree.tree.children
                             , textCursorInfo = Page.Doc.getTextCursorInfo docModel
                             , viewMode = Page.Doc.getViewMode docModel
@@ -2404,16 +2297,7 @@ viewModal globalData session modalState =
     in
     case modalState of
         NoModal ->
-            if Feature.enabled AIPromptFeature session then
-                [ UI.viewAIButton
-                    { openAIPrompt = AIButtonClicked
-                    , tooltipRequested = TooltipRequested
-                    , tooltipClosed = TooltipClosed
-                    }
-                ]
-
-            else
-                []
+            []
 
         FileSwitcher switcherModel ->
             Doc.Switcher.view SwitcherClosed FileSearchChanged switcherModel
@@ -2427,9 +2311,6 @@ viewModal globalData session modalState =
                 language
                 collabModel
                 |> SharedUI.modalWrapper ModalClosed (Just "collab-modal") Nothing "Collaborators"
-
-        AIPrompt isWaiting _ ->
-            [ UI.viewAIPrompt ctrlOrCmd isWaiting AIPromptFieldChanged ]
 
         MigrateModal ->
             [ div [ class "top" ] [ h2 [] [ textNoTr "We've made major improvements to how documents are stored.", br [] [], textNoTr "Upgrade this document to make it :" ] ]
@@ -2483,25 +2364,15 @@ viewModal globalData session modalState =
             UI.viewTemplateSelector session
                 language
                 { modalClosed = ModalClosed
-                , aiNewClicked = AINewClicked
                 , importBulkClicked = ImportBulkClicked
                 , importTextClicked = ImportTextClicked
                 , importOpmlRequested = ImportOpmlRequested
                 , importJSONRequested = ImportJSONRequested
                 }
 
-        AINewPrompt isWaiting _ ->
-            UIStyled.viewAINewPrompt language
-                { modalClosed = ModalClosed
-                , promptInput = AIPromptFieldChanged
-                , generateClicked = AINewGenerateClicked
-                }
-                isWaiting
-
         HelpScreen ->
             HelpScreen.view language
                 (GlobalData.isMac globalData)
-                (Feature.enabled AIPromptFeature session)
                 { closeModal = ModalClosed
                 , showVideoTutorials = VideoViewerOpened
                 , showWidget = ClickedShowWidget
@@ -2608,8 +2479,6 @@ type IncomingAppMsg
     | HistoryDataReceived Enc.Value
     | PushOk (List String)
     | PushError
-    | AIGenerateNewSuccess Enc.Value
-    | AISuccess Enc.Value
     | GitDataReceived Enc.Value
     | MetadataUpdate Metadata
     | SavedRemotely Time.Posix
@@ -2644,12 +2513,6 @@ subscribe tagger onError =
 
                 "PushError" ->
                     tagger PushError
-
-                "AIGenerateNewSuccess" ->
-                    tagger <| AIGenerateNewSuccess outsideInfo.data
-
-                "AISuccess" ->
-                    tagger <| AISuccess outsideInfo.data
 
                 "GitDataReceived" ->
                     tagger <| GitDataReceived outsideInfo.data

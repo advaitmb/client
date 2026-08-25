@@ -135,7 +135,6 @@ type Msg
 type MsgToParent
     = ParentAddToast ToastPersistence Toast
     | CloseTooltip
-    | OpenAIPrompt
     | LocalSave CardTreeOp
     | Commit
 
@@ -802,9 +801,6 @@ incoming incomingMsg model =
 
                 "mod+shift+up" ->
                     normalMode model (mergeUp activeId)
-
-                "alt+i" ->
-                    openAIPrompt model
 
                 "h" ->
                     normalMode model (goLeft activeId)
@@ -1788,19 +1784,6 @@ mergeDown id ( model, prevCmd, prevMsgsToParent ) =
 setCursorPosition : Int -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
 setCursorPosition pos ( model, prevCmd, prevMsgsToParent ) =
     ( model, Cmd.batch [ prevCmd, send (SetCursorPosition pos) ], prevMsgsToParent )
-
-
-openAIPrompt : ModelData -> ( ModelData, Cmd Msg, List MsgToParent )
-openAIPrompt model =
-    case model.viewState.viewMode of
-        Normal _ ->
-            ( model
-            , Cmd.none
-            , [ OpenAIPrompt ]
-            )
-
-        _ ->
-            ( model, Cmd.none, [] )
 
 
 

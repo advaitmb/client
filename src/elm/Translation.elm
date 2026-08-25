@@ -130,11 +130,6 @@ type TranslationId
     | AddBelowAction
     | InsertBelowTitle
     | AddAboveAction
-    | AIFeatures
-    | TooltipAIPrompt
-    | ToOpenAIPrompt
-    | AIGenerateChildren
-    | AIGenerateBelow
     | SplitAtCursor
     | SplitChildAction
     | SplitBelowAction
@@ -837,26 +832,6 @@ tr lang trans =
 
                 AddAboveAction ->
                     { en = "to Add Above"
-                    }
-
-                AIFeatures ->
-                    { en = "AI Features (BETA)"
-                    }
-
-                TooltipAIPrompt ->
-                    { en = "AI Prompt"
-                    }
-
-                ToOpenAIPrompt ->
-                    { en = "to open AI Prompt"
-                    }
-
-                AIGenerateChildren ->
-                    { en = "Generate as Children of Current"
-                    }
-
-                AIGenerateBelow ->
-                    { en = "Generate Below Current"
                     }
 
                 SplitAtCursor ->
