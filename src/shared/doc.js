@@ -39,7 +39,6 @@ const helpers = require("./doc-helpers");
 /* === Global Variables === */
 
 let renaming = false;
-let lang = "en";
 window.elmMessages = [];
 
 let remoteDB;
@@ -156,7 +155,6 @@ function getFlags() {
     email = sessionData.email;
     sessionData.sidebarOpen = (sessionData.hasOwnProperty('sidebarOpen')) ?  sessionData.sidebarOpen : false;
     sidebarWidth = sessionData.sidebarOpen ? 215 : 40;
-    lang = sessionData.language || "en";
   }
 
   // Dynamic and global session info
@@ -320,14 +318,6 @@ function initWebSocket () {
           await dexie.tree_snapshots.bulkPut(snapshotData)
           break
         }
-
-        case 'userSettingOk':
-          console.log('userSettingOk', data.d)
-          const { d } = data
-          let currSessionData = getSessionData()
-          currSessionData[d[0]] = d[1]
-          setSessionData(currSessionData, 'userSettingOk ws msg')
-          break
 
         case 'rt':
           if (Array.isArray(data.d.m) && data.d.m[0] == "d") {
@@ -717,18 +707,9 @@ const fromElm = (msg, elmData) => {
     SaveUserSetting: () => {
       let key = elmData[0];
       let value = elmData[1];
-      // Save to remote SQLite
-      switch (key) {
-        case 'language':
-          wsSend('setLanguage', value, true);
-          break;
-
-        default:
-          let currSessionData = getSessionData();
-          currSessionData[key] = value;
-          setSessionData(currSessionData, "SaveUserSetting");
-          break;
-      }
+      let currSessionData = getSessionData();
+      currSessionData[key] = value;
+      setSessionData(currSessionData, "SaveUserSetting");
     },
 
     SetSidebarState: () => {

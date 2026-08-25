@@ -45,7 +45,7 @@ import Svg.Attributes
 import Task
 import Time
 import Toast
-import Translation exposing (Language, TranslationId(..), langToString, tr)
+import Translation exposing (Language, TranslationId(..), tr)
 import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
 import UI.Header exposing (HeaderMenuState(..), viewHeader)
 import UI.Sidebar exposing (SidebarMenuState(..), SidebarState(..), viewSidebar)
@@ -360,9 +360,6 @@ type Msg
     | CopyEmailClicked Bool
       -- Account menu
     | ToggledAccountMenu Bool
-    | LanguageMenuRequested (Maybe String)
-    | LanguageMenuReceived Element
-    | LanguageChanged Language
       -- Import
     | ImportTextClicked
     | ImportTextModalMsg ImportText.Msg
@@ -1213,40 +1210,6 @@ update msg model =
               }
             , Cmd.none
             )
-
-        LanguageMenuRequested elId_ ->
-            case ( elId_, model.sidebarMenuState ) of
-                ( Just elId, Account _ ) ->
-                    ( model
-                    , Browser.Dom.getElement elId
-                        |> Task.attempt
-                            (\result ->
-                                case result of
-                                    Ok el ->
-                                        LanguageMenuReceived el
-
-                                    Err _ ->
-                                        NoOp
-                            )
-                    )
-
-                _ ->
-                    ( { model | sidebarMenuState = Account Nothing }, Cmd.none )
-
-        LanguageMenuReceived el ->
-            ( { model | sidebarMenuState = Account (Just el) }, Cmd.none )
-
-        LanguageChanged newLang ->
-            if newLang /= GlobalData.language globalData then
-                ( { model
-                    | sidebarMenuState = NoSidebarMenu
-                  }
-                    |> updateGlobalData (GlobalData.setLanguage newLang globalData)
-                , send <| SaveUserSetting ( "language", langToString newLang |> Enc.string )
-                )
-
-            else
-                ( model, Cmd.none )
 
         -- Import
         ImportTextClicked ->
