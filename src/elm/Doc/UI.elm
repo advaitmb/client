@@ -196,7 +196,6 @@ viewTemplateSelector :
     -> Language
     ->
         { modalClosed : msg
-        , importBulkClicked : msg
         , importTextClicked : msg
         , importOpmlRequested : msg
         , importJSONRequested : msg

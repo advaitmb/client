@@ -15,7 +15,6 @@ import Page.Copy
 import Page.DocNew
 import Page.Import
 import Page.Login
-import Page.Message
 import Page.Public
 import Page.Signup
 import Public
@@ -40,7 +39,6 @@ type Model
       Signup Page.Signup.Model
     | Login Page.Login.Model
       -- Logged In Pages:
-    | PaymentSuccess WebSessionData
     | Copy Page.Copy.Model
     | Import Page.Import.Model
     | DocNew Page.DocNew.Model
@@ -130,24 +128,6 @@ handleUrlChange url model =
                     Page.Copy.init navKey globalData session dbName
                         |> updateWith Copy GotCopyMsg
 
-                [ "upgrade", "success" ] ->
-                    ( PaymentSuccess { globalData = globalData, session = session, navKey = navKey }
-                    , Cmd.none
-                    )
-
-                [ "confirm" ] ->
-                    case model of
-                        App appModel ->
-                            ( Page.App.updateSession
-                                (Session.confirmEmail (GlobalData.currentTime globalData) session)
-                                appModel
-                                |> App
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            ( model, Cmd.none )
-
                 [ "login" ] ->
                     ( model, Route.pushUrl navKey Route.Root )
 
@@ -229,9 +209,6 @@ loginInProgress model =
 toSession : Model -> Session
 toSession model =
     case model of
-        PaymentSuccess { session } ->
-            session |> LoggedInSession
-
         Signup signup ->
             Page.Signup.toSession signup
 
@@ -257,9 +234,6 @@ toSession model =
 toGlobalData : Model -> GlobalData
 toGlobalData model =
     case model of
-        PaymentSuccess { globalData } ->
-            globalData
-
         Signup signup ->
             Page.Signup.globalData signup
 
@@ -285,9 +259,6 @@ toGlobalData model =
 getNavKey : Model -> Nav.Key
 getNavKey model =
     case model of
-        PaymentSuccess { navKey } ->
-            navKey
-
         Signup signup ->
             Page.Signup.navKey signup
 
@@ -369,18 +340,6 @@ update msg model =
                 Browser.External href ->
                     ( model, Nav.load href )
 
-        ( SettingsChanged json, PaymentSuccess webSessionData ) ->
-            ( PaymentSuccess
-                { webSessionData
-                    | session =
-                        Session.sync
-                            json
-                            (GlobalData.currentTime webSessionData.globalData)
-                            webSessionData.session
-                }
-            , Cmd.none
-            )
-
         ( GotSignupMsg signupMsg, Signup signupModel ) ->
             Page.Signup.update signupMsg signupModel
                 |> updateWith Signup GotSignupMsg
@@ -437,9 +396,6 @@ updateWith toModel toMsg ( subModel, subCmd ) =
 view : Model -> Document Msg
 view model =
     case model of
-        PaymentSuccess _ ->
-            Page.Message.viewSuccess
-
         Signup signup ->
             { title = "Gingko Writer - Signup", body = [ Html.map GotSignupMsg (Page.Signup.view signup) ] }
 
@@ -478,9 +434,6 @@ view model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
-        PaymentSuccess _ ->
-            Session.userSettingsChange SettingsChanged
-
         Signup pageModel ->
             Sub.map GotSignupMsg (Page.Signup.subscriptions pageModel)
 

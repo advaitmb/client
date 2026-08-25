@@ -25,7 +25,6 @@ import Html.Events exposing (onClick, onInput)
 import Html.Extra exposing (viewIf)
 import Html.Lazy exposing (lazy5)
 import Http
-import Import.Bulk.UI as ImportModal
 import Import.Incoming
 import Import.Opml
 import Import.Single
@@ -112,7 +111,6 @@ type ModalState
     | TemplateSelector
     | HelpScreen
     | Wordcount Page.Doc.Model
-    | ImportModal ImportModal.Model
     | ImportTextModal ImportText.Model
     | UpgradeModal
 
@@ -372,10 +370,7 @@ type Msg
     | LanguageMenuReceived Element
     | LanguageChanged Language
       -- Import
-    | ImportBulkClicked
-    | ImportBulkCompleted
     | ImportTextClicked
-    | ImportModalMsg ImportModal.Msg
     | ImportTextModalMsg ImportText.Msg
     | ImportTextLoaded ImportText.Settings (List String) (List String)
     | ImportTextIdGenerated Tree (Maybe String) String
@@ -1318,27 +1313,9 @@ update msg model =
                 ( model, Cmd.none )
 
         -- Import
-        ImportBulkClicked ->
-            ( { model | modalState = ImportModal (ImportModal.init globalData session) }, Cmd.none )
-
-        ImportBulkCompleted ->
-            ( { model | modalState = NoModal }, Cmd.none )
-
         ImportTextClicked ->
             ( { model | modalState = ImportTextModal ImportText.init }, Cmd.none )
 
-        ImportModalMsg modalMsg ->
-            case model.modalState of
-                ImportModal importModal ->
-                    let
-                        ( newModalState, newCmd ) =
-                            ImportModal.update modalMsg importModal
-                                |> Tuple.mapBoth ImportModal (Cmd.map ImportModalMsg)
-                    in
-                    ( { model | modalState = newModalState }, newCmd )
-
-                _ ->
-                    ( model, Cmd.none )
 
         ImportTextModalMsg modalMsg ->
             case model.modalState of
@@ -2302,7 +2279,6 @@ viewModal globalData session modalState =
             UI.viewTemplateSelector session
                 language
                 { modalClosed = ModalClosed
-                , importBulkClicked = ImportBulkClicked
                 , importTextClicked = ImportTextClicked
                 , importOpmlRequested = ImportOpmlRequested
                 , importJSONRequested = ImportJSONRequested
@@ -2322,10 +2298,6 @@ viewModal globalData session modalState =
                 , globalData = globalData
                 }
                 { modalClosed = ModalClosed }
-
-        ImportModal modalModel ->
-            ImportModal.view language modalModel
-                |> List.map (Html.map ImportModalMsg)
 
         ImportTextModal modalModel ->
             ImportText.view
@@ -2492,7 +2464,7 @@ subscriptions model =
                         ImportSingleCompleted docId
 
                     Nothing ->
-                        ImportBulkCompleted
+                        NoOp
             )
         , case model.documentState of
             Doc { docModel } ->
@@ -2503,9 +2475,6 @@ subscriptions model =
         , DocList.subscribe ReceivedDocuments
         , Session.userSettingsChange SettingsChanged
         , case model.modalState of
-            ImportModal importModalModel ->
-                ImportModal.subscriptions importModalModel
-                    |> Sub.map ImportModalMsg
 
             _ ->
                 Sub.none

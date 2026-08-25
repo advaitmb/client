@@ -9,7 +9,6 @@ type Route
     = Root
     | Signup
     | Login
-    | EmailConfirmed
     | DocNew
     | DocUntitled String
     | Doc String String
@@ -31,8 +30,6 @@ toString route =
         Login ->
             "/login"
 
-        EmailConfirmed ->
-            "/confirm/"
 
         DocNew ->
             "/new"
