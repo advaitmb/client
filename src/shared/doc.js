@@ -38,13 +38,8 @@ const helpers = require("./doc-helpers");
 
 /* === Global Variables === */
 
-let lastActivesScrolled = null;
-let lastColumnScrolled = null;
-let ticking = false;
 let renaming = false;
 let lang = "en";
-let tourStepPositionStepNum = false;
-let tourStepPositionRefElementId = "";
 window.elmMessages = [];
 
 let remoteDB;
@@ -61,12 +56,17 @@ let email = null;
 let ws;
 let wsQueue = [];
 let PULL_LOCK = false;
-let DIRTY = false;
 let pushErrorCount = 0;
 let loadingDocs = false;
 let draggingInternal = false;
 let viewportWidth = document.documentElement.clientWidth;
 let viewportHeight = document.documentElement.clientHeight;
+
+// Debounced so a resize drag doesn't thrash layout reads.
+const updateViewportSize = _.debounce(() => {
+  viewportWidth = document.documentElement.clientWidth;
+  viewportHeight = document.documentElement.clientHeight;
+}, 150);
 let horizontalScrollInterval;
 let verticalScrollInterval;
 let docElement;
@@ -77,6 +77,17 @@ let cardDataSubscription = null;
 let historyDataSubscription = null;
 let wsErrorCount = 0;
 const localStore = container.localStore;
+
+// Shared mutable state passed to doc-helpers. This MUST be a single long-lived
+// object: it used to be rebuilt from local variables on every message from Elm,
+// so doc-helpers' writes into it were silently discarded.
+const params = {
+  localStore,
+  lastColumnScrolled: null,
+  lastActivesScrolled: null,
+  ticking: false,
+  DIRTY: false,
+};
 const sessionStorageKey = "gingko-session-storage";
 function getDataType() {
   return DATA_TYPE;
@@ -368,7 +379,7 @@ function initEventListeners () {
 
   // Prevent closing if unsaved changes exist.
   window.addEventListener('beforeunload', (event) => {
-    if (DIRTY) {
+    if (params.DIRTY) {
       event.preventDefault()
       event.returnValue = ''
     }
@@ -391,10 +402,6 @@ function initEventListeners () {
 /* === Elm / JS Interop === */
 
 function toElm(data, portName, tagName) {
-  if (process.env.NODE_ENV === 'development') {
-    console.log("toElm", portName, tagName, data);
-  }
-
   if (!gingko) { return; }
   let portExists = gingko.ports.hasOwnProperty(portName);
   let tagGiven = typeof tagName == "string";
@@ -414,10 +421,6 @@ function toElm(data, portName, tagName) {
 }
 
 const fromElm = (msg, elmData) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log("fromElm", msg, elmData);
-  }
-
   window.elmMessages.push({tag: msg, data: elmData});
   window.elmMessages = window.elmMessages.slice(-10);
 
@@ -441,7 +444,7 @@ const fromElm = (msg, elmData) => {
     },
 
     SetDirty: () => {
-      DIRTY = elmData;
+      params.DIRTY = elmData;
     },
 
     DragDone: () => {
@@ -501,7 +504,7 @@ const fromElm = (msg, elmData) => {
     },
 
     GetDocumentList: () => {
-      loadDocListAndSend("GetDocumentList");
+      loadDocListAndSend();
     },
 
     RequestDelete: async () => {
@@ -553,7 +556,7 @@ const fromElm = (msg, elmData) => {
         await dexie.transaction('rw', dexie.cards, async () => {
             dexie.cards.bulkPut(newData.concat(toMarkSynced).concat(toMarkDeleted));
             dexie.cards.bulkDelete(elmData.toRemove);
-            DIRTY = false;
+            params.DIRTY = false;
         });
 
         if (elmData.toAdd.length > 0 || toMarkDeleted.length > 0) {
@@ -695,17 +698,6 @@ const fromElm = (msg, elmData) => {
       }
     },
 
-    PositionTourStep: () => {
-      let stepNum = elmData[0];
-      let refElementId = elmData[1];
-      if (stepNum === 1) {
-        tourStepPositionStepNum = elmData[0];
-        tourStepPositionRefElementId = elmData[1];
-      } else {
-        setTimeout(positionTourStep, 100, stepNum, refElementId);
-        setTimeout(addTourStepScrollHandler, 120, stepNum, refElementId, 2);
-      }
-    },
 
     // === UI ===
     UpdateCommits: () => {},
@@ -774,34 +766,6 @@ const fromElm = (msg, elmData) => {
 
     // === Misc ===
 
-    IntegrationTestEvent: () => {
-      if (window.Cypress) {
-        switch (elmData) {
-          case "ImportTextRequested":
-            let files;
-            if (typeof window.importTestIdx == "undefined") {
-              files = [new File(["This is a test file.\n\nWith a paragraph break.\n\n---\n\nAnd a split break."], "foo.txt", { type: "text/plain", })];
-              window.importTestIdx = 1;
-            } else if (window.importTestIdx === 1) {
-              files = [new File(["Test file two.\n\nWith a paragraph break.\n\n---\n\nAnd a split break."], "foo2.md", { type: "text/plain", })];
-              window.importTestIdx++;
-            } else if (window.importTestIdx === 2 || window.importTestIdx === 3 || window.importTestIdx === 4) {
-              files =
-                [ new File(["Test file three.\n\nWith a paragraph break.\n\n---\n\nAnd a split break."], "bar1.txt", { type: "text/plain", })
-                , new File(["Test file four.\n\nWith a paragraph break.\n\n---\n\nAnd a split break."], "bar2", { type: "text/plain", })
-                ];
-              window.importTestIdx++;
-            } else if (window.importTestIdx === 5) {
-              files =
-                [ new File(["Test file five.\n\nWith a paragraph break.\n!g\n\nAnd a split break."], "baz1.txt", { type: "text/plain", })
-                , new File(["Test file six.\n\nWith a paragraph break.!gAnd a split break."], "baz2", { type: "text/plain", })
-                ];
-              window.importTestIdx++;
-            }
-        toElm(files, "docMsgs", "TestTextImportLoaded");
-        }
-      }
-    },
 
     EmptyMessageShown: () => {},
 
@@ -812,7 +776,6 @@ const fromElm = (msg, elmData) => {
     SocketSend: () => {},
   };
 
-  const params = { localStore, lastColumnScrolled, lastActivesScrolled, ticking, DIRTY }
 
   const cases = Object.assign(helpers.casesShared(elmData, params), casesWeb)
 
@@ -1005,7 +968,7 @@ async function loadGitLikeDocument (treeId) {
   setTimeout(() => {toElm(null, "docMsgs", "InitialActivation")}, 20);
 
   // Load doc list
-  loadDocListAndSend("LoadDocument");
+  loadDocListAndSend();
 }
 
 async function loadDocListAndSend() {
@@ -1160,16 +1123,16 @@ window.addEventListener("message", (ev) => {
 
 
 window.onresize = () => {
-  if (lastActivesScrolled) {
-    debouncedScrollColumns(lastActivesScrolled);
+  if (params.lastActivesScrolled) {
+    debouncedScrollColumns(params.lastActivesScrolled);
   }
-  if (lastColumnScrolled) {
-    debouncedScrollHorizontal(lastColumnScrolled);
+  if (params.lastColumnScrolled) {
+    debouncedScrollHorizontal(params.lastColumnScrolled);
   }
-  _.debounce(()=>{
-    viewportWidth = document.documentElement.clientWidth;
-    viewportHeight = document.documentElement.clientHeight;
-  })
+  // This used to build a debounced function and throw it away, so the viewport
+  // dimensions were never updated after the initial read -- drag auto-scroll
+  // thresholds stayed measured against the original window size.
+  updateViewportSize();
 };
 
 const debouncedScrollColumns = _.debounce(helpers.scrollColumns, 200);
@@ -1230,7 +1193,7 @@ Mousetrap.bind(helpers.shortcuts, function (e, s) {
         let currentText = document.activeElement.value;
         let newText = currentText.replace(/^(#{0,6}) ?(.*)/, num === 0 ? '$2' : '#'.repeat(num) + ' $2');
         document.activeElement.value = newText;
-        DIRTY = true;
+        params.DIRTY = true;
         toElm(newText, "docMsgs", "FieldChanged");
 
         let cardElementId = document.activeElement.id.replace(/^card-edit/, "card");

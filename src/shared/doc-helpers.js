@@ -46,10 +46,16 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
     constructor() {
       super();
       this.textarea_ = document.createElement('textarea');
-      this.textarea_.addEventListener('input', this._onInput.bind(this));
-      this.textarea_.addEventListener('keyup', this._selectionHandler.bind(this));
-      this.textarea_.addEventListener('click', this._selectionHandler.bind(this));
-      this.textarea_.addEventListener('focus', this._focusHandler.bind(this));
+      // Bind once and keep the references. `.bind()` returns a NEW function on
+      // every call, so binding again in disconnectedCallback removed nothing --
+      // all four listeners leaked on every card that was ever edited.
+      this._boundInput = this._onInput.bind(this);
+      this._boundSelection = this._selectionHandler.bind(this);
+      this._boundFocus = this._focusHandler.bind(this);
+      this.textarea_.addEventListener('input', this._boundInput);
+      this.textarea_.addEventListener('keyup', this._boundSelection);
+      this.textarea_.addEventListener('click', this._boundSelection);
+      this.textarea_.addEventListener('focus', this._boundFocus);
     }
     set isFullscreen(value) {
       this._isFullscreen = value;
@@ -97,10 +103,10 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
     }
 
     disconnectedCallback() {
-      this.textarea_.removeEventListener('input', this._onInput.bind(this));
-      this.textarea_.removeEventListener('keyup', this._selectionHandler.bind(this));
-      this.textarea_.removeEventListener('click', this._selectionHandler.bind(this));
-      this.textarea_.removeEventListener('focus', this._focusHandler.bind(this));
+      this.textarea_.removeEventListener('input', this._boundInput);
+      this.textarea_.removeEventListener('keyup', this._boundSelection);
+      this.textarea_.removeEventListener('click', this._boundSelection);
+      this.textarea_.removeEventListener('focus', this._boundFocus);
       if (!this.isFullscreen) {
         document.removeEventListener('click', editBlurHandler);
         updateFillets();
@@ -130,8 +136,8 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       if (col !== null && savedScrollTop !== null) col.scrollTop = savedScrollTop;
     }
 
-    _selectionHandler(e) {
-      selectionHandler(e)
+    _selectionHandler() {
+      selectionHandler()
     }
 
     _focusHandler(e) {
@@ -184,10 +190,6 @@ const selectionHandler = function () {
 };
 
 const editBlurHandler = (ev) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log("editBlurHandler", ev)
-  }
-
   if (ev.target.closest("#document") && !ev.target.closest("div.card.active")) {
     toElm(null, "docMsgs", "ClickedOutsideCard");
   }
@@ -198,7 +200,6 @@ const isEditTextarea = (node) => {
 }
 
 var scrollHorizontal = (colIdx, instant) => {
-  lastColumnIdx = colIdx;
   scrollHorizTo(colIdx, instant, 0)
 };
 
@@ -612,6 +613,7 @@ var casesShared = (elmData, params) => {
     },
 
     InsertMarkdownLink: () => {
+    let newValue;
       const id = elmData
       const tarea = document.getElementById('card-edit-' + id)
       const card = document.getElementById('card-' + id)
