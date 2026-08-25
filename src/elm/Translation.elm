@@ -1,19 +1,9 @@
-module Translation exposing (Language(..), TranslationId(..), activeLanguages, dateFormat, datetimeFormat, langFromString, langToString, languageDecoder, languageName, timeDistInWords, tr)
+module Translation exposing (Language(..), TranslationId(..), langFromString, langToString, languageDecoder, timeDistInWords, tr)
 
 import Json.Decode as Json exposing (..)
 import Time
 import Time.Distance as TimeDistance
 import Time.Distance.I18n as I18n
-import Time.Format exposing (format)
-import Time.Format.Config.Config_de_de
-import Time.Format.Config.Config_en_us
-import Time.Format.Config.Config_es_es
-import Time.Format.Config.Config_fr_fr
-import Time.Format.Config.Config_ja_jp
-import Time.Format.Config.Config_nl_nl
-import Time.Format.Config.Config_pt_br
-import Time.Format.Config.Config_ru_ru
-import Time.Format.Config.Config_sv_se
 
 
 type TranslationId
@@ -263,120 +253,6 @@ type Language
     | Pl
     | Uk
     | Nb
-
-
-languageName : Language -> String
-languageName lang =
-    case lang of
-        En ->
-            "English"
-
-        Zh_HANS ->
-            "简体中文"
-
-        Zh_HANT ->
-            "繁體中文"
-
-        Es ->
-            "Español"
-
-        Ar ->
-            "العربية"
-
-        Fr ->
-            "Français"
-
-        Ru ->
-            "ру́сский"
-
-        De ->
-            "Deutsch"
-
-        Ja ->
-            "日本語"
-
-        Mr ->
-            "मराठी"
-
-        Pes ->
-            "فارسی"
-
-        It ->
-            "italiano"
-
-        Ro ->
-            "română"
-
-        Hr ->
-            "hrvatski"
-
-        Nl ->
-            "Nederlands"
-
-        Hu ->
-            "magyar nyelv"
-
-        Sv ->
-            "Svenska"
-
-        Ca ->
-            "Català"
-
-        Br ->
-            "português"
-
-        Cs ->
-            "čeština"
-
-        Fa ->
-            "فارسی"
-
-        Id ->
-            "Bahasa Indonesia"
-
-        Ko ->
-            "한국어"
-
-        Pl ->
-            "Polski"
-
-        Uk ->
-            "українська"
-
-        Nb ->
-            "Norsk Bokmål"
-
-
-activeLanguages : List ( Language, String )
-activeLanguages =
-    [ En
-    , Zh_HANS
-    , Zh_HANT
-    , Es
-    , Ar
-    , Fr
-    , Br
-    , Uk
-    , Ru
-    , Id
-    , De
-    , Ja
-    , Mr
-    , Pes
-    , It
-    , Ro
-    , Hr
-    , Nl
-    , Hu
-    , Sv
-    , Ca
-    , Cs
-    , Ko
-    , Fa
-    , Pl
-    , Nb
-    ]
-        |> List.map (\l -> ( l, languageName l ))
 
 
 tr : Language -> TranslationId -> String
@@ -1308,80 +1184,6 @@ timeDistInWords lang t1 t2 =
 
         _ ->
             TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-
-dateFormat : Language -> Time.Posix -> String
-dateFormat lang time =
-    posixToString "%B %-d, %Y" lang time
-
-
-datetimeFormat : Language -> Time.Posix -> String
-datetimeFormat lang time =
-    posixToString "%b %-d, %Y, %-I:%M:%S %p" lang time
-
-
-posixToString : String -> Language -> Time.Posix -> String
-posixToString formatString lang time =
-    case lang of
-        En ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Zh_HANS ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Zh_HANT ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Es ->
-            format Time.Format.Config.Config_es_es.config formatString Time.utc time
-
-        Ar ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Fr ->
-            format Time.Format.Config.Config_fr_fr.config formatString Time.utc time
-
-        Ru ->
-            format Time.Format.Config.Config_ru_ru.config formatString Time.utc time
-
-        De ->
-            format Time.Format.Config.Config_de_de.config formatString Time.utc time
-
-        Ja ->
-            format Time.Format.Config.Config_ja_jp.config formatString Time.utc time
-
-        Mr ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Pes ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        It ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Ro ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Hr ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Nl ->
-            format Time.Format.Config.Config_nl_nl.config formatString Time.utc time
-
-        Hu ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Sv ->
-            format Time.Format.Config.Config_sv_se.config formatString Time.utc time
-
-        Ca ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
-
-        Br ->
-            format Time.Format.Config.Config_pt_br.config formatString Time.utc time
-
-        _ ->
-            format Time.Format.Config.Config_en_us.config formatString Time.utc time
 
 
 languageDecoder : Decoder Language
