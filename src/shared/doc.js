@@ -2,7 +2,6 @@
 //import '../static/style.css'
 
 import * as data from './data.js'
-//import Worker from "worker-loader!./data.worker.js";
 import hlc from '@tpp/hybrid-logical-clock'
 import uuid from '@tpp/simple-uuid'
 // Self-host: Sentry, LogRocket and PouchDB removed. LogRocket contacted
@@ -10,7 +9,6 @@ import uuid from '@tpp/simple-uuid'
 // request. PouchDB only backed legacy CouchDB documents.
 import { ImmortalStorage, IndexedDbStore, LocalStorageStore, SessionStorageStore } from 'immortal-db'
 
-const dataWorker = new Worker('/data.worker.js');
 
 const _ = require("lodash");
 const Mousetrap = require("mousetrap");
@@ -18,7 +16,6 @@ const screenfull = require("screenfull");
 const container = require("Container");
 const platform = require("platform");
 const config = require("../../config.js");
-const mycrypt = require("./encrypt.js");
 const PersistentWebSocket = require("pws");
 
 const Dexie = require("dexie").default;
@@ -135,10 +132,6 @@ async function initElmAndPorts() {
     fromElm(elmdata.tag, elmdata.data);
   });
 
-  // Messages from dataWorker
-  dataWorker.onmessage = (e) => {
-    fromElm(e.data.tag, e.data.data);
-  };
 
   initEventListeners();
 }
@@ -167,14 +160,6 @@ function getFlags() {
 
 async function setUserDbs(eml) {
   email = eml;
-
-  // HEAD request to /session to check if we're logged in
-  let sessionResponse = await fetch("/session", { method: "HEAD" });
-  if (sessionResponse.status === 401) {
-    console.warn('401: Unauthorized', email);
-    await logout();
-    return;
-  }
 
   userDbName = `userdb-${helpers.toHex(email)}`;
   // remoteDB was the CouchDB replica for legacy documents; there is no CouchDB.
@@ -448,9 +433,6 @@ const fromElm = (msg, elmData) => {
       setTimeout(() => gingko.ports.userLoggedInMsg.send(null), 0);
     },
 
-    LogoutUser : async () => {
-      await logout();
-    },
 
     // === Dialogs, Menus, Window State ===
 
@@ -609,42 +591,7 @@ const fromElm = (msg, elmData) => {
       loadCardBasedDocument(TREE_ID);
     },
 
-    CommitData: async () => {
-      let timestamp = Date.now()
-      dataWorker.postMessage({tag: "newSave", data: {db: userDbName, treeId: TREE_ID, elmData: elmData, timestamp: timestamp, savedImmutables: savedObjectIds}});
-    },
 
-    CommitDataResult: async () => {
-      // From dataWorker, NOT ELM!
-
-      let [ savedData
-        , savedImmutables
-        , conflictsExist
-        , savedMetadata
-      ] = elmData;
-
-      // Add saved immutables to cache.
-      savedImmutables.forEach(item => savedObjectIds.add(item));
-
-      // Send new data to Elm
-      toElm(savedData, "appMsgs", "DataSaved");
-
-      // Mark document as clean
-      DIRTY = false;
-
-      // Maybe send metadata to Elm
-      if (typeof savedMetadata !== "undefined") {
-        await dexie.trees.update(TREE_ID, {updatedAt: savedMetadata.updatedAt, synced: false});
-        toElm(savedMetadata, "appMsgs", "MetadataUpdate");
-      }
-
-      // Pull & Maybe push
-      if (!PULL_LOCK) {
-        PULL_LOCK = true;
-        await data.sync(db, remoteDB, TREE_ID, conflictsExist, pullSuccessHandler, pushSuccessHandler);
-        PULL_LOCK = false;
-      }
-    },
 
     PullData: async () => {
       if (!PULL_LOCK ) {
@@ -1094,30 +1041,6 @@ function setSessionData(data, source) {
   localStorage.setItem(sessionStorageKey, JSON.stringify(data));
 }
 
-async function logout() {
-  try {
-    if (db) {
-      await db.replicate.to(remoteDB);
-      await db.destroy();
-    }
-    await fetch(document.location.origin + "/logout", {method: 'POST'});
-    localStorage.removeItem(sessionStorageKey);
-
-    // Encrypt local backups
-    const backupKeys = Object.keys({ ...localStorage }).filter(k => k.startsWith("_immortal|backup-snapshot:")).map(k => k.slice(10));
-    backupKeys.map(async (k) => {
-      const val = await ImmortalDB.get(k);
-      await ImmortalDB.set(k, await mycrypt.encrypt(val));
-    });
-
-    await dexie.trees.clear();
-    await dexie.cards.clear();
-    await dexie.tree_snapshots.clear();
-    setTimeout(() => gingko.ports.userLoggedOutMsg.send(null), 0);
-  } catch (err) {
-    console.error(err)
-  }
-}
 
 function pullSuccessHandler (pulledData) {
   if (pulledData === null) { return }

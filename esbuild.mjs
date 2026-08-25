@@ -11,7 +11,7 @@ const myAliasPlugin = {
 };
 
 const result = await esbuild.build({
-  entryPoints: ['./src/shared/doc.js', './src/shared/data.worker.js'],
+  entryPoints: ['./src/shared/doc.js'],
   outdir: './web',
   plugins: [myAliasPlugin],
   minify: true,
