@@ -2,7 +2,6 @@ module Types exposing (CardTreeOp(..), Children(..), CollabStateMode(..), Collab
 
 import Html5.DragDrop as DragDrop
 import Json.Encode as Enc
-import Translation
 
 
 type alias Tree =

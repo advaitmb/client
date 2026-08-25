@@ -12,7 +12,7 @@ import Murmur3 exposing (hashString)
 import Process
 import SHA256
 import Task
-import Translation exposing (Language, TranslationId, tr)
+import Translation exposing (TranslationId, tr)
 
 
 ternary : Bool -> a -> a -> a

@@ -45,7 +45,7 @@ import Svg.Attributes
 import Task
 import Time
 import Toast
-import Translation exposing (Language, TranslationId(..), tr)
+import Translation exposing (TranslationId(..), tr)
 import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
 import UI.Header exposing (HeaderMenuState(..), viewHeader)
 import UI.Sidebar exposing (SidebarMenuState(..), SidebarState(..), viewSidebar)

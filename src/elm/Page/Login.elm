@@ -14,7 +14,6 @@ import Route
 import Session exposing (Guest, LoggedIn, Session(..))
 import Svg.Attributes
 import Task
-import Translation
 import Utils exposing (getFieldErrors)
 import Validate exposing (Valid, Validator, ifBlank, ifInvalidEmail, ifTrue, validate)
 
@@ -86,7 +85,7 @@ type Msg
     | EnteredEmail String
     | EnteredPassword String
     | ToggleShowPassword
-    | CompletedLogin (Result Http.Error ( LoggedIn, Translation.Language ))
+    | CompletedLogin (Result Http.Error LoggedIn)
     | UserSaved
 
 
@@ -115,8 +114,8 @@ update msg model =
         ToggleShowPassword ->
             ( { model | showPassword = not model.showPassword }, Task.attempt (\_ -> NoOp) (Browser.Dom.focus "password-input") )
 
-        CompletedLogin (Ok ( user, lang )) ->
-            ( { model | transition = Just user, globalData = GlobalData.setLanguage lang model.globalData }, Session.storeLogin lang user )
+        CompletedLogin (Ok user) ->
+            ( { model | transition = Just user }, Session.storeLogin user )
 
         CompletedLogin (Err error) ->
             let

@@ -1,6 +1,5 @@
-module Translation exposing (Language(..), TranslationId(..), langFromString, langToString, languageDecoder, timeDistInWords, tr)
+module Translation exposing (TranslationId(..), timeDistInWords, tr)
 
-import Json.Decode as Json exposing (..)
 import Time
 import Time.Distance as TimeDistance
 import Time.Distance.I18n as I18n
@@ -168,7 +167,6 @@ type TranslationId
     | OpenQuickSwitcher
     | ContactSupport
     | Logout
-    | Language
     | ContributeTranslations
     | Here
     | HeadingFont
@@ -224,13 +222,6 @@ type TranslationId
     | WordOfMouthCTA1
     | WordOfMouthCTA2
     | ManageSubscription
-
-
-{-| Self-host: English only. The type is kept as a single constructor so
-the language argument threaded through the view layer still typechecks.
--}
-type Language
-    = En
 
 
 tr : TranslationId -> String
@@ -877,10 +868,6 @@ tr trans =
                     { en = "Logout"
                     }
 
-                Language ->
-                    { en = "Language"
-                    }
-
                 ContributeTranslations ->
                     { en = "Contribute translations"
                     }
@@ -1103,17 +1090,3 @@ tr trans =
 timeDistInWords : Time.Posix -> Time.Posix -> String
 timeDistInWords t1 t2 =
     TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
-
-languageDecoder : Decoder Language
-languageDecoder =
-    Json.map langFromString string
-
-
-langFromString : String -> Language
-langFromString _ =
-    En
-
-
-langToString : Language -> String
-langToString En =
-    "en"

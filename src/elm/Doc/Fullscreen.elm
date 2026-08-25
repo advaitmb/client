@@ -10,7 +10,7 @@ import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy2, lazy3, lazy4)
 import Json.Encode as Enc
 import Time
-import Translation exposing (Language, TranslationId(..))
+import Translation exposing (TranslationId(..))
 import Types exposing (..)
 import UI.Collaborators
 

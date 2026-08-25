@@ -14,7 +14,7 @@ import Html.Styled.Events exposing (onClick, onMouseEnter, onMouseLeave)
 import MD5
 import Octicons
 import Session exposing (LoggedIn, PaymentStatus(..))
-import Translation exposing (Language(..), TranslationId(..))
+import Translation exposing (TranslationId(..))
 import Types exposing (SortBy, TooltipPosition(..))
 import Utils exposing (emptyText, onClickStopStyled, ternary, textElmCss)
 

@@ -15,7 +15,7 @@ import Page.Doc.Export exposing (ExportFormat(..), ExportSelection(..))
 import Page.Doc.Theme exposing (Theme(..))
 import Session exposing (LoggedIn)
 import Time
-import Translation exposing (Language, TranslationId(..))
+import Translation exposing (TranslationId(..))
 import Types exposing (Collaborator, TooltipPosition(..), Tree)
 import UI.Collaborators
 import Utils exposing (emptyText, text, textNoTr)

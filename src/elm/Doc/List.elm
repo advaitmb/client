@@ -10,7 +10,7 @@ import Page.Doc.ContextMenu as ContextMenu
 import Route
 import Svg.Attributes as SA
 import Time
-import Translation exposing (TranslationId(..), timeDistInWords, tr)
+import Translation exposing (TranslationId(..))
 import Types exposing (SortBy(..), TooltipPosition(..))
 import Utils exposing (onClickStop)
 

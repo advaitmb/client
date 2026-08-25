@@ -12,7 +12,6 @@ import List.Extra as ListExtra
 import Outgoing exposing (Msg(..), send)
 import Regex
 import Time exposing (Posix)
-import Translation exposing (Language)
 import Types exposing (SortBy(..))
 import Upgrade
 
@@ -389,7 +388,7 @@ type UserSource
     | Other
 
 
-responseDecoder : UserSource -> Guest -> Dec.Decoder ( LoggedIn, Language )
+responseDecoder : UserSource -> Guest -> Dec.Decoder LoggedIn
 responseDecoder usrSrc session =
     let
         sessionData =
@@ -403,32 +402,28 @@ responseDecoder usrSrc session =
                                 data
                    )
 
-        builder : String -> PaymentStatus -> Maybe Time.Posix -> Language -> List Metadata -> List Feature -> ( LoggedIn, Language )
-        builder email payStat confAt lang docs feats =
-            ( LoggedIn
+        builder : String -> PaymentStatus -> Maybe Time.Posix -> List Metadata -> List Feature -> LoggedIn
+        builder email payStat confAt docs feats =
+            LoggedIn
                 sessionData
                 (UserData email Upgrade.init payStat confAt True ModifiedAt (DocList.fromList docs) feats)
-            , lang
-            )
     in
     Dec.succeed builder
         |> required "email" Dec.string
         |> optional "paymentStatus" decodePaymentStatus (Trial (Time.millisToPosix 0))
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
-        |> optional "language" (Dec.string |> Dec.map Translation.langFromString) Translation.En
         |> optional "documents" Metadata.responseDecoder []
         |> optional "features" Features.decoder []
 
 
-encodeUserData : Language -> UserData -> Enc.Value
-encodeUserData lang userData =
+encodeUserData : UserData -> Enc.Value
+encodeUserData userData =
     Enc.object
         [ ( "email", Enc.string userData.email )
         , ( "paymentStatus", encodePaymentStatus userData.paymentStatus )
         , ( "confirmedAt", userData.confirmedAt |> Maybe.map Time.posixToMillis |> Coders.maybeToValue Enc.int )
         , ( "shortcutTrayOpen", Enc.bool userData.shortcutTrayOpen )
         , ( "sortBy", Coders.sortByEncoder userData.sortBy )
-        , ( "language", Enc.string (Translation.langToString lang) )
         ]
 
 
@@ -442,16 +437,16 @@ encodePaymentStatus payStat =
             Enc.string ("customer:" ++ custId)
 
 
-encode : Translation.Language -> LoggedIn -> Enc.Value
-encode lang (LoggedIn _ userData) =
-    encodeUserData lang userData
+encode : LoggedIn -> Enc.Value
+encode (LoggedIn _ userData) =
+    encodeUserData userData
 
 
 
 -- AUTHENTICATION
 
 
-requestSignup : (Result Http.Error ( LoggedIn, Language ) -> msg) -> String -> String -> Bool -> Guest -> Cmd msg
+requestSignup : (Result Http.Error LoggedIn -> msg) -> String -> String -> Bool -> Guest -> Cmd msg
 requestSignup toMsg email password didOptIn session =
     let
         requestBody =
@@ -469,12 +464,12 @@ requestSignup toMsg email password didOptIn session =
         }
 
 
-storeSignup : Translation.Language -> LoggedIn -> Cmd msg
-storeSignup lang session =
-    store lang session
+storeSignup : LoggedIn -> Cmd msg
+storeSignup session =
+    store session
 
 
-requestLogin : (Result Http.Error ( LoggedIn, Language ) -> msg) -> String -> String -> Guest -> Cmd msg
+requestLogin : (Result Http.Error LoggedIn -> msg) -> String -> String -> Guest -> Cmd msg
 requestLogin toMsg email password session =
     let
         requestBody =
@@ -495,12 +490,12 @@ requestLogin toMsg email password session =
         }
 
 
-storeLogin : Translation.Language -> LoggedIn -> Cmd msg
-storeLogin lang session =
-    store lang session
+storeLogin : LoggedIn -> Cmd msg
+storeLogin session =
+    store session
 
 
-requestForgotPassword : (Result Http.Error ( LoggedIn, Language ) -> msg) -> String -> Guest -> Cmd msg
+requestForgotPassword : (Result Http.Error LoggedIn -> msg) -> String -> Guest -> Cmd msg
 requestForgotPassword toMsg email session =
     let
         requestBody =
@@ -516,7 +511,7 @@ requestForgotPassword toMsg email session =
         }
 
 
-requestResetPassword : (Result Http.Error ( LoggedIn, Language ) -> msg) -> { newPassword : String, token : String } -> Guest -> Cmd msg
+requestResetPassword : (Result Http.Error LoggedIn -> msg) -> { newPassword : String, token : String } -> Guest -> Cmd msg
 requestResetPassword toMsg { newPassword, token } session =
     let
         requestBody =
@@ -547,9 +542,9 @@ toGuest (LoggedIn sessionData _) =
 -- PORTS
 
 
-store : Translation.Language -> LoggedIn -> Cmd msg
-store lang session =
-    send <| StoreUser (encode lang session)
+store : LoggedIn -> Cmd msg
+store session =
+    send <| StoreUser (encode session)
 
 
 userLoggedIn : msg -> Sub msg

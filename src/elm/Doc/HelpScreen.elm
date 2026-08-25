@@ -7,7 +7,7 @@ import Html exposing (Html, a, button, div, h2, h3, h4, kbd, li, span, table, td
 import Html.Attributes exposing (class, colspan, height, href, id, style, target, width)
 import Html.Events exposing (onClick)
 import SharedUI exposing (ctrlOrCmdText)
-import Translation exposing (Language(..), TranslationId(..), tr)
+import Translation exposing (TranslationId(..), tr)
 import Utils exposing (ternary)
 
 

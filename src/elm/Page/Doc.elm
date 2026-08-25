@@ -25,7 +25,7 @@ import RandomId exposing (stringGenerator)
 import Regex
 import Task
 import Time
-import Translation exposing (Language, TranslationId(..), tr)
+import Translation exposing (TranslationId(..), tr)
 import Types exposing (..)
 import UI.Collaborators
 
