@@ -206,7 +206,7 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
             div [ id "doc-settings-menu", class "header-menu" ]
                 -- Self-host: theme picker removed; the default theme still
                 -- applies via Page.App's applyTheme, so styling is unchanged.
-                [ div [ id "wordcount-menu-item", onClick msgs.wordCountClicked ] [ text language WordCount ]
+                [ div [ id "wordcount-menu-item", onClick msgs.wordCountClicked ] [ text WordCount ]
                 ]
         , viewIf (headerMenu == Settings) <| div [ id "doc-settings-menu-exit-left", onMouseEnter msgs.toggledDocSettings ] []
         , viewIf (headerMenu == Settings) <| div [ id "doc-settings-menu-exit-bottom", onMouseEnter msgs.toggledDocSettings ] []
@@ -258,16 +258,16 @@ viewExportMenu language msgs showCloseButton ( exportSelection, exportFormat ) =
     in
     div [ id "export-menu" ]
         ([ div [ id "export-selection", class "toggle-button" ]
-            [ div (exportSelectionBtnAttributes ExportEverything "all" ExportSettingEverythingDesc) [ text language ExportSettingEverything ]
-            , div (exportSelectionBtnAttributes ExportSubtree "subtree" ExportSettingCurrentSubtreeDesc) [ text language ExportSettingCurrentSubtree ]
-            , div (exportSelectionBtnAttributes ExportLeaves "leaves" ExportSettingLeavesOnlyDesc) [ text language ExportSettingLeavesOnly ]
-            , div (exportSelectionBtnAttributes ExportCurrentColumn "column" ExportSettingCurrentColumnDesc) [ text language ExportSettingCurrentColumn ]
+            [ div (exportSelectionBtnAttributes ExportEverything "all" ExportSettingEverythingDesc) [ text ExportSettingEverything ]
+            , div (exportSelectionBtnAttributes ExportSubtree "subtree" ExportSettingCurrentSubtreeDesc) [ text ExportSettingCurrentSubtree ]
+            , div (exportSelectionBtnAttributes ExportLeaves "leaves" ExportSettingLeavesOnlyDesc) [ text ExportSettingLeavesOnly ]
+            , div (exportSelectionBtnAttributes ExportCurrentColumn "column" ExportSettingCurrentColumnDesc) [ text ExportSettingCurrentColumn ]
             ]
          , div [ id "export-format", class "toggle-button" ]
-            [ div (exportFormatBtnAttributes DOCX "word") [ text language ExportSettingWord ]
-            , div (exportFormatBtnAttributes PlainText "text") [ text language ExportSettingPlainText ]
-            , div (exportFormatBtnAttributes OPML "opml") [ text language ExportSettingOPML ]
-            , div (exportFormatBtnAttributes JSON "json") [ text language ExportSettingJSON ]
+            [ div (exportFormatBtnAttributes DOCX "word") [ text ExportSettingWord ]
+            , div (exportFormatBtnAttributes PlainText "text") [ text ExportSettingPlainText ]
+            , div (exportFormatBtnAttributes OPML "opml") [ text ExportSettingOPML ]
+            , div (exportFormatBtnAttributes JSON "json") [ text ExportSettingJSON ]
             ]
          ]
             ++ (if showCloseButton then
@@ -302,7 +302,7 @@ viewUpgradeButton toggledUpgradeModal globalData session =
                 , onClick <| toggledUpgradeModal True
                 , classList [ ( "trial-expired", isExpired ) ]
                 ]
-                (prepends ++ [ div [ id "upgrade-button" ] [ text lang Upgrade ] ])
+                (prepends ++ [ div [ id "upgrade-button" ] [ text Upgrade ] ])
 
         maybeUpgrade =
             case Session.daysLeft (GlobalData.currentTime globalData) session of
@@ -322,12 +322,12 @@ viewUpgradeButton toggledUpgradeModal globalData session =
                         upgradeCTA True
                             [ span []
                                 [ AntIcons.exclamationCircleOutlined [ width 16, style "margin-bottom" "-3px", style "margin-right" "6px" ]
-                                , text lang TrialExpired
+                                , text TrialExpired
                                 ]
                             ]
 
                     else if daysLeft <= 7 then
-                        upgradeCTA False [ span [ class trialClass ] [ text lang (DaysLeft daysLeft) ] ]
+                        upgradeCTA False [ span [ class trialClass ] [ text (DaysLeft daysLeft) ] ]
 
                     else
                         upgradeCTA False []

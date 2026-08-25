@@ -13,7 +13,7 @@ import Html.Attributes as Attributes exposing (attribute, class, classList, dir,
 import Html.Events exposing (custom, onClick, onDoubleClick)
 import Html.Extra exposing (viewIf)
 import Html.Keyed as Keyed
-import Html.Lazy exposing (lazy2, lazy4, lazy5, lazy7, lazy8)
+import Html.Lazy exposing (lazy2, lazy3, lazy4, lazy6, lazy8)
 import Html5.DragDrop as DragDrop
 import Json.Decode as Json
 import List.Extra as ListExtra
@@ -1639,7 +1639,7 @@ intentCancelCard model =
 
         _ ->
             ( model
-            , send (ConfirmCancelCard activeId originalContent (tr (GlobalData.language model.globalData) AreYouSureCancel))
+            , send (ConfirmCancelCard activeId originalContent (tr AreYouSureCancel))
             , []
             )
 
@@ -2099,7 +2099,7 @@ viewLoaded ({ docMsg } as appMsg) model =
                 Nothing ->
                     []
     in
-    [ lazy4 treeView (GlobalData.language model.globalData) (GlobalData.isMac model.globalData) model.viewState model.workingTree |> Html.map docMsg
+    [ lazy3 treeView (GlobalData.isMac model.globalData) model.viewState model.workingTree |> Html.map docMsg
     , if (not << List.isEmpty) cardTitles then
         UI.viewBreadcrumbs Activate cardTitles |> Html.map docMsg
 
@@ -2131,8 +2131,8 @@ viewLoaded ({ docMsg } as appMsg) model =
            ]
 
 
-treeView : Language -> Bool -> ViewState -> TreeStructure.Model -> Html Msg
-treeView lang isMac vstate model =
+treeView : Bool -> ViewState -> TreeStructure.Model -> Html Msg
+treeView isMac vstate model =
     let
         activeId =
             getActiveIdFromViewState vstate
@@ -2183,7 +2183,6 @@ treeView lang isMac vstate model =
                 vstate.ancestors
                 vstate.dragModel
                 vstate.collaborators
-                lang
                 isMac
 
         columns =
@@ -2268,8 +2267,7 @@ viewGroup vstate xs =
             in
             if isActive && not isEditing then
                 ( t.id
-                , lazy7 viewCardActive
-                    vstate.language
+                , lazy6 viewCardActive
                     t.id
                     t.content
                     (hasChildren t)
@@ -2280,8 +2278,7 @@ viewGroup vstate xs =
 
             else if isEditing then
                 ( t.id
-                , lazy5 viewCardEditing
-                    vstate.language
+                , lazy4 viewCardEditing
                     t.id
                     t.content
                     (hasChildren t)
@@ -2357,8 +2354,8 @@ viewCardOther cardId content collabsOnCard isEditing isParent isAncestor isLast 
         )
 
 
-viewCardActive : Language -> String -> String -> Bool -> Bool -> List Collaborator -> ( DragDrop.Model String DropId, DragExternalModel ) -> Html Msg
-viewCardActive lang cardId content isParent isLast collabsOnCard dragModels =
+viewCardActive : String -> String -> Bool -> Bool -> List Collaborator -> ( DragDrop.Model String DropId, DragExternalModel ) -> Html Msg
+viewCardActive cardId content isParent isLast collabsOnCard dragModels =
     let
         collabsEditingCard =
             collabsOnCard |> List.filter (\c -> c.mode == CollabEditing cardId)
@@ -2367,7 +2364,7 @@ viewCardActive lang cardId content isParent isLast collabsOnCard dragModels =
             [ div [ class "flex-row card-top-overlay" ]
                 [ span
                     [ class "card-btn ins-above"
-                    , title <| tr lang InsertAboveTitle
+                    , title <| tr InsertAboveTitle
                     , onClick (InsertAbove cardId)
                     ]
                     [ text "+" ]
@@ -2375,19 +2372,19 @@ viewCardActive lang cardId content isParent isLast collabsOnCard dragModels =
             , div [ class "flex-column card-right-overlay" ]
                 [ span
                     [ class "card-btn delete"
-                    , title <| tr lang DeleteCardTitle
+                    , title <| tr DeleteCardTitle
                     , onClick (DeleteCard cardId)
                     ]
                     []
                 , span
                     [ class "card-btn ins-right"
-                    , title <| tr lang InsertChildTitle
+                    , title <| tr InsertChildTitle
                     , onClick (InsertChild cardId)
                     ]
                     [ text "+" ]
                 , span
                     [ class "card-btn edit"
-                    , title <| tr lang EditCardTitle
+                    , title <| tr EditCardTitle
                     , onClick (OpenCard cardId content)
                     ]
                     []
@@ -2395,7 +2392,7 @@ viewCardActive lang cardId content isParent isLast collabsOnCard dragModels =
             , div [ class "flex-row card-bottom-overlay" ]
                 [ span
                     [ class "card-btn ins-below"
-                    , title <| tr lang InsertBelowTitle
+                    , title <| tr InsertBelowTitle
                     , onClick (InsertBelow cardId)
                     ]
                     [ text "+" ]
@@ -2429,8 +2426,8 @@ viewCardActive lang cardId content isParent isLast collabsOnCard dragModels =
         )
 
 
-viewCardEditing : Language -> String -> String -> Bool -> Bool -> Html Msg
-viewCardEditing lang cardId content isParent _ =
+viewCardEditing : String -> String -> Bool -> Bool -> Html Msg
+viewCardEditing cardId content isParent _ =
     div
         [ id ("card-" ++ cardId)
         , dir "auto"
@@ -2463,7 +2460,7 @@ viewCardEditing lang cardId content isParent _ =
                 [ AntIcons.fullscreenOutlined [ Attributes.width 16, Attributes.height 16 ] ]
             , div
                 [ class "card-btn save"
-                , title <| tr lang SaveChangesTitle
+                , title <| tr SaveChangesTitle
                 , onClick SaveAndCloseCard
                 ]
                 []

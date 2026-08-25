@@ -194,7 +194,7 @@ viewSidebarStatic sidebarOpen =
         [ div [ id "brand" ]
             ([ img [ src "../gingko-leaf-logo.svg", A.width 28 ] [] ]
                 ++ (if sidebarOpen then
-                        [ h2 [ id "brand-name" ] [ textElmCss En (NoTr "Gingko Writer") ]
+                        [ h2 [ id "brand-name" ] [ textElmCss (NoTr "Gingko Writer") ]
                         , div [ id "sidebar-collapse-icon" ] [ AntIcons.leftOutlined [] |> fromUnstyled ]
                         ]
 

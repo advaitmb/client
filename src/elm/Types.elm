@@ -168,7 +168,6 @@ type alias VisibleViewState =
     , ancestors : List String
     , dragModel : ( DragDrop.Model String DropId, DragExternalModel )
     , collaborators : List Collaborator
-    , language : Translation.Language
     , isMac : Bool
     }
 

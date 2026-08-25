@@ -145,7 +145,7 @@ viewHistory { lang, noOp, checkoutTree, restore, cancel, tooltipRequested, toolt
     div [ id "history-menu" ]
         [ input [ id "history-slider", type_ "range", A.min "0", A.max maxIdx, step "1", onInput maybeCheckoutTree ] []
         , maybeTimeDisplay
-        , button [ id "history-restore", onClick restore ] [ text lang RestoreThisVersion ]
+        , button [ id "history-restore", onClick restore ] [ text RestoreThisVersion ]
         , div
             [ id "history-close-button"
             , onClick cancel

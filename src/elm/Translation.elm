@@ -233,8 +233,8 @@ type Language
     = En
 
 
-tr : Language -> TranslationId -> String
-tr lang trans =
+tr : TranslationId -> String
+tr trans =
     let
         numberPlural n sing pl =
             if n == 1 then
@@ -1100,8 +1100,8 @@ tr lang trans =
     .en translationSet
 
 
-timeDistInWords : Language -> Time.Posix -> Time.Posix -> String
-timeDistInWords En t1 t2 =
+timeDistInWords : Time.Posix -> Time.Posix -> String
+timeDistInWords t1 t2 =
     TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2
 
 languageDecoder : Decoder Language

@@ -41,10 +41,10 @@ viewSaveIndicator language { dirty, lastLocalSave, lastRemoteSave } currentTime 
     let
         timeDistPast t1 t2 =
             if Time.posixToMillis t1 < Time.posixToMillis t2 then
-                timeDistInWords language t1 t2
+                timeDistInWords t1 t2
 
             else
-                timeDistInWords language t2 t1
+                timeDistInWords t2 t1
 
         lastChangeString =
             timeDistPast
@@ -58,7 +58,7 @@ viewSaveIndicator language { dirty, lastLocalSave, lastRemoteSave } currentTime 
 
         ( saveStateSpan, saveStateIcon, name ) =
             if dirty then
-                ( span [ title (tr language LastSaved ++ " " ++ lastChangeString) ] [ text language UnsavedChanges ]
+                ( span [ title (tr LastSaved ++ " " ++ lastChangeString) ] [ text UnsavedChanges ]
                 , AntIcons.infoCircleOutlined [ width 16, height 16 ]
                 , "unsaved"
                 )
@@ -66,40 +66,40 @@ viewSaveIndicator language { dirty, lastLocalSave, lastRemoteSave } currentTime 
             else
                 case ( lastLocalSave, lastRemoteSave ) of
                     ( Nothing, Nothing ) ->
-                        ( span [] [ text language Loading ]
+                        ( span [] [ text Loading ]
                         , AntIcons.loading3QuartersOutlined [ width 16, height 16 ]
                         , "never-saved"
                         )
 
                     ( Just time, Nothing ) ->
                         if Time.posixToMillis time == 0 then
-                            ( span [] [ text language Loading ]
+                            ( span [] [ text Loading ]
                             , AntIcons.loading3QuartersOutlined [ width 16, height 16 ]
                             , "never-saved"
                             )
 
                         else
-                            ( span [ title (tr language LastSynced ++ " " ++ lastSyncString) ] [ text language SavedInternally ]
+                            ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text SavedInternally ]
                             , AntIcons.warningFilled [ width 16, height 16 ]
                             , "saved-offline"
                             )
 
                     ( Just commitTime, Just fileTime ) ->
                         if posixToMillis commitTime <= posixToMillis fileTime then
-                            ( span [ title (tr language LastEdit ++ " " ++ lastChangeString) ]
-                                [ text language ChangesSynced ]
+                            ( span [ title (tr LastEdit ++ " " ++ lastChangeString) ]
+                                [ text ChangesSynced ]
                             , AntIcons.checkCircleFilled [ width 16, height 16 ]
                             , "synced"
                             )
 
                         else
-                            ( span [ title (tr language LastSynced ++ " " ++ lastSyncString) ] [ text language SavedInternally ]
+                            ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text SavedInternally ]
                             , AntIcons.warningFilled [ width 16, height 16 ]
                             , "saved-offline"
                             )
 
                     ( Nothing, Just _ ) ->
-                        ( span [ title (tr language LastSynced ++ " " ++ lastSyncString) ] [ text language DatabaseError ]
+                        ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text DatabaseError ]
                         , AntIcons.closeCircleFilled [ width 16, height 16 ]
                         , "database-error"
                         )
@@ -203,64 +203,64 @@ viewTemplateSelector :
     -> List (Html msg)
 viewTemplateSelector session language msgs =
     [ div [ id "templates-block" ]
-        [ h2 [] [ text language New ]
+        [ h2 [] [ text New ]
         , div [ class "template-row" ]
             [ a [ id "template-new", class "template-item", href (Route.toString Route.DocNew) ]
                 [ div [ classList [ ( "template-thumbnail", True ), ( "new", True ) ] ] []
-                , div [ class "template-title" ] [ text language HomeBlank ]
+                , div [ class "template-title" ] [ text HomeBlank ]
                 ]
             ]
-        , h2 [] [ text language ImportSectionTitle ]
+        , h2 [] [ text ImportSectionTitle ]
         , div [ class "template-row" ]
             [ div [ id "template-import-text", class "template-item", onClick msgs.importTextClicked ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.file (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text language ImportTextFiles ]
+                , div [ class "template-title" ] [ text ImportTextFiles ]
                 , div [ class "template-description" ]
-                    [ text language ImportTextFilesDesc ]
+                    [ text ImportTextFilesDesc ]
                 ]
             , div [ id "template-import", class "template-item", onClick msgs.importJSONRequested ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.fileCode (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text language HomeImportJSON ]
+                , div [ class "template-title" ] [ text HomeImportJSON ]
                 , div [ class "template-description" ]
-                    [ text language HomeJSONFrom ]
+                    [ text HomeJSONFrom ]
                 ]
             , div [ id "template-import-opml", class "template-item", onClick msgs.importOpmlRequested ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.fileCode (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text language ImportOpmlFiles ]
+                , div [ class "template-title" ] [ text ImportOpmlFiles ]
                 , div [ class "template-description" ]
-                    [ text language ImportOpmlFilesDesc ]
+                    [ text ImportOpmlFilesDesc ]
                 ]
             ]
-        , h2 [] [ text language TemplatesAndExamples ]
+        , h2 [] [ text TemplatesAndExamples ]
         , div [ class "template-row" ]
             [ a [ id "template-timeline", class "template-item", href <| Route.toString (Route.Import Timeline) ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.calendarOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text language TimelineTemplate ]
+                , div [ class "template-title" ] [ text TimelineTemplate ]
                 , div [ class "template-description" ]
-                    [ text language TimelineTemplateDesc ]
+                    [ text TimelineTemplateDesc ]
                 ]
             , a [ id "template-academic", class "template-item", href <| Route.toString (Route.Import AcademicPaper) ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.experimentOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text language AcademicPaperTemplate ]
+                , div [ class "template-title" ] [ text AcademicPaperTemplate ]
                 , div [ class "template-description" ]
-                    [ text language AcademicPaperTemplateDesc ]
+                    [ text AcademicPaperTemplateDesc ]
                 ]
             , a [ id "template-project", class "template-item", href <| Route.toString (Route.Import ProjectBrainstorming) ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.bulbOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text language ProjectBrainstormingTemplate ]
+                , div [ class "template-title" ] [ text ProjectBrainstormingTemplate ]
                 , div [ class "template-description" ]
-                    [ text language ProjectBrainstormingTemplateDesc ]
+                    [ text ProjectBrainstormingTemplateDesc ]
                 ]
             , a [ id "template-heros-journey", class "template-item", href <| Route.toString (Route.Import HerosJourney) ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.thunderboltOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text language HerosJourneyTemplate ]
+                , div [ class "template-title" ] [ text HerosJourneyTemplate ]
                 , div [ class "template-description" ]
-                    [ text language HerosJourneyTemplateDesc ]
+                    [ text HerosJourneyTemplateDesc ]
                 ]
             ]
         ]
     ]
-        |> modalWrapper msgs.modalClosed Nothing Nothing (tr language NewDocument)
+        |> modalWrapper msgs.modalClosed Nothing Nothing (tr NewDocument)
 
 
 viewWordCount :
@@ -287,22 +287,22 @@ viewWordCount model msgs =
     in
     [ div [ id "word-count-table" ]
         [ div [ class "word-count-column" ]
-            [ span [] [ text language (WordCountCard stats.cardWords) ]
-            , span [] [ text language (WordCountSubtree stats.subtreeWords) ]
-            , span [] [ text language (WordCountGroup stats.groupWords) ]
-            , span [] [ text language (WordCountColumn stats.columnWords) ]
-            , span [] [ text language (WordCountSession session) ]
-            , span [] [ text language (WordCountTotal current) ]
+            [ span [] [ text (WordCountCard stats.cardWords) ]
+            , span [] [ text (WordCountSubtree stats.subtreeWords) ]
+            , span [] [ text (WordCountGroup stats.groupWords) ]
+            , span [] [ text (WordCountColumn stats.columnWords) ]
+            , span [] [ text (WordCountSession session) ]
+            , span [] [ text (WordCountTotal current) ]
             ]
         , div [ class "word-count-column" ]
-            [ span [] [ text language (CharacterCountCard stats.cardChars) ]
-            , span [] [ text language (CharacterCountSubtree stats.subtreeChars) ]
-            , span [] [ text language (CharacterCountGroup stats.groupChars) ]
-            , span [] [ text language (CharacterCountColumn stats.columnChars) ]
-            , span [] [ text language (CharacterCountTotal stats.documentChars) ]
+            [ span [] [ text (CharacterCountCard stats.cardChars) ]
+            , span [] [ text (CharacterCountSubtree stats.subtreeChars) ]
+            , span [] [ text (CharacterCountGroup stats.groupChars) ]
+            , span [] [ text (CharacterCountColumn stats.columnChars) ]
+            , span [] [ text (CharacterCountTotal stats.documentChars) ]
             ]
         ]
-    , span [ style "text-align" "center" ] [ text language (WordCountTotalCards stats.cards) ]
+    , span [ style "text-align" "center" ] [ text (WordCountTotalCards stats.cards) ]
     ]
         |> modalWrapper msgs.modalClosed Nothing Nothing "Word & Character Counts"
 
@@ -332,7 +332,7 @@ viewSearchField searchFieldMsg { viewState, globalData } =
                     [ type_ "search"
                     , id "search-input"
                     , required True
-                    , title (tr language PressToSearch)
+                    , title (tr PressToSearch)
                     , onInput searchFieldMsg
                     ]
                     []
@@ -437,19 +437,19 @@ viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
             let
                 keySpans =
                     keys
-                        |> List.map (\k -> span [ class "shortcut-key" ] [ text lang k ])
+                        |> List.map (\k -> span [ class "shortcut-key" ] [ text k ])
             in
             span
                 [ classList [ ( "disabled", not enabled ) ] ]
                 (keySpans
-                    ++ [ textNoTr (" " ++ tr lang desc) ]
+                    ++ [ textNoTr (" " ++ tr desc) ]
                 )
 
         shortcutSpan =
             shortcutSpanEnabled True
 
         formattingSpan markup =
-            span [] [ pre [ class "formatting-text" ] [ text lang markup ] ]
+            span [] [ pre [ class "formatting-text" ] [ text markup ] ]
 
         ctrlOrCmd =
             ctrlOrCmdText isMac
@@ -464,25 +464,25 @@ viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
                 [ div
                     [ id "shortcuts-tray", classList [ ( "open", isOpen ) ], onClick msgs.toggledShortcutTray ]
                     [ div [ id "shortcuts" ]
-                        ([ h3 [] [ text lang KeyboardShortcuts ]
-                         , h5 [] [ text lang EditCards ]
+                        ([ h3 [] [ text KeyboardShortcuts ]
+                         , h5 [] [ text EditCards ]
                          , shortcutSpan [ EnterKey ] EnterAction
                          , shortcutSpan [ ShiftKey, EnterKey ] EditFullscreenAction
-                         , viewIfNotOnly <| h5 [] [ text lang Navigate ]
+                         , viewIfNotOnly <| h5 [] [ text Navigate ]
                          , viewIfNotOnly <| shortcutSpan [ NoTr "↑", NoTr "↓", NoTr "←", NoTr "→" ] ArrowsAction
-                         , h5 [] [ text lang AddNewCards ]
+                         , h5 [] [ text AddNewCards ]
                          , shortcutSpan [ NoTr ctrlOrCmd, NoTr "→" ] AddChildAction
                          , shortcutSpan [ NoTr ctrlOrCmd, NoTr "↓" ] AddBelowAction
                          , shortcutSpan [ NoTr ctrlOrCmd, NoTr "↑" ] AddAboveAction
                          ]
-                            ++ [ viewIfNotOnly <| h5 [] [ text lang MoveAndDelete ]
+                            ++ [ viewIfNotOnly <| h5 [] [ text MoveAndDelete ]
                                , viewIfNotOnly <| shortcutSpan [ AltKey, ArrowKeys ] MoveAction
                                , viewIfNotOnly <| shortcutSpan [ NoTr ctrlOrCmd, Backspace ] DeleteAction
-                               , viewIfNotOnly <| h5 [] [ text lang MergeCards ]
+                               , viewIfNotOnly <| h5 [] [ text MergeCards ]
                                , viewIfNotOnly <| shortcutSpan [ NoTr ctrlOrCmd, ShiftKey, NoTr "↓" ] MergeDownAction
                                , viewIfNotOnly <| shortcutSpan [ NoTr ctrlOrCmd, ShiftKey, NoTr "↑" ] MergeUpAction
                                , hr [] []
-                               , h5 [] [ text lang OtherShortcuts ]
+                               , h5 [] [ text OtherShortcuts ]
                                , shortcutSpan [ NoTr "w" ] DisplayWordCounts
                                , shortcutSpan [ NoTr ctrlOrCmd, NoTr "O" ] QuickDocumentSwitcher
                                ]
@@ -494,20 +494,20 @@ viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
                 [ div
                     [ id "shortcuts-tray", classList [ ( "open", isOpen ) ], onClick msgs.toggledShortcutTray ]
                     [ div [ id "shortcuts" ]
-                        [ h3 [] [ text lang KeyboardShortcuts ]
-                        , h3 [] [ text lang EditMode ]
-                        , h5 [] [ text lang SaveOrCancelChanges ]
+                        [ h3 [] [ text KeyboardShortcuts ]
+                        , h3 [] [ text EditMode ]
+                        , h5 [] [ text SaveOrCancelChanges ]
                         , shortcutSpan [ NoTr ctrlOrCmd, EnterKey ] ToSaveChanges
                         , shortcutSpan [ EscKey ] ToCancelChanges
                         , if addInsteadOfSplit then
-                            h5 [] [ text lang AddNewCards ]
+                            h5 [] [ text AddNewCards ]
 
                           else
-                            h5 [] [ text lang SplitAtCursor ]
+                            h5 [] [ text SplitAtCursor ]
                         , splitChild
                         , splitBelow
                         , splitAbove
-                        , h5 [] [ text lang Formatting ]
+                        , h5 [] [ text Formatting ]
                         , shortcutSpanEnabled isTextSelected [ NoTr ctrlOrCmd, NoTr "B" ] ForBold
                         , shortcutSpanEnabled isTextSelected [ NoTr ctrlOrCmd, NoTr "I" ] ForItalic
                         , shortcutSpanEnabled isTextSelected [ NoTr ctrlOrCmd, AltKey, NoTr "K" ] ForInsertLink
@@ -517,7 +517,7 @@ viewShortcuts msgs { lang, isOpen, isMac, children, textCursorInfo, viewMode } =
                         , formattingSpan FormattingLink
                         , span [ class "markdown-guide" ]
                             [ a [ href "http://commonmark.org/help", target "_blank" ]
-                                [ text lang FormattingGuide
+                                [ text FormattingGuide
                                 , span [ class "icon-container" ] [ Icon.linkExternal (defaultOptions |> iconColor |> Icon.size 14) ]
                                 ]
                             ]
@@ -628,8 +628,8 @@ renderToast msg tray =
     Toast.render viewToastFrame tray (toastConfig msg)
 
 
-viewTooltip : Language -> ( Element, TooltipPosition, TranslationId ) -> Html msg
-viewTooltip lang ( el, tipPos, content ) =
+viewTooltip : ( Element, TooltipPosition, TranslationId ) -> Html msg
+viewTooltip ( el, tipPos, content ) =
     let
         posAttributes =
             case tipPos of
@@ -669,7 +669,7 @@ viewTooltip lang ( el, tipPos, content ) =
                     ]
     in
     div ([ class "tooltip" ] ++ posAttributes)
-        [ text lang content, div [ class "tooltip-arrow" ] [] ]
+        [ text content, div [ class "tooltip-arrow" ] [] ]
 
 
 getStats : { m | activeCardId : String, workingTree : TreeStructure.Model } -> Stats

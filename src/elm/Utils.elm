@@ -91,14 +91,14 @@ myDebug label value =
 -- Translation Helper Function
 
 
-text : Language -> TranslationId -> Html msg
-text lang tid =
-    Html.text <| tr lang tid
+text : TranslationId -> Html msg
+text tid =
+    Html.text <| tr tid
 
 
-textElmCss : Language -> TranslationId -> Html.Styled.Html msg
-textElmCss lang tid =
-    Html.Styled.text <| tr lang tid
+textElmCss : TranslationId -> Html.Styled.Html msg
+textElmCss tid =
+    Html.Styled.text <| tr tid
 
 
 textNoTr : String -> Html msg

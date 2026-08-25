@@ -1833,7 +1833,7 @@ setBlock block ( model, cmd ) =
 
                         maybeBlock =
                             if daysLeft <= 0 then
-                                Just (tr lang TrialExpired)
+                                Just (tr TrialExpired)
 
                             else
                                 Nothing
@@ -1855,9 +1855,9 @@ setBlock block ( model, cmd ) =
 -- Translation Helper Function
 
 
-text : Language -> TranslationId -> Html msg
-text lang tid =
-    Html.text <| tr lang tid
+text : TranslationId -> Html msg
+text tid =
+    Html.text <| tr tid
 
 
 textNoTr : String -> Html msg
@@ -1889,7 +1889,7 @@ view ({ documentState } as model) =
         viewTooltip =
             case model.tooltip of
                 Just tooltip ->
-                    UI.viewTooltip lang tooltip
+                    UI.viewTooltip tooltip
 
                 Nothing ->
                     emptyText
@@ -2032,7 +2032,7 @@ view ({ documentState } as model) =
                                 Nothing
                                 model.sidebarMenuState
                                 model.sidebarState
-                           , viewIf (Session.isNotConfirmed session) (viewConfirmBanner lang CloseEmailConfirmBanner email)
+                           , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                            , viewTooltip
                            ]
                         ++ UI.viewShortcuts
@@ -2068,7 +2068,7 @@ view ({ documentState } as model) =
                                 Nothing
                                 model.sidebarMenuState
                                 model.sidebarState
-                           , viewIf (Session.isNotConfirmed session) (viewConfirmBanner lang CloseEmailConfirmBanner email)
+                           , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                            , viewTooltip
                            ]
                         ++ viewModal globalData session model.modalState
@@ -2088,7 +2088,7 @@ view ({ documentState } as model) =
                             Nothing
                             model.sidebarMenuState
                             model.sidebarState
-                       , viewIf (Session.isNotConfirmed session) (viewConfirmBanner lang CloseEmailConfirmBanner email)
+                       , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                        , viewTooltip
                        ]
                     ++ viewModal globalData session model.modalState
@@ -2152,7 +2152,7 @@ viewModal globalData session modalState =
                 -- document layer, so the page hung on "Duplicating..." forever.
                 [ if isOwner then
                     div [ onClick (DeleteDoc docId), class "context-menu-item" ]
-                        [ AntIcons.deleteOutlined [ Svg.Attributes.class "icon" ], text language DeleteDocument ]
+                        [ AntIcons.deleteOutlined [ Svg.Attributes.class "icon" ], text DeleteDocument ]
 
                   else
                     textNoTr ""
@@ -2169,7 +2169,7 @@ viewModal globalData session modalState =
                 }
 
         HelpScreen ->
-            HelpScreen.view language
+            HelpScreen.view
                 (GlobalData.isMac globalData)
                 { closeModal = ModalClosed
                 }
@@ -2235,13 +2235,13 @@ radio value isChecked msg =
         ]
 
 
-viewConfirmBanner : Language -> msg -> String -> Html msg
-viewConfirmBanner lang closeMsg email =
+viewConfirmBanner : msg -> String -> Html msg
+viewConfirmBanner closeMsg email =
     div [ id "email-confirm-banner", class "top-banner" ]
         [ AntIcons.warningOutlined [ width 16 ]
-        , strong [] [ text lang ConfirmBannerStrong ]
+        , strong [] [ text ConfirmBannerStrong ]
         , textNoTr " "
-        , text lang ConfirmBannerBody
+        , text ConfirmBannerBody
         , textNoTr (email ++ " .")
         , AntIcons.closeCircleOutlined [ width 16, height 16, id "email-confirm-close-btn", onClick closeMsg ]
         ]
