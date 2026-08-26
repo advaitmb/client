@@ -11,7 +11,6 @@ import Import.Template as Template
 import Json.Decode as Dec exposing (Value)
 import Outgoing exposing (Msg(..), send)
 import Page.App
-import Page.Copy
 import Page.DocNew
 import Page.Import
 import Page.Login
@@ -37,7 +36,6 @@ type Model
       Signup Page.Signup.Model
     | Login Page.Login.Model
       -- Logged In Pages:
-    | Copy Page.Copy.Model
     | Import Page.Import.Model
     | DocNew Page.DocNew.Model
     | App Page.App.Model
@@ -103,10 +101,6 @@ handleUrlChange url model =
                         Nothing ->
                             Page.App.init navKey globalData session Nothing
                                 |> updateWith App GotAppMsg
-
-                [ "copy", dbName ] ->
-                    Page.Copy.init navKey globalData session dbName
-                        |> updateWith Copy GotCopyMsg
 
                 [ "login" ] ->
                     ( model, Route.pushUrl navKey Route.Root )
@@ -195,9 +189,6 @@ toSession model =
         Login login ->
             Page.Login.toSession login
 
-        Copy copy ->
-            Page.Copy.toSession copy
-
         Import importModel ->
             Page.Import.toSession importModel
 
@@ -215,9 +206,6 @@ toGlobalData model =
 
         Login login ->
             Page.Login.globalData login
-
-        Copy copy ->
-            Page.Copy.globalData copy
 
         Import importModel ->
             importModel.globalData
@@ -237,9 +225,6 @@ getNavKey model =
         Login login ->
             Page.Login.navKey login
 
-        Copy copy ->
-            Page.Copy.navKey copy
-
         Import importModel ->
             importModel.navKey
 
@@ -258,7 +243,6 @@ type Msg
     | SettingsChanged Dec.Value
     | GotSignupMsg Page.Signup.Msg
     | GotLoginMsg Page.Login.Msg
-    | GotCopyMsg Page.Copy.Msg
     | GotImportMsg Page.Import.Msg
     | GotDocNewMsg Page.DocNew.Msg
     | GotAppMsg Page.App.Msg
@@ -314,10 +298,6 @@ update msg model =
             Page.Login.update loginMsg loginModel
                 |> updateWith Login GotLoginMsg
 
-        ( GotCopyMsg copyMsg, Copy copyModel ) ->
-            Page.Copy.update copyMsg copyModel
-                |> updateWith Copy GotCopyMsg
-
         ( GotImportMsg homeMsg, Import homeModel ) ->
             Page.Import.update homeMsg homeModel
                 |> updateWith Import GotImportMsg
@@ -364,9 +344,6 @@ view model =
         Login login ->
             { title = "Gingko Writer - Login", body = [ Html.map GotLoginMsg (Page.Login.view login) ] }
 
-        Copy copyModel ->
-            { title = "Duplicating...", body = [ UI.viewAppLoadingSpinner (Session.fileMenuOpen copyModel.session) ] }
-
         Import importModel ->
             { title = "Importing...", body = [ UI.viewAppLoadingSpinner (Session.fileMenuOpen importModel.session) ] }
 
@@ -396,9 +373,6 @@ subscriptions model =
 
         Login pageModel ->
             Sub.map GotLoginMsg (Page.Login.subscriptions pageModel)
-
-        Copy pageModel ->
-            Sub.map GotCopyMsg (Page.Copy.subscriptions pageModel)
 
         Import pageModel ->
             Sub.map GotImportMsg (Page.Import.subscriptions pageModel)

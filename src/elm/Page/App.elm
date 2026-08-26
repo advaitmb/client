@@ -328,7 +328,6 @@ type Msg
     | SortByChanged SortBy
     | SidebarStateChanged SidebarState
     | SidebarContextClicked String ( Float, Float )
-    | DuplicateDoc String
     | DeleteDoc String
     | ReceivedDocuments DocList.Model
     | SwitcherOpened
@@ -872,9 +871,6 @@ update msg model =
 
         SidebarContextClicked docId ( x, y ) ->
             ( { model | modalState = SidebarContextMenu docId ( x, y ) }, Cmd.none )
-
-        DuplicateDoc docId ->
-            ( { model | modalState = NoModal }, Route.replaceUrl model.navKey (Route.Copy docId) )
 
         DeleteDoc docId ->
             let
@@ -2137,9 +2133,8 @@ viewModal globalData session modalState =
                 , style "top" (String.fromFloat y ++ "px")
                 , style "left" (String.fromFloat x ++ "px")
                 ]
-                -- "Duplicate" removed: it routed to Page/Copy, which waits on the
-                -- copyLoaded port. That port was fed by the legacy CouchDB
-                -- document layer, so the page hung on "Duplicating..." forever.
+                -- "Duplicate" is gone with Page/Copy: it copied a legacy
+                -- CouchDB database, so it hung on "Duplicating..." forever.
                 [ if isOwner then
                     div [ onClick (DeleteDoc docId), class "context-menu-item" ]
                         [ AntIcons.deleteOutlined [ Svg.Attributes.class "icon" ], text DeleteDocument ]

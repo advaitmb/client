@@ -39,7 +39,6 @@ type TranslationId
     | LastUpdated
     | LastOpened
     | OpenOtherDocuments
-    | DuplicateDocument
     | DeleteDocument
     | RemoveFromList
     | NeverSaved
@@ -360,10 +359,6 @@ tr trans =
 
                 OpenOtherDocuments ->
                     { en = "Open Other Documents"
-                    }
-
-                DuplicateDocument ->
-                    { en = "Duplicate Tree"
                     }
 
                 DeleteDocument ->

@@ -12,7 +12,6 @@ type Route
     | DocNew
     | DocUntitled String
     | Doc String String
-    | Copy String
     | Import Template
     | Upgrade Bool
     | NotFound String
@@ -39,9 +38,6 @@ toString route =
 
         Doc dbName docName ->
             "/" ++ dbName ++ "/" ++ docName
-
-        Copy dbName ->
-            "/copy/" ++ dbName
 
         Import template ->
             "/import/" ++ Template.toString template
