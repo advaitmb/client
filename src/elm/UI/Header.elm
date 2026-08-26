@@ -44,7 +44,6 @@ viewHeader :
     , titleEditCanceled : msg
     , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
     , tooltipClosed : msg
-    , migrateClicked : msg
     , toggledHistory : Bool -> msg
     , checkoutTree : String -> msg
     , restore : msg
@@ -64,7 +63,6 @@ viewHeader :
         , title_ : Maybe String
         , titleField_ : Maybe String
         , headerMenu : HeaderMenuState
-        , isGitLike : Bool
         , isOwner : Bool
         , exportSettings : ( ExportSelection, ExportFormat )
         , data : Data.Model
@@ -75,7 +73,7 @@ viewHeader :
         , collaborators : List Collaborator
         }
     -> Html msg
-viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, exportSettings, data, dirty, lastLocalSave, lastRemoteSave, globalData, collaborators } =
+viewHeader msgs { session, title_, titleField_, headerMenu, isOwner, exportSettings, data, dirty, lastLocalSave, lastRemoteSave, globalData, collaborators } =
     let
         currentTime =
             GlobalData.currentTime globalData
@@ -153,19 +151,6 @@ viewHeader msgs { session, title_, titleField_, headerMenu, isGitLike, isOwner, 
     in
     div [ id "document-header" ]
         [ titleArea
-        , if isGitLike then
-            div
-                [ id "migrate-button"
-                , class "header-button"
-                , onClick msgs.migrateClicked
-                , onMouseEnter <| msgs.tooltipRequested "migrate-button" BelowTooltip MigrateTooltip
-                , onMouseLeave msgs.tooltipClosed
-                ]
-                [ AntIcons.thunderboltFilled [] ]
-
-          else
-            -- Self-host: single author, no collaborators UI.
-            emptyText
         , div
             [ id "history-icon"
             , class "header-button"

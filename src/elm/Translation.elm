@@ -167,7 +167,6 @@ type TranslationId
     | HeadingFont
     | ContentFont
     | EditingFont
-    | MigrateTooltip
     | VersionHistory
     | DocumentSettings
     | WordCount
@@ -861,10 +860,6 @@ tr trans =
 
                 EditingFont ->
                     { en = "Editing/Monospace Font"
-                    }
-
-                MigrateTooltip ->
-                    { en = "Upgrade document to new format"
                     }
 
                 VersionHistory ->

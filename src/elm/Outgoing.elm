@@ -33,7 +33,6 @@ type Msg
     | SaveCardBasedMigration Enc.Value
     | PushDeltas Enc.Value
     | CommitData Enc.Value
-    | PullData
       -- === Collaboration ===
     | SendCollabState Enc.Value
       -- === Desktop ===
@@ -113,9 +112,6 @@ send info =
 
         CommitData data ->
             dataToSend "CommitData" data
-
-        PullData ->
-            dataToSend "PullData" null
 
         InitDocument dbName ->
             dataToSend "InitDocument" (string dbName)

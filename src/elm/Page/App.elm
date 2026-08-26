@@ -102,7 +102,6 @@ type alias DbData =
 type ModalState
     = NoModal
     | FileSwitcher Doc.Switcher.Model
-    | MigrateModal
     | SidebarContextMenu String ( Float, Float )
     | TemplateSelector
     | HelpScreen
@@ -309,13 +308,10 @@ type Msg
     = NoOp
     | GotDocMsg Page.Doc.Msg
     | TimeUpdate Time.Posix
-    | Pull
     | SettingsChanged Json.Value
     | LogoutRequested
     | IncomingAppMsg IncomingAppMsg
     | IncomingDocMsg Incoming.Msg
-    | MigrateModalCalled
-    | MigrateToCardBased
     | LogErr String
       -- Conflicts
     | ConflictVersionSelected ConflictSelection
@@ -413,21 +409,6 @@ update msg model =
             , Cmd.none
             )
 
-        Pull ->
-            case model.documentState of
-                Doc { data } ->
-                    if Data.isGitLike data then
-                        ( model, send <| PullData )
-
-                    else
-                        ( model, Cmd.none )
-
-                Empty _ _ ->
-                    ( model, Cmd.none )
-
-                DocNotFound _ _ ->
-                    ( model, Cmd.none )
-
         SettingsChanged json ->
             ( model |> updateSession (Session.sync json (GlobalData.currentTime globalData) session), Cmd.none )
                 |> setBlock Nothing
@@ -518,34 +499,6 @@ update msg model =
                         DocNotFound _ _ ->
                             ( model, Cmd.none )
 
-
-                GitDataReceived json ->
-                    gitDataReceived json model
-
-                DataSaved dataIn ->
-                    case model.documentState of
-                        Doc ({ docModel, data } as docState) ->
-                            let
-                                newData =
-                                    Data.success dataIn data
-                            in
-                            ( { model
-                                | documentState =
-                                    Doc
-                                        { docState
-                                            | data = newData
-                                            , lastLocalSave = Data.lastSyncedTime newData |> Maybe.map Time.millisToPosix
-                                            , docModel = Page.Doc.setDirty False docModel
-                                        }
-                              }
-                            , send <| SetDirty False
-                            )
-
-                        Empty _ _ ->
-                            ( model, Cmd.none )
-
-                        DocNotFound _ _ ->
-                            ( model, Cmd.none )
 
                 SocketConnected ->
                     case model.documentState of
@@ -704,65 +657,6 @@ update msg model =
 
                 _ ->
                     doNothing
-
-        MigrateModalCalled ->
-            case model.documentState of
-                Doc _ ->
-                    ( { model
-                        | modalState =
-                            MigrateModal
-                      }
-                    , Cmd.none
-                    )
-
-                Empty _ _ ->
-                    ( model, Cmd.none )
-
-                DocNotFound _ _ ->
-                    ( model, Cmd.none )
-
-        MigrateToCardBased ->
-            case model.documentState of
-                Doc docState ->
-                    let
-                        converted_ =
-                            Data.convert docState.docId docState.data
-
-                        tree =
-                            Page.Doc.getWorkingTree docState.docModel
-                                |> .tree
-                    in
-                    case converted_ of
-                        Just ( newData, outData ) ->
-                            ( { model
-                                | documentState =
-                                    Doc
-                                        { docState
-                                            | data = newData
-                                        }
-                                , modalState = NoModal
-                                , tooltip = Nothing
-                              }
-                            , Cmd.batch
-                                [ Export.command
-                                    ((always << always) NoOp)
-                                    docState.docId
-                                    ((Session.getDocName session docState.docId |> Maybe.withDefault "Untitled") ++ "-migration-backup")
-                                    ( ExportEverything, JSON )
-                                    tree
-                                    tree
-                                , send <| SaveCardBasedMigration outData
-                                ]
-                            )
-
-                        Nothing ->
-                            ( model, Cmd.none )
-
-                Empty _ _ ->
-                    ( model, Cmd.none )
-
-                DocNotFound _ _ ->
-                    ( model, Cmd.none )
 
         LogErr err ->
             ( model
@@ -1473,55 +1367,6 @@ historyReceived dataIn model =
             ( model, Cmd.none )
 
 
-gitDataReceived : Json.Value -> Model -> ( Model, Cmd Msg )
-gitDataReceived dataIn model =
-    case model.documentState of
-        Doc ({ docModel } as docState) ->
-            let
-                workingTree =
-                    Page.Doc.getWorkingTree docModel
-
-                tree =
-                    workingTree.tree
-
-                lastActives =
-                    Json.decodeValue (Json.at [ "localStore", "last-actives" ] (Json.list Json.string)) dataIn
-            in
-            case Data.gitDataReceived dataIn ( docState.data, tree ) of
-                Just { newData, newTree } ->
-                    let
-                        newWorkingTree =
-                            TreeStructure.setTreeWithConflicts (Data.conflictList newData) newTree workingTree
-
-                        ( newDocModel, newCmds ) =
-                            docModel
-                                |> Page.Doc.setWorkingTree newWorkingTree
-                                |> Page.Doc.setLoading False
-                                |> Page.Doc.lastActives lastActives
-                    in
-                    ( { model
-                        | documentState =
-                            Doc
-                                { docState
-                                    | data = newData
-                                    , lastRemoteSave = Data.lastSyncedTime newData |> Maybe.map Time.millisToPosix
-                                    , lastLocalSave = Data.lastSyncedTime newData |> Maybe.map Time.millisToPosix
-                                    , docModel = newDocModel
-                                }
-                      }
-                    , Cmd.map GotDocMsg newCmds
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        Empty _ _ ->
-            ( model, Cmd.none )
-
-        DocNotFound _ _ ->
-            ( model, Cmd.none )
-
-
 applyParentMsgs : List MsgToParent -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 applyParentMsgs parentMsgs ( prevModel, prevCmd ) =
     List.foldl applyParentMsg ( prevModel, prevCmd ) parentMsgs
@@ -1848,7 +1693,6 @@ view ({ documentState } as model) =
                                 , titleEditCanceled = TitleEditCanceled
                                 , tooltipRequested = TooltipRequested
                                 , tooltipClosed = TooltipClosed
-                                , migrateClicked = MigrateModalCalled
                                 , toggledHistory = HistoryToggled
                                 , checkoutTree = CheckoutVersion
                                 , restore = Restore
@@ -1868,7 +1712,6 @@ view ({ documentState } as model) =
                                 , titleField_ = titleField
                                 , headerMenu = model.headerMenu
                                 , collaborators = collaborators
-                                , isGitLike = Data.isGitLike data
                                 , isOwner = isOwner
                                 , exportSettings = model.exportSettings
                                 , data = data
@@ -1964,31 +1807,6 @@ viewModal globalData session modalState =
 
         FileSwitcher switcherModel ->
             Doc.Switcher.view SwitcherClosed FileSearchChanged switcherModel
-
-        MigrateModal ->
-            [ div [ class "top" ] [ h2 [] [ textNoTr "We've made major improvements to how documents are stored.", br [] [], textNoTr "Upgrade this document to make it :" ] ]
-            , div [ class "left" ]
-                [ h3 [ style "text-align" "center" ] [ textNoTr "More Reliable" ]
-                , ul []
-                    [ li [] [ textNoTr "3 on-device backups, updated as you type" ]
-                    , li [] [ textNoTr "2 server backups up to once per second" ]
-                    , li [] [ textNoTr "Simpler data, in a more resilient database" ]
-                    ]
-                ]
-            , div [ class "right" ]
-                [ h3 [ style "text-align" "center" ] [ textNoTr "Faster" ]
-                , ul []
-                    [ li [] [ textNoTr "35x faster syncing" ]
-                    , li [] [ textNoTr "25x less network data sent/received" ]
-                    , li [] [ textNoTr "100x faster loading of large documents" ]
-                    ]
-                ]
-            , div [ classList [ ( "bottom", True ), ( "modal-buttons", True ) ] ]
-                [ div [ id "migrate-confirm", onClick MigrateToCardBased ] [ textNoTr "Upgrade Document" ]
-                , p [ style "position" "absolute", style "bottom" "16px", style "color" "grey" ] [ small [] [ textNoTr "(Note: this downloads a backup of the current document before upgrading it)" ] ]
-                ]
-            ]
-                |> SharedUI.modalWrapper ModalClosed (Just "migrate-modal") Nothing "\u{200E}"
 
         SidebarContextMenu docId ( x, y ) ->
             let
@@ -2097,13 +1915,11 @@ viewConfirmBanner closeMsg email =
 
 
 type IncomingAppMsg
-    = DataSaved Enc.Value
-    | SocketConnected
+    = SocketConnected
     | CardDataReceived Enc.Value
     | HistoryDataReceived Enc.Value
     | PushOk (List String)
     | PushError
-    | GitDataReceived Enc.Value
     | MetadataUpdate Metadata
     | SavedRemotely Time.Posix
     | ErrorAlert String
@@ -2115,9 +1931,6 @@ subscribe tagger onError =
     appMsgs
         (\outsideInfo ->
             case outsideInfo.tag of
-                "DataSaved" ->
-                    tagger <| DataSaved outsideInfo.data
-
                 "SocketConnected" ->
                     tagger <| SocketConnected
 
@@ -2137,9 +1950,6 @@ subscribe tagger onError =
 
                 "PushError" ->
                     tagger PushError
-
-                "GitDataReceived" ->
-                    tagger <| GitDataReceived outsideInfo.data
 
                 "MetadataUpdate" ->
                     case decodeValue Metadata.decoder outsideInfo.data of
@@ -2212,5 +2022,4 @@ subscriptions model =
             _ ->
                 Sub.none
         , Time.every (9 * 1000) TimeUpdate
-        , Time.every (23 * 1000) (always Pull)
         ]
