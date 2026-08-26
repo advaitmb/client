@@ -594,18 +594,6 @@ const fromElm = (msg, elmData) => {
       }
     },
 
-    SaveImportedData: async () => {
-      // Legacy CouchDB-format path: produced documents stored only in this
-      // browser, never synced or backed up. See src/shared/data.js.
-      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
-    },
-
-    SaveBulkImportedData: async () => {
-      // Legacy CouchDB-format path: produced documents stored only in this
-      // browser, never synced or backed up. See src/shared/data.js.
-      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
-    },
-
     // === Collaboration ===
 
 

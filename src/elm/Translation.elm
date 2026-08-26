@@ -22,10 +22,6 @@ type TranslationId
     | ImportSectionTitle
     | HomeImportLegacy
     | HomeLegacyFrom
-    | ImportTextFiles
-    | ImportTextFilesDesc
-    | ImportOpmlFiles
-    | ImportOpmlFilesDesc
     | TimelineTemplate
     | TimelineTemplateDesc
     | AcademicPaperTemplate
@@ -294,22 +290,6 @@ tr trans =
 
                 HomeLegacyFrom ->
                     { en = "Bulk transfer of trees from your legacy account"
-                    }
-
-                ImportTextFiles ->
-                    { en = "Import Text Files"
-                    }
-
-                ImportTextFilesDesc ->
-                    { en = "Import multiple markdown or regular text files."
-                    }
-
-                ImportOpmlFiles ->
-                    { en = "Import Opml Files"
-                    }
-
-                ImportOpmlFilesDesc ->
-                    { en = "Import from Workflowy or other outliners."
                     }
 
                 TimelineTemplate ->

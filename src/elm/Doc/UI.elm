@@ -194,8 +194,6 @@ viewTemplateSelector :
     LoggedIn
     ->
         { modalClosed : msg
-        , importTextClicked : msg
-        , importOpmlRequested : msg
         , importJSONRequested : msg
         }
     -> List (Html msg)
@@ -210,23 +208,11 @@ viewTemplateSelector session msgs =
             ]
         , h2 [] [ text ImportSectionTitle ]
         , div [ class "template-row" ]
-            [ div [ id "template-import-text", class "template-item", onClick msgs.importTextClicked ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.file (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text ImportTextFiles ]
-                , div [ class "template-description" ]
-                    [ text ImportTextFilesDesc ]
-                ]
-            , div [ id "template-import", class "template-item", onClick msgs.importJSONRequested ]
+            [ div [ id "template-import", class "template-item", onClick msgs.importJSONRequested ]
                 [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.fileCode (Icon.defaultOptions |> Icon.size 48) ]
                 , div [ class "template-title" ] [ text HomeImportJSON ]
                 , div [ class "template-description" ]
                     [ text HomeJSONFrom ]
-                ]
-            , div [ id "template-import-opml", class "template-item", onClick msgs.importOpmlRequested ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.fileCode (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text ImportOpmlFiles ]
-                , div [ class "template-description" ]
-                    [ text ImportOpmlFilesDesc ]
                 ]
             ]
         , h2 [] [ text TemplatesAndExamples ]

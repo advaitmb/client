@@ -34,8 +34,6 @@ type Msg
     | PushDeltas Enc.Value
     | CommitData Enc.Value
     | PullData
-    | SaveImportedData Enc.Value
-    | SaveBulkImportedData Enc.Value
       -- === Collaboration ===
     | SendCollabState Enc.Value
       -- === Desktop ===
@@ -63,7 +61,6 @@ type Msg
     | RequestFullscreen
     | Print
       -- === Misc ===
-    | IntegrationTestEvent String
     | EmptyMessageShown
     | CheckoutButtonClicked Enc.Value
     | ConsoleLogRequested String
@@ -119,12 +116,6 @@ send info =
 
         PullData ->
             dataToSend "PullData" null
-
-        SaveImportedData data ->
-            dataToSend "SaveImportedData" data
-
-        SaveBulkImportedData data ->
-            dataToSend "SaveBulkImportedData" data
 
         InitDocument dbName ->
             dataToSend "InitDocument" (string dbName)
@@ -244,9 +235,6 @@ send info =
 
 
         -- === Misc ===
-        IntegrationTestEvent eventData ->
-            dataToSend "IntegrationTestEvent" (string eventData)
-
         EmptyMessageShown ->
             dataToSend "EmptyMessageShown" null
 

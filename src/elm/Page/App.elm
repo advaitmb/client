@@ -26,9 +26,7 @@ import Html.Extra exposing (viewIf)
 import Html.Lazy exposing (lazy5)
 import Http
 import Import.Incoming
-import Import.Opml
 import Import.Single
-import Import.Text as ImportText
 import Json.Decode as Json exposing (decodeValue, errorToString)
 import Json.Encode as Enc
 import Outgoing exposing (Msg(..), send)
@@ -109,7 +107,6 @@ type ModalState
     | TemplateSelector
     | HelpScreen
     | Wordcount Page.Doc.Model
-    | ImportTextModal ImportText.Model
     | UpgradeModal
 
 
@@ -360,14 +357,6 @@ type Msg
       -- Account menu
     | ToggledAccountMenu Bool
       -- Import
-    | ImportTextClicked
-    | ImportTextModalMsg ImportText.Msg
-    | ImportTextLoaded ImportText.Settings (List String) (List String)
-    | ImportTextIdGenerated Tree (Maybe String) String
-    | ImportOpmlRequested
-    | ImportOpmlSelected File
-    | ImportOpmlLoaded String String
-    | ImportOpmlIdGenerated Tree String String
     | ImportJSONRequested
     | ImportJSONSelected File
     | ImportJSONLoaded String String
@@ -706,16 +695,6 @@ update msg model =
 
                                 _ ->
                                     passThroughTo docState
-
-                ( TestTextImportLoaded files, _ ) ->
-                    case model.modalState of
-                        ImportTextModal modalState ->
-                            ( { model | modalState = ImportText.setFileList files modalState |> ImportTextModal }
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            doNothing
 
                 ( WillPrint, Doc _ ) ->
                     ( { model | headerMenu = ExportPreview }, Cmd.none )
@@ -1208,117 +1187,6 @@ update msg model =
             )
 
         -- Import
-        ImportTextClicked ->
-            ( { model | modalState = ImportTextModal ImportText.init }, Cmd.none )
-
-
-        ImportTextModalMsg modalMsg ->
-            case model.modalState of
-                ImportTextModal modalModel ->
-                    let
-                        u =
-                            ImportText.update modalMsg modalModel
-
-                        newCmd =
-                            Cmd.batch
-                                ([ Cmd.map ImportTextModalMsg u.cmd ]
-                                    ++ (if u.sendTestHack then
-                                            [ send <| IntegrationTestEvent "ImportTextRequested" ]
-
-                                        else
-                                            []
-                                       )
-                                    ++ (case u.importRequested of
-                                            Just ( files, importSettings ) ->
-                                                let
-                                                    tasks =
-                                                        files |> List.map File.toString |> Task.sequence
-
-                                                    metadata =
-                                                        files |> List.map File.name
-                                                in
-                                                [ Task.perform (ImportTextLoaded importSettings metadata) tasks ]
-
-                                            Nothing ->
-                                                []
-                                       )
-                                )
-                    in
-                    ( { model | modalState = ImportTextModal u.model }, newCmd )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        ImportTextLoaded settings metadata markdownStrings ->
-            let
-                ( importedTree, newSeed, newTitle_ ) =
-                    ImportText.toTree (GlobalData.seed globalData) metadata markdownStrings settings
-
-                newGlobalData =
-                    GlobalData.setSeed newSeed globalData
-            in
-            ( { model | loading = True } |> updateGlobalData newGlobalData
-            , RandomId.generate (ImportTextIdGenerated importedTree newTitle_)
-            )
-
-        ImportTextIdGenerated tree newTitle_ docId ->
-            let
-                author =
-                    session |> Session.name
-
-                encodeMaybeRename =
-                    newTitle_
-                        |> Maybe.map (\title -> Metadata.renameAndEncode title)
-                        |> Maybe.withDefault Metadata.encode
-
-                commitReq_ =
-                    Data.requestCommit tree author Data.empty (Metadata.new docId |> encodeMaybeRename)
-            in
-            case commitReq_ of
-                Just commitReq ->
-                    ( model, send <| SaveImportedData commitReq )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        ImportOpmlRequested ->
-            ( model, Select.file [ "application/xml", "text/xml", "text/x-opml", ".opml" ] ImportOpmlSelected )
-
-        ImportOpmlSelected file ->
-            ( model, Task.perform (ImportOpmlLoaded (File.name file)) (File.toString file) )
-
-        ImportOpmlLoaded fileName opmlString ->
-            let
-                ( importTreeResult, newSeed ) =
-                    Import.Opml.treeResult (GlobalData.seed globalData) opmlString
-
-                newGlobalData =
-                    GlobalData.setSeed newSeed globalData
-            in
-            case importTreeResult of
-                Ok tree ->
-                    ( { model | loading = True } |> updateGlobalData newGlobalData
-                    , RandomId.generate (ImportOpmlIdGenerated tree fileName)
-                    )
-
-                Err _ ->
-                    ( model |> updateGlobalData newGlobalData, Cmd.none )
-
-        ImportOpmlIdGenerated tree fileName docId ->
-            let
-                author =
-                    session |> Session.name
-
-                commitReq_ =
-                    Data.requestCommit tree author Data.empty (Metadata.new docId |> Metadata.renameAndEncode fileName)
-            in
-            case commitReq_ of
-                Just commitReq ->
-                    ( model, send <| SaveImportedData commitReq )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         ImportJSONRequested ->
             ( model, Select.file [ "application/json", "text/plain" ] ImportJSONSelected )
 
@@ -2147,8 +2015,6 @@ viewModal globalData session modalState =
         TemplateSelector ->
             UI.viewTemplateSelector session
                 { modalClosed = ModalClosed
-                , importTextClicked = ImportTextClicked
-                , importOpmlRequested = ImportOpmlRequested
                 , importJSONRequested = ImportJSONRequested
                 }
 
@@ -2166,11 +2032,6 @@ viewModal globalData session modalState =
                 , globalData = globalData
                 }
                 { modalClosed = ModalClosed }
-
-        ImportTextModal modalModel ->
-            ImportText.view
-                { closeMsg = TemplateSelectorOpened, tagger = ImportTextModalMsg }
-                modalModel
 
         UpgradeModal ->
             let

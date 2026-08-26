@@ -997,11 +997,6 @@ incoming incomingMsg model =
             , []
             )
 
-        -- === INTEGRATION TEST HOOKS ===
-        TestTextImportLoaded _ ->
-            ( model, Cmd.none, [] )
-
-
 andThen : (ModelData -> ( ModelData, Cmd Msg, List MsgToParent )) -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
 andThen f ( model, cmd, msgs ) =
     let
