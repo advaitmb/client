@@ -1,4 +1,4 @@
-module Doc.TreeUtils exposing (ScrollPosition, centerlineIds, dictUpdate, getAncestors, getChildren, getColumn, getColumnById, getColumns, getContent, getDepth, getDescendants, getFirstCard, getFirstInColumn, getIndex, getLastInColumn, getLeaves, getNext, getNextInColumn, getParent, getPrev, getPrevInColumn, getPrevNext, getPrevNextInColumn, getScrollPositions, getSiblings, getTree, getTreeWithPosition, newLine, preorderTraversal, scrollPositionToValue, sha1, withIdTree)
+module Doc.TreeUtils exposing (ScrollPosition, getAncestors, getChildren, getColumn, getColumnById, getColumns, getContent, getDepth, getDescendants, getFirstCard, getFirstInColumn, getIndex, getLastInColumn, getLeaves, getNextInColumn, getParent, getPrev, getPrevInColumn, getScrollPositions, getSiblings, getTree, getTreeWithPosition, preorderTraversal, scrollPositionToValue, sha1)
 
 import Dict exposing (..)
 import Json.Encode as Enc
@@ -150,11 +150,6 @@ getPrevNext shift id tree =
 getPrev : String -> Tree -> Maybe Tree
 getPrev id tree =
     getPrevNext -1 id tree
-
-
-getNext : String -> Tree -> Maybe Tree
-getNext id tree =
-    getPrevNext 1 id tree
 
 
 getPrevNextInColumn : Int -> String -> Tree -> Maybe Tree
@@ -478,62 +473,7 @@ sortChildrenBy toComparable tree =
     { tree | children = sortedChildren }
 
 
-centerlineIds : List (List String) -> List String -> List String -> List (List String)
-centerlineIds flatCols allIds activePast =
-    let
-        lastActiveOrAll aP ids =
-            let
-                lastActiveIdx_ =
-                    aP
-                        |> ListExtra.findIndex (\a -> List.member a ids)
-            in
-            case lastActiveIdx_ of
-                Nothing ->
-                    ids
-
-                Just idx ->
-                    aP
-                        |> ListExtra.getAt idx
-                        -- Maybe String
-                        |> Maybe.withDefault "1"
-                        |> List.singleton
-    in
-    flatCols
-        |> List.drop 1
-        |> List.map (\c -> List.filter (\id -> List.member id allIds) c)
-        |> ListExtra.filterNot List.isEmpty
-        |> List.map (lastActiveOrAll activePast)
-
-
-
--- HELPERS
-
-
-newLine : String
-newLine =
-    String.fromList [ '\n' ]
-
-
-withIdTree : String -> Tree
-withIdTree id =
-    Tree id "" (Children [])
-
-
 sha1 : String -> String
 sha1 str =
     str |> SHA1.fromString |> SHA1.toHex
 
-
-dictUpdate : comparable -> (b -> b) -> Dict comparable b -> Dict comparable b
-dictUpdate id upd dict =
-    Dict.update
-        id
-        (\n_ ->
-            case n_ of
-                Just n ->
-                    Just (upd n)
-
-                Nothing ->
-                    Nothing
-        )
-        dict

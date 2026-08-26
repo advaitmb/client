@@ -1,4 +1,4 @@
-module Coders exposing (collabStateDecoder, collabStateEncoder, lazyRecurse, maybeToValue, modeDecoder, normalizeAndParse, normalizeInput, sortByDecoder, sortByEncoder, treeDecoder, treeOrString, treeToJSON, treeToJSONrecurse, treeToMarkdownOutline, treeToMarkdownRecurse, treeToMarkdownString, treeToOPML, treeToValue, treesParser, tupleDecoder, tupleToValue)
+module Coders exposing (collabStateDecoder, collabStateEncoder, lazyRecurse, maybeToValue, sortByDecoder, sortByEncoder, treeOrString, treeToJSON, treeToMarkdownString, treeToOPML, treeToValue, tupleDecoder, tupleToValue)
 
 import Json.Decode as Json exposing (..)
 import Json.Encode as Enc
@@ -149,17 +149,6 @@ treeToOPMLBody tree =
 -- Structured Markdown
 
 
-treeToMarkdownOutline : Bool -> Tree -> String
-treeToMarkdownOutline withRoot tree =
-    if withRoot then
-        treeToMarkdownOutlineRecurse tree
-
-    else
-        case tree.children of
-            Children c ->
-                List.map treeToMarkdownOutlineRecurse c |> String.join "\n"
-
-
 treeToMarkdownOutlineRecurse : Tree -> String
 treeToMarkdownOutlineRecurse tree =
     case tree.children of
@@ -217,13 +206,6 @@ normalizeCloseTags str =
 
 
 -- PARSER
-
-
-normalizeAndParse : String -> Result (List DeadEnd) (List Tree)
-normalizeAndParse input =
-    input
-        |> normalizeInput
-        |> Parser.run treesParser
 
 
 treesParser : Parser (List Tree)

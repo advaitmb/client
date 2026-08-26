@@ -13,6 +13,19 @@ module Toast exposing
     , filter
     )
 
+{- VENDORED THIRD-PARTY MODULE -- do not trim.
+
+   This is the elm-toast package, copied in whole. It is large (873 lines,
+   of which 343 are its own documentation) but that costs nothing: Elm's
+   --optimize pass strips the functions we do not call, and deleting two
+   unused exports here was measured to produce a byte-identical elm.js.
+
+   Trimming it would fork it from upstream for no runtime benefit. The app
+   does use its timing, uniqueness and exit-transition features -- see
+   Doc/UI.renderToast and the AddToast handler in Page/App.
+-}
+
+
 {-| All you need to create, append and render toast stacks
 in the Elm architecture.
 

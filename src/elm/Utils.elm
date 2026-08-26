@@ -1,4 +1,4 @@
-module Utils exposing (delay, emptyText, getFieldErrors, gravatar, hash, hexEncode, myDebug, onClickStop, onClickStopStyled, ternary, text, textElmCss, textNoTr, voxEmporiumHash)
+module Utils exposing (delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, onClickStopStyled, ternary, text, textElmCss, textNoTr)
 
 {--import DebugToJson exposing (pp)--}
 
@@ -10,7 +10,6 @@ import Html.Styled.Events
 import Json.Decode as Dec
 import Murmur3 exposing (hashString)
 import Process
-import SHA256
 import Task
 import Translation exposing (TranslationId, tr)
 
@@ -34,29 +33,10 @@ onClickStopStyled msg =
     Html.Styled.Events.stopPropagationOn "click" (Dec.succeed ( msg, True ))
 
 
-hexEncode : String -> String
-hexEncode input =
-    input
-        |> String.toList
-        |> List.map Char.toCode
-        |> List.map Hex.toString
-        |> String.join ""
-
-
 hash : Int -> String -> String
 hash seed str =
     hashString seed str
         |> Hex.toString
-
-
-voxEmporiumHash : String -> String
-voxEmporiumHash rawEmail =
-    (rawEmail ++ "{%VOX_EMPORIUM_SALT%}")
-        |> String.toLower
-        |> String.trim
-        |> SHA256.fromString
-        |> SHA256.toHex
-        |> String.left 16
 
 
 delay : Int -> msg -> Cmd msg
@@ -75,20 +55,6 @@ gravatar _ _ =
 
 
 -- Debugging
-
-
-myDebug : String -> a -> a
-myDebug label value =
-    let
-        _ =
-            --Debug.log label (pp (Debug.toString value))
-            ()
-    in
-    value
-
-
-
--- Translation Helper Function
 
 
 text : TranslationId -> Html msg
