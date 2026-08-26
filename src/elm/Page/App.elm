@@ -922,12 +922,6 @@ update msg model =
                                 |> Maybe.map (Data.restore docState.data)
                                 |> Maybe.withDefault []
 
-                        maybeAddToHistory =
-                            if Data.isGitLike docState.data then
-                                andThen addToHistoryDo
-
-                            else
-                                identity
                     in
                     if List.length outMsgs > 0 then
                         model
@@ -937,7 +931,6 @@ update msg model =
                     else
                         model
                             |> toggleHistory False 0
-                            |> maybeAddToHistory
 
                 _ ->
                     ( model, Cmd.none )
@@ -1385,9 +1378,6 @@ applyParentMsg parentMsg ( prevModel, prevCmd ) =
             ( prevModel, prevCmd )
                 |> andThen (localSave op)
 
-        Commit ->
-            ( prevModel, prevCmd )
-                |> andThen addToHistoryDo
 
 
 localSave : CardTreeOp -> Model -> ( Model, Cmd Msg )
@@ -1399,39 +1389,6 @@ localSave op model =
                     Data.localSave docId op data
             in
             ( model, send <| SaveCardBased dbChangeList )
-
-        Empty _ _ ->
-            ( model, Cmd.none )
-
-        DocNotFound _ _ ->
-            ( model, Cmd.none )
-
-
-addToHistoryDo : Model -> ( Model, Cmd Msg )
-addToHistoryDo model =
-    case model.documentState of
-        Doc { session, docModel, docId, data } ->
-            let
-                author =
-                    session
-                        |> Session.name
-                        |> (\a -> "<" ++ a ++ ">")
-
-                metadata =
-                    Session.getMetadata session docId
-                        |> Maybe.withDefault (Metadata.new docId)
-
-                commitReq_ =
-                    Data.requestCommit (Page.Doc.getWorkingTree docModel).tree author data (Metadata.encode metadata)
-            in
-            case commitReq_ of
-                Just commitReq ->
-                    ( model
-                    , send <| CommitData commitReq
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
 
         Empty _ _ ->
             ( model, Cmd.none )

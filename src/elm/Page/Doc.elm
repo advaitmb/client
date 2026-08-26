@@ -133,7 +133,6 @@ type MsgToParent
     = ParentAddToast ToastPersistence Toast
     | CloseTooltip
     | LocalSave CardTreeOp
-    | Commit
 
 
 type DragExternalMsg
@@ -414,14 +413,6 @@ localSave op ( model, cmd, prevMsgsToParent ) =
     )
 
 
-addToHistory : ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
-addToHistory ( model, cmd, prevMsgsToParent ) =
-    ( model
-    , cmd
-    , prevMsgsToParent ++ [ Commit ]
-    )
-
-
 opaqueIncoming : Incoming.Msg -> Model -> ( Model, Cmd Msg, List MsgToParent )
 opaqueIncoming msg (Model model) =
     let
@@ -522,7 +513,6 @@ incoming incomingMsg model =
                     in
                     baseModelCmdTuple
                         |> closeCard
-                        |> addToHistory
 
                 Nothing ->
                     ( model, Cmd.none, [] )
@@ -630,7 +620,6 @@ incoming incomingMsg model =
                     in
                     ( { model | workingTree = newTree, dirty = True }, Cmd.none, [] )
                         |> localSave (CTUpd cardId newContent)
-                        |> addToHistory
 
         -- === UI ===
         Keyboard shortcut ->
@@ -1311,7 +1300,6 @@ saveCard { cardId, field } model =
         , []
         )
             |> localSave (CTUpd cardId field)
-            |> addToHistory
 
     else
         ( { model | dirty = False }
@@ -1395,7 +1383,6 @@ saveCardIfEditing ( model, prevCmd, prevParentMsgs ) =
                 , prevParentMsgs
                 )
                     |> localSave (CTUpd activeId field)
-                    |> addToHistory
 
             else
                 ( { model | dirty = False }
@@ -1416,7 +1403,6 @@ saveCardIfEditing ( model, prevCmd, prevParentMsgs ) =
                 , prevParentMsgs
                 )
                     |> localSave (CTUpd activeId field)
-                    |> addToHistory
 
             else
                 ( { model | dirty = False }
@@ -1513,7 +1499,6 @@ deleteCard id ( model, prevCmd, prevMsgsToParent ) =
         , prevMsgsToParent
         )
             |> localSave (CTRmv id)
-            |> addToHistory
             |> preventIfBlocked model
             |> andThen (changeMode { to = Normal nextToActivate, instant = False, save = False })
 
@@ -1756,7 +1741,6 @@ merge isUp id ( model, prevCmd, prevMsgsToParent ) =
             , prevMsgsToParent
             )
                 |> localSave (CTMrg currentTree.id prevTree.id isUp)
-                |> addToHistory
                 |> andThen (changeMode { to = Normal currentTree.id, instant = True, save = False })
 
         _ ->
@@ -1801,7 +1785,6 @@ move subtree pid pos ( model, prevCmd, prevMsgsToParent ) =
                 )
                 pos
             )
-        |> addToHistory
 
 
 moveWithin : String -> Int -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
@@ -1967,7 +1950,6 @@ paste subtree pid pos ( model, prevCmd, prevMsgsToParent ) =
              else
                 CTBlk subtree (Just pid) pos
             )
-        |> addToHistory
 
 
 pasteBelow : String -> Tree -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )

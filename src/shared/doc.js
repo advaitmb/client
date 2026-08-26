@@ -1,7 +1,6 @@
 // @format
 //import '../static/style.css'
 
-import * as data from './data.js'
 import hlc from '@tpp/hybrid-logical-clock'
 import uuid from '@tpp/simple-uuid'
 // Self-host: Sentry, LogRocket and PouchDB removed. LogRocket contacted
@@ -49,7 +48,6 @@ const CLIENT_ID = uuid(12);
 let COLLAB_STATE;
 let DATA_TYPE;
 const CARD_DATA = Symbol.for("cardbased");
-const GIT_LIKE_DATA = Symbol.for("couchdb");
 let userDbName;
 let email = null;
 let ws;
@@ -477,20 +475,15 @@ const fromElm = (msg, elmData) => {
       }
 
       try {
-        if (treeDoc.location === "couchdb") {
-          loadGitLikeDocument(elmData);
-        } else if (treeDoc.location === "cardbased") {
+        if (treeDoc.location === "cardbased") {
           loadCardBasedDocument(elmData);
+        } else {
+          console.error("Unknown document location:", treeDoc.location);
+          toElm(TREE_ID, "appMsgs", "NotFound");
         }
       } catch (e) {
         console.log(e);
       }
-    },
-
-    CopyDocument: async () => {
-      // Legacy CouchDB-format path: produced documents stored only in this
-      // browser, never synced or backed up. See src/shared/data.js.
-      toElm(data.MSG, 'appMsgs', 'ErrorAlert');
     },
 
     GetDocumentList: () => {
@@ -518,10 +511,6 @@ const fromElm = (msg, elmData) => {
     },
 
     SaveCardBased : async () => {
-      if (DATA_TYPE === GIT_LIKE_DATA) {
-        return;
-      }
-
       if (elmData && Array.isArray(elmData.errors)) {
         alert("Error saving data!\n\n" + elmData.errors.join("\n----\n"));
         return;
@@ -585,14 +574,6 @@ const fromElm = (msg, elmData) => {
     },
 
 
-
-    PullData: async () => {
-      if (!PULL_LOCK ) {
-        PULL_LOCK = true;
-        await data.sync(db, remoteDB, TREE_ID, null, pullSuccessHandler, pushSuccessHandler);
-        PULL_LOCK = false;
-      }
-    },
 
     // === Collaboration ===
 
@@ -759,7 +740,7 @@ function wsSend(msgTag, msgData, queueIfNotReady) {
 
 /* === Database === */
 
-const treeDocDefaults = {name: null, location: "couchdb", inviteUrl: null, collaborators: [], deletedAt: null};
+const treeDocDefaults = {name: null, location: "cardbased", inviteUrl: null, collaborators: [], deletedAt: null};
 const cardDefaults = {parentId: null, deleted: 0, content: "", position: 0, synced: false};
 
 function treeDocToMetadata(tree) {
@@ -886,52 +867,6 @@ function treeHelper (cards, parentId) {
   });
 }
 
-async function loadGitLikeDocument (treeId) {
-  DATA_TYPE = GIT_LIKE_DATA;
-  // Load document-specific settings.
-  localStore.db(treeId);
-  let store = localStore.load();
-
-  // Load local document data.
-  let localExists;
-  let [loadedData, savedIds] = await data.load(db, treeId);
-  savedIds.forEach(item => savedObjectIds.add(item));
-  if (savedIds.length !== 0) {
-    localExists = true;
-    loadedData.localStore = store;
-    toElm(loadedData, "appMsgs", "GitDataReceived");
-  } else {
-    localExists = false;
-  }
-
-  // Pull data from remote
-  let remoteExists;
-  PULL_LOCK = true;
-  try {
-    let pullResult = await data.pull(db, remoteDB, treeId, "LoadDocument");
-
-    if (pullResult !== null) {
-      pullResult[1].forEach(item => savedObjectIds.add(item));
-      toElm(pullResult[0], "appMsgs", "GitDataReceived");
-    } else {
-      remoteExists = false;
-      if (!localExists && !remoteExists) {
-        toElm(treeId, "appMsgs", "NotFound")
-      }
-    }
-  } catch (e){
-    console.error(e)
-  } finally {
-    PULL_LOCK = false;
-  }
-
-  // Activate first card
-  setTimeout(() => {toElm(null, "docMsgs", "InitialActivation")}, 20);
-
-  // Load doc list
-  loadDocListAndSend();
-}
-
 async function loadDocListAndSend() {
   loadingDocs = true;
   let docList = await dexie.trees.toArray().catch(e => {console.error(e); return []});
@@ -963,13 +898,6 @@ function getSessionData() {
 function setSessionData(data, source) {
   console.log("Setting session data:",source, JSON.stringify(data))
   localStorage.setItem(sessionStorageKey, JSON.stringify(data));
-}
-
-
-function pullSuccessHandler (pulledData) {
-  if (pulledData === null) { return }
-
-  toElm(pulledData, "appMsgs", "GitDataReceived")
 }
 
 

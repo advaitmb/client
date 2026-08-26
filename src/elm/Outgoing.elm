@@ -23,7 +23,6 @@ type Msg
       -- === Database ===
     | InitDocument String
     | LoadDocument String
-    | CopyDocument String
     | GetDocumentList
     | RequestDelete String (Maybe String)
     | NoDataToSave
@@ -32,7 +31,6 @@ type Msg
     | SaveImportedTree ( String, String )
     | SaveCardBasedMigration Enc.Value
     | PushDeltas Enc.Value
-    | CommitData Enc.Value
       -- === Collaboration ===
     | SendCollabState Enc.Value
       -- === Desktop ===
@@ -110,17 +108,11 @@ send info =
         PushDeltas data ->
             dataToSend "PushDeltas" data
 
-        CommitData data ->
-            dataToSend "CommitData" data
-
         InitDocument dbName ->
             dataToSend "InitDocument" (string dbName)
 
         LoadDocument dbName ->
             dataToSend "LoadDocument" (string dbName)
-
-        CopyDocument dbName ->
-            dataToSend "CopyDocument" (string dbName)
 
         GetDocumentList ->
             dataToSend "GetDocumentList" null

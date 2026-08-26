@@ -25,7 +25,6 @@ function isValidURL(text) {
 /* ===== DOM Manipulation ===== */
 let toElm;
 const CARD_DATA = Symbol.for("cardbased");
-const GIT_LIKE_DATA = Symbol.for("couchdb");
 
 const autoSaveImmediate = function() {
   if (!toElm) {
@@ -34,7 +33,6 @@ const autoSaveImmediate = function() {
   toElm(null, "docMsgs", "AutoSaveRequested");
 }
 const autoSave = _.debounce(autoSaveImmediate, 1*1000);
-const autoSaveSlow = _.debounce(autoSaveImmediate, 11*1000);
 
 
 const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
@@ -113,8 +111,6 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       }
       if (getDataTypeFn() == CARD_DATA) {
         autoSave.cancel();
-      } else if (getDataTypeFn() == GIT_LIKE_DATA) {
-        autoSaveSlow.cancel();
       }
     }
 
@@ -122,8 +118,6 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       toElm(e.target.value, "docMsgs", "FieldChanged");
       if (this.isFullscreen && getDataTypeFn() == CARD_DATA) {
         autoSave();
-      } else if (this.isFullscreen && getDataTypeFn() == GIT_LIKE_DATA) {
-        autoSaveSlow();
       }
       this._resize();
     }

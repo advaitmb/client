@@ -1,8 +1,7 @@
-module Doc.Data exposing (CardOp_tests_only(..), Card_tests_only, CommitObject, Delta_tests_only, Model, SaveError_tests_only(..), cardDataReceived, cardOpConvert, conflictList, conflictToTree, convert, empty, emptyCardBased, getCommit, getHistoryList, gitDataReceived, hasConflicts, head, historyReceived, importTree, isGitLike, lastSavedTime, lastSyncedTime, localSave, model_tests_only, publicDataDecoder, pushOkHandler, requestCommit, resolve, resolveConflicts, restore, saveErrors_tests_only, success, toDelta_tests_only, toSave_tests_only, triggeredPush)
+module Doc.Data exposing (CardOp_tests_only(..), Card_tests_only, Delta_tests_only, Model, SaveError_tests_only(..), cardDataReceived, cardOpConvert, conflictList, conflictToTree, emptyCardBased, getHistoryList, hasConflicts, historyReceived, importTree, lastSavedTime, lastSyncedTime, localSave, model_tests_only, publicDataDecoder, pushOkHandler, resolve, resolveConflicts, restore, saveErrors_tests_only, toDelta_tests_only, toSave_tests_only, triggeredPush)
 
 import Coders exposing (treeToValue, tupleDecoder)
 import Dict exposing (Dict)
-import Diff3 exposing (diff3Merge)
 import Doc.Data.Conflict as Conf exposing (Conflict, Op(..), Selection(..), conflictWithSha, opString)
 import Doc.TreeStructure exposing (apply, opToMsg)
 import Http exposing (Error(..))
@@ -29,7 +28,6 @@ historyLimit =
 
 type Model
     = CardBased CardData (List ( String, Time.Posix, WebData CardData )) (Maybe CardDataConflicts)
-    | GitLike GitData (Maybe ConflictInfo)
 
 
 type alias Card t =
@@ -55,93 +53,15 @@ type alias CardDataConflicts =
     }
 
 
-type alias GitData =
-    { refs : Dict String RefObject
-    , commits : Dict String CommitObject
-    , treeObjects : Dict String TreeObject
-    }
-
-
-type alias ConflictInfo =
-    { localHead : String
-    , remoteHead : String
-    , conflicts : List Conflict
-    , mergedTree : Tree
-    }
-
-
-type alias TreeObject =
-    { content : String
-    , children : List ( String, String ) -- List (sha, tree id)
-    }
-
-
-type alias CommitObject =
-    { tree : String
-    , parents : List String
-    , author : String
-    , timestamp : Int
-    }
-
-
-type alias RefObject =
-    { value : String
-    , ancestors : List String
-    , rev : String
-    }
-
-
 emptyCardBased : Model
 emptyCardBased =
     CardBased [] [] Nothing
-
-
-empty : Model
-empty =
-    GitLike emptyData Nothing
-
-
-emptyData : GitData
-emptyData =
-    { refs = Dict.empty
-    , commits = Dict.empty
-    , treeObjects = Dict.empty
-    }
-
-
-
--- EXPOSED : Getters
-
-
-head : String -> Model -> Maybe String
-head id model =
-    case model of
-        CardBased _ _ _ ->
-            Nothing
-
-        GitLike data _ ->
-            Dict.get id data.refs |> Maybe.map .value
-
-
-getCommit : String -> Model -> Maybe CommitObject
-getCommit sha model =
-    case model of
-        CardBased _ _ _ ->
-            Nothing
-
-        GitLike data _ ->
-            data
-                |> .commits
-                |> Dict.get sha
 
 
 hasConflicts : Model -> Bool
 hasConflicts model =
     case model of
         CardBased _ _ (Just _) ->
-            True
-
-        GitLike _ (Just _) ->
             True
 
         _ ->
@@ -151,12 +71,6 @@ hasConflicts model =
 conflictList : Model -> List Conflict
 conflictList model =
     case model of
-        GitLike _ Nothing ->
-            []
-
-        GitLike _ (Just { conflicts }) ->
-            conflicts
-
         CardBased _ _ _ ->
             []
 
@@ -183,10 +97,6 @@ restore model historyId =
 
                 _ ->
                     []
-
-        GitLike data _ ->
-            []
-
 
 getRestoredData : CardData -> CardData -> DBChangeLists
 getRestoredData currentData restoredData =
@@ -269,10 +179,6 @@ lastSavedTime model =
                 |> List.head
                 |> Maybe.map UpdatedAt.getTimestamp
 
-        GitLike data _ ->
-            Nothing
-
-
 lastSyncedTime : Model -> Maybe Int
 lastSyncedTime model =
     case model of
@@ -284,34 +190,11 @@ lastSyncedTime model =
                 |> List.head
                 |> Maybe.map UpdatedAt.getTimestamp
 
-        GitLike data _ ->
-            data.commits
-                |> Dict.values
-                |> List.map .timestamp
-                |> List.sort
-                |> List.reverse
-                |> List.head
-
-
 parseUpdatedAt : String -> Maybe Int
 parseUpdatedAt str =
     String.split ":" str
         |> List.head
         |> Maybe.andThen String.toInt
-
-
-isGitLike : Model -> Bool
-isGitLike model =
-    case model of
-        GitLike _ _ ->
-            True
-
-        CardBased _ _ _ ->
-            False
-
-
-
--- EXPOSED : Functions
 
 
 cardDataReceived : Dec.Value -> ( Model, Tree, String ) -> Maybe { newData : Model, newTree : Tree, outMsg : List Outgoing.Msg }
@@ -327,9 +210,6 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
 
                             else
                                 oldModel
-
-                        GitLike _ _ ->
-                            CardBased cards [] Nothing
 
                 newTree =
                     cards
@@ -371,8 +251,6 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                         CardBased data history _ ->
                             CardBased data history conflicts_
 
-                        GitLike _ _ ->
-                            newModelWithoutConflicts
             in
             if (newModel /= oldModel) || (newTree /= oldTree) then
                 Just { newData = newModel, newTree = newTree, outMsg = outMsg }
@@ -398,10 +276,6 @@ triggeredPush model treeId =
 
                 _ ->
                     []
-
-        GitLike _ _ ->
-            []
-
 
 resolveConflicts : ConflictSelection -> Model -> Maybe Outgoing.Msg
 resolveConflicts selectedVersion model =
@@ -433,70 +307,6 @@ resolveConflicts selectedVersion model =
 
         _ ->
             Nothing
-
-
-gitDataReceived : Dec.Value -> ( Model, Tree ) -> Maybe { newData : Model, newTree : Tree }
-gitDataReceived json ( oldModel, oldTree ) =
-    case Dec.decodeValue decodeGitLike json of
-        Ok ( newData, Nothing ) ->
-            { newData = GitLike newData Nothing
-            , newTree = checkoutRef "heads/master" newData |> Maybe.withDefault oldTree
-            }
-                |> Just
-
-        Ok ( newData, Just ( _, confHead ) ) ->
-            let
-                localHead =
-                    Dict.get "heads/master" newData.refs |> Maybe.withDefault confHead
-
-                mergedModel =
-                    merge localHead.value confHead.value oldTree newData
-            in
-            case mergedModel of
-                ( data, Nothing ) ->
-                    { newData = GitLike data Nothing
-                    , newTree = checkoutRef "heads/master" data |> Maybe.withDefault oldTree
-                    }
-                        |> Just
-
-                ( data, Just cdata ) ->
-                    { newData = GitLike data (Just cdata)
-                    , newTree = cdata.mergedTree
-                    }
-                        |> Just
-
-        Err err ->
-            {--Can enable this for debugging couchdb-to-sqlite conversion errors
-
-            let
-                _ =
-                    Debug.log "Error decoding git data" ( err, Enc.encode 2 json )
-            in
-            --}
-            Nothing
-
-
-success : Dec.Value -> Model -> Model
-success json model =
-    case Dec.decodeValue decodeGitLike json of
-        Ok ( newData, conflict_ ) ->
-            let
-                updateData d =
-                    { d
-                        | refs = Dict.union newData.refs d.refs
-                        , commits = Dict.union newData.commits d.commits
-                        , treeObjects = Dict.union newData.treeObjects d.treeObjects
-                    }
-            in
-            case model of
-                CardBased _ _ _ ->
-                    model
-
-                GitLike d cd_ ->
-                    GitLike (updateData d) cd_
-
-        Err err ->
-            model
 
 
 conflictToTree : Model -> ConflictSelection -> Maybe Tree
@@ -534,381 +344,6 @@ resolve cid model =
         CardBased _ _ _ ->
             model
 
-        GitLike _ Nothing ->
-            model
-
-        GitLike d (Just confInfo) ->
-            let
-                newConflicts =
-                    List.filter (\c -> c.id /= cid) confInfo.conflicts
-            in
-            GitLike d (Just { confInfo | conflicts = newConflicts })
-
-
-convert : String -> Model -> Maybe ( Model, Enc.Value )
-convert docId model =
-    case model of
-        GitLike _ _ ->
-            let
-                gitLikeHistory =
-                    getHistoryList model
-
-                latestVersion =
-                    gitLikeHistory |> List.reverse |> List.head
-
-                cardHistory =
-                    gitLikeHistory
-                        |> List.map
-                            (\( i, t, tr_ ) ->
-                                ( i
-                                , t
-                                , RemoteData.fromMaybe (BadBody "Couldn't import git-like history") tr_
-                                    |> RemoteData.map (fromTree docId 0 Nothing t 0)
-                                    |> RemoteData.map (prefixIds docId)
-                                )
-                            )
-            in
-            case latestVersion of
-                Just ( _, ts, Just tree ) ->
-                    let
-                        currCards =
-                            fromTree docId 0 Nothing ts 0 tree
-                                |> prefixIds docId
-                    in
-                    Just
-                        ( CardBased currCards cardHistory Nothing
-                        , Enc.list encodeExistingCard currCards
-                        )
-
-                _ ->
-                    Nothing
-
-        CardBased data _ _ ->
-            Nothing
-
-
-
--- INTERNALS
-
-
-checkoutRef : String -> GitData -> Maybe Tree
-checkoutRef refId data =
-    Dict.get refId data.refs
-        |> andThen (\ro -> Dict.get ro.value data.commits)
-        |> andThen (\co -> treeObjectsToTree data.treeObjects co.tree "0")
-
-
-checkoutCommit : String -> GitData -> Maybe Tree
-checkoutCommit commitSha data =
-    Dict.get commitSha data.commits
-        |> andThen (\co -> treeObjectsToTree data.treeObjects co.tree "0")
-
-
-treeObjectsToTree : Dict String TreeObject -> String -> String -> Maybe Tree
-treeObjectsToTree treeObjects treeSha id =
-    let
-        treeObject_ =
-            Dict.get treeSha treeObjects
-    in
-    case treeObject_ of
-        Just { content, children } ->
-            let
-                fMap ( sh, i ) =
-                    treeObjectsToTree treeObjects sh i
-
-                subtrees =
-                    children
-                        |> List.filterMap fMap
-                        -- List Tree
-                        |> Children
-            in
-            Just (Tree id content subtrees)
-
-        Nothing ->
-            Nothing
-
-
-
--- ==== Merging
-
-
-merge : String -> String -> Tree -> GitData -> ( GitData, Maybe ConflictInfo )
-merge aSha bSha _ data =
-    if aSha == bSha then
-        ( data, Nothing )
-
-    else if List.member bSha (getAncestors data.commits aSha) then
-        ( data, Nothing )
-
-    else if List.member aSha (getAncestors data.commits bSha) then
-        ( data, Nothing )
-
-    else
-        let
-            oSha =
-                getCommonAncestor_ data.commits aSha bSha |> Maybe.withDefault ""
-
-            getTree_ sha =
-                Dict.get sha data.commits
-                    |> Maybe.andThen (\co -> treeObjectsToTree data.treeObjects co.tree "0")
-
-            oTree_ =
-                getTree_ oSha
-
-            aTree_ =
-                getTree_ aSha
-
-            bTree_ =
-                getTree_ bSha
-        in
-        case ( oTree_, aTree_, bTree_ ) of
-            ( Just oTree, Just aTree, Just bTree ) ->
-                let
-                    ( mTree, conflicts ) =
-                        mergeTreeStructure oTree aTree bTree
-                in
-                if List.isEmpty conflicts then
-                    ( data, Nothing )
-
-                else
-                    ( data, Just { localHead = aSha, remoteHead = bSha, conflicts = conflicts, mergedTree = mTree } )
-
-            ( Nothing, Just _, Just _ ) ->
-                ( data, Nothing )
-
-            _ ->
-                ( data, Nothing )
-
-
-mergeTreeStructure : Tree -> Tree -> Tree -> ( Tree, List Conflict )
-mergeTreeStructure oTree aTree bTree =
-    let
-        ( cleanOps, conflicts ) =
-            getConflicts (getOps oTree aTree) (getOps oTree bTree)
-    in
-    ( treeFromOps oTree cleanOps, conflicts )
-
-
-treeFromOps : Tree -> List Op -> Tree
-treeFromOps oTree ops =
-    oTree
-        |> apply (List.map (opToMsg oTree) ops)
-
-
-getTreePaths : Tree -> Dict String ( String, List String, Int )
-getTreePaths tree =
-    getTreePathsWithParents [] 0 tree
-
-
-getTreePathsWithParents : List String -> Int -> Tree -> Dict String ( String, List String, Int )
-getTreePathsWithParents parents idx tree =
-    let
-        rootDict =
-            Dict.empty
-                |> Dict.insert tree.id ( tree.content, parents, idx )
-    in
-    case tree.children of
-        Children [] ->
-            rootDict
-
-        Children children ->
-            children
-                |> List.indexedMap (getTreePathsWithParents (parents ++ [ tree.id ]))
-                |> List.foldl Dict.union Dict.empty
-                |> Dict.union rootDict
-
-
-getOps : Tree -> Tree -> List Op
-getOps oldTree newTree =
-    let
-        oPaths =
-            getTreePaths oldTree
-
-        nPaths =
-            getTreePaths newTree
-
-        oldOnly : String -> ( String, List String, Int ) -> List Op -> List Op
-        oldOnly id ( _, parents, _ ) ops =
-            ops ++ [ Del id parents ]
-
-        newOnly : String -> ( String, List String, Int ) -> List Op -> List Op
-        newOnly id ( content, parents, _ ) ops =
-            ops ++ [ Ins id content parents 0 ]
-
-        both : String -> ( String, List String, Int ) -> ( String, List String, Int ) -> List Op -> List Op
-        both id ( oldContent, oldParents, oldIdx ) ( newContent, newParents, newIdx ) ops =
-            let
-                modOp =
-                    if oldContent /= newContent then
-                        [ Mod id oldParents newContent oldContent ]
-
-                    else
-                        []
-
-                movOp =
-                    if (oldParents /= newParents) || (oldIdx /= newIdx) then
-                        [ Mov id oldParents oldIdx newParents newIdx ]
-
-                    else
-                        []
-            in
-            ops ++ modOp ++ movOp
-
-        ignoreOp : Tree -> Op -> Op -> Bool
-        ignoreOp _ op1 op2 =
-            case ( op1, op2 ) of
-                ( Del _ parents1, Del id2 _ ) ->
-                    if List.member id2 parents1 then
-                        True
-
-                    else
-                        False
-
-                _ ->
-                    False
-
-        maybeIgnore : Tree -> ( Op, List Op ) -> Maybe Op
-        maybeIgnore oTree ( newOp, ops ) =
-            let
-                ignore =
-                    ops
-                        |> List.map (ignoreOp oTree newOp)
-                        |> List.any identity
-            in
-            if ignore then
-                Nothing
-
-            else
-                Just newOp
-
-        collapseDelOps : Tree -> List Op -> List Op
-        collapseDelOps oTree ops =
-            ops
-                |> ListExtra.select
-                -- List (Op, List Op)
-                |> List.filterMap (maybeIgnore oTree)
-    in
-    Dict.merge oldOnly both newOnly oPaths nPaths []
-        |> collapseDelOps oldTree
-
-
-getConflicts : List Op -> List Op -> ( List Op, List Conflict )
-getConflicts opsA opsB =
-    let
-        conflict opA opB sel =
-            Conflict "" opA opB sel False
-                |> conflictWithSha
-
-        liftFn : Op -> Op -> ( List Op, List Conflict )
-        liftFn opA opB =
-            case ( opA, opB ) of
-                -- Modify/Modify conflict
-                ( Mod idA pidsA strA orig, Mod idB _ strB _ ) ->
-                    if idA == idB && strA /= strB then
-                        case diff3Merge (String.lines strA) (String.lines orig) (String.lines strB) of
-                            [ Diff3.DiffOk mergedStrings ] ->
-                                ( [ Mod idA pidsA (mergedStrings |> String.join "\n") orig ], [] )
-
-                            _ ->
-                                ( [], [ conflict opA opB Manual ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                -- Modify/Delete conflicts
-                ( Mod idA pidsA _ _, Del idB _ ) ->
-                    if idA == idB || List.member idB pidsA then
-                        ( [], [ conflict opA opB Conf.Ours ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                ( Del idA _, Mod idB pidsB _ _ ) ->
-                    if idA == idB || List.member idA pidsB then
-                        ( [], [ conflict opA opB Conf.Theirs ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                -- Insert/Delete conflicts
-                ( Ins idA _ pidsA _, Del idB _ ) ->
-                    if idA == idB || List.member idB pidsA then
-                        ( [], [ conflict opA opB Conf.Ours ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                ( Del idA _, Ins idB _ pidsB _ ) ->
-                    if idA == idB || List.member idA pidsB then
-                        ( [], [ conflict opA opB Conf.Theirs ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                ( Mov idA _ _ newParentsA _, Mov idB _ _ newParentsB _ ) ->
-                    if areAcyclicMoves ( idA, newParentsA ) ( idB, newParentsB ) then
-                        ( [], [ conflict opA opB Conf.Ours ] )
-
-                    else
-                        ( [ opA, opB ], [] )
-
-                _ ->
-                    ( [ opA, opB ], [] )
-    in
-    ListExtra.lift2 liftFn opsA opsB
-        -- List (List Op, List Conflict)
-        |> List.foldl
-            (\( os, cs ) ( osAcc, csAcc ) -> ( osAcc ++ os, csAcc ++ cs ))
-            ( [], [] )
-        |> (\( os, cs ) -> ( os |> ListExtra.uniqueBy opString, cs |> ListExtra.uniqueBy .id ))
-
-
-
--- Hacky way to remove duplicate Ops
-
-
-areAcyclicMoves : ( String, List String ) -> ( String, List String ) -> Bool
-areAcyclicMoves ( idA, pidsA ) ( idB, pidsB ) =
-    List.member idA pidsB || List.member idB pidsA
-
-
-getCommonAncestor_ : Dict String CommitObject -> String -> String -> Maybe String
-getCommonAncestor_ commits shaA shaB =
-    let
-        aAncestors =
-            getAncestors commits shaA
-
-        bAncestors =
-            getAncestors commits shaB
-    in
-    aAncestors
-        |> List.filter (\a -> List.member a bAncestors)
-        |> List.head
-
-
-getAncestors : Dict String CommitObject -> String -> List String
-getAncestors cm sh =
-    let
-        c_ =
-            Dict.get sh cm
-    in
-    case c_ of
-        Just c ->
-            c.parents ++ List.concatMap (getAncestors cm) c.parents
-
-        Nothing ->
-            []
-
-
-
--- PORTS & INTEROP
-
-
-type DataIn
-    = GitLikeIn ( GitData, Maybe ( String, RefObject ) )
-    | CardBasedIn (List (Card UpdatedAt))
-
-
 decodeCards : Dec.Decoder (List (Card UpdatedAt))
 decodeCards =
     Dec.list decodeCard
@@ -944,9 +379,6 @@ saveErrors errs =
             case err of
                 CardDoesNotExist { id, src } ->
                     Enc.string ("Card with id " ++ id ++ " does not exist.\n" ++ src)
-
-                WrongDocumentType treeId ->
-                    Enc.string ("Document with id " ++ treeId ++ " is not a card-based document.")
     in
     Enc.object [ ( "errors", Enc.list errorEnc errs ) ]
 
@@ -990,88 +422,6 @@ encodeExistingCard card =
         , ( "synced", Enc.bool card.synced )
         , ( "updatedAt", UpdatedAt.encode card.updatedAt )
         ]
-
-
-decodeGitLike : Dec.Decoder ( GitData, Maybe ( String, RefObject ) )
-decodeGitLike =
-    let
-        modelBuilder r c t cflct =
-            ( GitData (Dict.fromList r) (Dict.fromList c) (Dict.fromList t), cflct )
-    in
-    Dec.map4 modelBuilder
-        (Dec.field "ref" (Dec.list refObjectDecoder))
-        (Dec.field "commit" (Dec.list commitObjectDecoder))
-        (Dec.field "tree" (Dec.list treeObjectDecoder))
-        (Dec.maybe (Dec.field "conflict" refObjectDecoder))
-
-
-refObjectDecoder : Dec.Decoder ( String, RefObject )
-refObjectDecoder =
-    Dec.map4 (\id v a r -> ( id, RefObject v a r ))
-        (Dec.field "_id" Dec.string)
-        (Dec.field "value" Dec.string)
-        (Dec.field "ancestors" (Dec.list Dec.string))
-        (Dec.field "_rev" Dec.string)
-
-
-commitObjectDecoder : Dec.Decoder ( String, CommitObject )
-commitObjectDecoder =
-    Dec.map5 (\id t p a ts -> ( id, CommitObject t p a ts ))
-        (Dec.field "_id" Dec.string)
-        (Dec.field "tree" Dec.string)
-        (Dec.field "parents" (Dec.list Dec.string))
-        (Dec.field "author" Dec.string)
-        (Dec.field "timestamp" Dec.int)
-
-
-treeObjectDecoder : Dec.Decoder ( String, TreeObject )
-treeObjectDecoder =
-    Dec.map3 (\id cn ch -> ( id, TreeObject cn ch ))
-        (Dec.field "_id" Dec.string)
-        (Dec.field "content" Dec.string)
-        (Dec.field "children" (Dec.list (tupleDecoder Dec.string Dec.string)))
-
-
-requestCommit : Tree -> String -> Model -> Enc.Value -> Maybe Enc.Value
-requestCommit workingTree author model metadata =
-    case model of
-        CardBased _ _ _ ->
-            Nothing
-
-        GitLike data Nothing ->
-            case Dict.get "heads/master" data.refs of
-                Nothing ->
-                    Enc.object
-                        [ ( "workingTree", treeToValue workingTree )
-                        , ( "author", Enc.string author )
-                        , ( "parents", Enc.list Enc.string [] )
-                        , ( "metadata", metadata )
-                        ]
-                        |> Just
-
-                Just localHead ->
-                    Enc.object
-                        [ ( "workingTree", treeToValue workingTree )
-                        , ( "author", Enc.string author )
-                        , ( "parents", Enc.list Enc.string [ localHead.value ] )
-                        , ( "metadata", metadata )
-                        ]
-                        |> Just
-
-        GitLike data (Just { localHead, remoteHead, conflicts }) ->
-            if List.isEmpty (List.filter (not << .resolved) conflicts) then
-                -- No unresolved conflicts.
-                Enc.object
-                    [ ( "workingTree", treeToValue workingTree )
-                    , ( "author", Enc.string author )
-                    , ( "parents", Enc.list Enc.string [ localHead, remoteHead ] )
-                    , ( "metadata", metadata )
-                    ]
-                    |> Just
-
-            else
-                -- Unresolved conflicts exist, dont' commit.
-                Nothing
 
 
 importTree : String -> Tree -> Enc.Value
@@ -1126,7 +476,6 @@ type alias DBChangeLists =
 
 type SaveError
     = CardDoesNotExist { id : String, src : String }
-    | WrongDocumentType String
 
 
 localSave : String -> CardTreeOp -> Model -> Enc.Value
@@ -1238,10 +587,6 @@ localSave treeId op model =
                                     )
                     in
                     toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
-
-        GitLike gitData maybeConflictInfo ->
-            saveErrors [ WrongDocumentType treeId ]
-
 
 mergeCards : Bool -> CardData -> Card UpdatedAt -> Card UpdatedAt -> Enc.Value
 mergeCards isUp data currCard otherCard =
@@ -1787,9 +1132,6 @@ pushOkHandler chkValStrings model =
                 Err err ->
                     Nothing
 
-        _ ->
-            Nothing
-
 
 
 -- Deltas
@@ -2043,10 +1385,6 @@ historyReceived json model =
                 Err err ->
                     model
 
-        GitLike _ _ ->
-            model
-
-
 decodeHistory : Dec.Decoder (List ( String, Time.Posix, Maybe (List (Card UpdatedAt)) ))
 decodeHistory =
     Dec.list <|
@@ -2059,20 +1397,6 @@ decodeHistory =
 getHistoryList : Model -> List ( String, Time.Posix, Maybe Tree )
 getHistoryList model =
     case model of
-        GitLike data _ ->
-            let
-                tripleFromCommit ( cid, c ) =
-                    ( cid
-                    , c.timestamp |> Time.millisToPosix
-                    , checkoutCommit cid data
-                    )
-            in
-            data
-                |> .commits
-                |> Dict.toList
-                |> List.sortBy (\( cid, c ) -> c.timestamp)
-                |> List.map tripleFromCommit
-
         CardBased _ history _ ->
             history
                 |> List.map (\( id, ts, cardData_ ) -> ( id, ts, cardData_ |> RemoteData.toMaybe |> Maybe.map toTree ))
