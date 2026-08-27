@@ -17,6 +17,13 @@
 // (`stopActivationKeys` in `src/ui/header.ts` -- Enter, Space, and the arrows
 // the radio groups steer with), which is a different question and cannot cover
 // the keys no control handles.
+//
+// One piece of Mousetrap's default is deliberately not reproduced: the
+// `composedPath()` retargeting for a keystroke from inside an open shadow root.
+// Nothing in this app attaches one -- the custom elements render into their
+// light DOM, which is what lets `style.css` reach them -- so `e.target` is
+// already the element the user is in. Bring it back with the shadow root that
+// needs it, not before.
 
 /**
  * The app's chrome: the regions whose own controls a keystroke is for.

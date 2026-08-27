@@ -11,9 +11,9 @@
  *
  * The fixtures are the real elements, not stand-in markup, because the rule is
  * about *where* a control is: it is asked about `<gw-header>`'s own buttons, so
- * a header that grew a control outside itself would show up here. Every control
- * is focused first and the answer asked about `document.activeElement`, which
- * also means a control the keyboard cannot reach at all fails these.
+ * a header that grew a control outside itself would show up here. Every header
+ * control is focused before the question is asked, so a control the keyboard
+ * cannot reach at all fails these too.
  */
 import { afterEach, expect, test } from "bun:test";
 import { shortcutReachesApp } from "../src/shared/shortcut-scope";
@@ -21,6 +21,9 @@ import "../src/ui/header";
 import "../src/ui/sidebar";
 import "../src/ui/template-modal";
 import "../src/ui/switcher-modal";
+import "../src/ui/tree";
+// tree.ts renders each card's content as a <gw-markdown>, which has to be
+// registered for the link inside one to exist.
 import "../src/ui/markdown";
 
 /** The `save` JSON Elm hands the header; it renders the save indicator from it. */
@@ -53,10 +56,10 @@ const control = (el: HTMLElement, id: string) =>
   el.querySelector<HTMLElement>(`#${id}`)!;
 
 /**
- * Every kind of control the header holds, and the menu that has to be open for
- * it: the three icons, both kinds of menu entry (a command and a marked
- * choice), an option from each export radio group, the history menu's two
- * buttons, and the slider.
+ * The header's controls that are not form fields, and the menu that has to be
+ * open for each: the three icons, both kinds of menu entry (a plain command and
+ * a marked choice), an option from each export radio group, and the history
+ * menu's two buttons.
  */
 const HEADER_CONTROLS: Array<[menu: string, id: string]> = [
   ["none", "history-icon"],
@@ -68,8 +71,11 @@ const HEADER_CONTROLS: Array<[menu: string, id: string]> = [
   ["export", "export-format-text"],
   ["history", "history-restore"],
   ["history", "history-close-button"],
-  // A form field, so Mousetrap's own rule already covered this one; it is here
-  // because the criterion is every kind of control in the header.
+];
+
+/** And the header's two fields, which Mousetrap's own rule already covered. */
+const HEADER_FIELDS: Array<[menu: string, id: string]> = [
+  ["none", "title-rename"],
   ["history", "history-slider"],
 ];
 
@@ -86,30 +92,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-test("a letter typed at a focused header icon does not move the card cursor", () => {
-  const el = header({ menu: "export" });
-  const icon = control(el, "export-icon");
-  icon.focus();
-
-  // `j` moves the card cursor down. The icon is a real <button> since ticket
-  // 33, so it holds the focus after opening the menu — and a button is not a
-  // form field, which is all Mousetrap's own rule ignores.
-  expect(shortcutReachesApp(document.activeElement, "j")).toBe(false);
-});
-
 test("no kind of header control lets a letter shortcut through", () => {
-  for (const [menu, id] of HEADER_CONTROLS) {
+  // `j` moves the card cursor down. Every one of these is a real control since
+  // tickets 32-34, so it holds the focus after being used — and a button is not
+  // a form field, which is all Mousetrap's own rule ignores: typing `j` with the
+  // export menu open moved the card cursor behind the open menu.
+  for (const [menu, id] of [...HEADER_CONTROLS, ...HEADER_FIELDS]) {
     expect([id, reachesFrom(menu, id, "j")]).toEqual([id, false]);
-  }
-});
-
-test("Escape still reaches the app from every header control", () => {
-  for (const [menu, id] of HEADER_CONTROLS) {
-    // Escape is the way out of the chrome, so it is the one shortcut a control
-    // must not swallow — except in a form field, which consumes it as it
-    // consumes everything (see the title field below).
-    const expected = id === "history-slider" ? false : true;
-    expect([id, reachesFrom(menu, id, "esc")]).toEqual([id, expected]);
   }
 });
 
@@ -125,9 +114,18 @@ test("nor does any other unmodified shortcut, the arrows included", () => {
   }
 });
 
+test("Escape still reaches the app from every header control", () => {
+  // Escape is the way out of the chrome — Elm owns which menu is open and no
+  // control here closes itself — so it is the one unmodified key a control must
+  // not swallow.
+  for (const [menu, id] of HEADER_CONTROLS) {
+    expect([id, reachesFrom(menu, id, "esc")]).toEqual([id, true]);
+  }
+});
+
 test("a chord still reaches the app from a header control", () => {
-  // No button, link or radio interprets a modifier chord, so `mod+s` means
-  // save wherever it is pressed — and the app's *override* of the browser's own
+  // No button, link or radio interprets a modifier chord, so `mod+s` means save
+  // wherever it is pressed — and the app's *override* of the browser's own
   // shortcuts rides on the keystroke reaching the handler: `needOverride`
   // cancels `mod+s`, `mod+o` and `alt+0`–`alt+6` from inside it, so a chord
   // stopped here would open the browser's Save-page dialog instead of doing
@@ -137,12 +135,25 @@ test("a chord still reaches the app from a header control", () => {
   }
 });
 
-test("with focus on the body the shortcuts are the document's", () => {
+test("a form field in the chrome consumes Escape and the chords as well", () => {
+  // Mousetrap's form-field rule, kept whole rather than narrowed to match the
+  // exemptions the chrome's *buttons* get: the title field handles Escape
+  // itself (it reverts the rename through `gw-title-cancel`), and a chord in a
+  // field is the field's — `mod+v` there is a paste into the title, not into
+  // the document. So a field is asked about before either exemption.
+  for (const [menu, id] of HEADER_FIELDS) {
+    for (const combo of ["esc", "mod+v"]) {
+      expect([id, combo, reachesFrom(menu, id, combo)]).toEqual([id, combo, false]);
+    }
+  }
+});
+
+test("with nothing focused the shortcuts are the document's", () => {
+  // The deliberate case, and the common one: the header is on the page but
+  // holds no focus, so `j` moves the card cursor, which is the whole point of
+  // the map.
   header();
 
-  // The deliberate case, and the common one: nothing in the chrome has the
-  // focus, so `j` moves the card cursor, which is the whole point of the map.
-  document.body.focus();
   expect(shortcutReachesApp(document.body, "j")).toBe(true);
 });
 
@@ -154,20 +165,34 @@ test("a keystroke with no element behind it is the app's", () => {
   expect(shortcutReachesApp(null, "j")).toBe(true);
 });
 
-test("a focused link in a card's content leaves the shortcuts to the document", () => {
-  const card = document.createElement("gw-markdown");
-  card.setAttribute("card-id", "card-one");
-  card.setAttribute("src", "see [the guide](http://commonmark.org/help)");
-  document.body.append(card);
-
-  const link = card.querySelector<HTMLElement>("a")!;
-  link.focus();
+test("a card and its content are not chrome, link and all", () => {
+  const tree = document.createElement("gw-tree");
+  tree.setAttribute("tree", JSON.stringify([[[
+    {
+      id: "card-one",
+      content: "see [the guide](http://commonmark.org/help)",
+      hasChildren: false,
+      isLast: true,
+    },
+  ]]]));
+  tree.setAttribute("view-state", JSON.stringify({
+    active: "card-one",
+    editing: null,
+    ancestors: [],
+    descendants: [],
+  }));
+  document.body.append(tree);
 
   // Card content is the document, not the chrome. A link opened in a new tab
   // leaves the focus on itself in this one, and the next `j` is still a card
   // move — which is why the rule is about the region and not about whether the
   // focused thing happens to be a control.
-  expect(shortcutReachesApp(document.activeElement, "j")).toBe(true);
+  const card = tree.querySelector<HTMLElement>("#card-card-one")!;
+  const link = card.querySelector<HTMLElement>("gw-markdown a")!;
+  link.focus();
+
+  expect(shortcutReachesApp(card, "j")).toBe(true);
+  expect(shortcutReachesApp(link, "j")).toBe(true);
 });
 
 test("the same link inside a modal is the modal's", () => {
@@ -229,21 +254,6 @@ test("the card editor keeps the shortcuts, Tab included", () => {
   for (const combo of ["mod+enter", "esc", "alt+3", "tab"]) {
     expect([combo, shortcutReachesApp(editor, combo)]).toEqual([combo, true]);
   }
-});
-
-test("a form field in the chrome consumes Escape as well", () => {
-  const el = header();
-  const title = control(el, "title-rename");
-  title.focus();
-
-  // Mousetrap's form-field rule, kept whole rather than narrowed to match the
-  // exemptions the chrome's *buttons* get: the title field handles Escape
-  // itself (it reverts the rename through `gw-title-cancel`), and a chord in a
-  // field is the field's — `mod+v` there is a paste into the title, not into
-  // the document. So a field is asked about before either exemption.
-  expect(shortcutReachesApp(document.activeElement, "esc")).toBe(false);
-  expect(shortcutReachesApp(document.activeElement, "j")).toBe(false);
-  expect(shortcutReachesApp(document.activeElement, "mod+v")).toBe(false);
 });
 
 test("the search field is left exactly as Mousetrap had it", () => {
