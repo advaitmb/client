@@ -145,11 +145,22 @@ encode ua =
     Enc.string (toString ua)
 
 
+{-| How the zero stamp is written: not `"0:0:"` but the bare `"0"`. It is the
+wire format -- `ZERO_STAMP` in `src/shared/stamps.js`, and the `chk` sent as the
+pull checkpoint for a document with nothing synced yet -- so it is spelled once
+here and read back by `stringParser` below. It used to be spelled only in
+`toString`, which left this module unable to parse its own output (S10).
+-}
+zeroString : String
+zeroString =
+    "0"
+
+
 toString : UpdatedAt -> String
 toString (UpdatedAt data) =
     case ( data.timestamp, data.counter, data.hash ) of
         ( 0, 0, "" ) ->
-            "0"
+            zeroString
 
         _ ->
             String.join ":" [ String.fromInt data.timestamp, String.fromInt data.counter, data.hash ]
@@ -157,15 +168,19 @@ toString (UpdatedAt data) =
 
 stringParser : String -> Maybe UpdatedAt
 stringParser str =
-    case String.split ":" str of
-        [ timestamp, counter, hash ] ->
-            case ( String.toInt timestamp, String.toInt counter ) of
-                ( Just ts, Just ctr ) ->
-                    UpdatedAt { timestamp = ts, counter = ctr, hash = hash }
-                        |> Just
+    if str == zeroString then
+        Just zero
 
-                _ ->
-                    Nothing
+    else
+        case String.split ":" str of
+            [ timestamp, counter, hash ] ->
+                case ( String.toInt timestamp, String.toInt counter ) of
+                    ( Just ts, Just ctr ) ->
+                        UpdatedAt { timestamp = ts, counter = ctr, hash = hash }
+                            |> Just
 
-        _ ->
-            Nothing
+                    _ ->
+                        Nothing
+
+            _ ->
+                Nothing
