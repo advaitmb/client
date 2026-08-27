@@ -118,22 +118,6 @@ toMimeType expFormat =
             "text/plain"
 
 
-toExtension : ExportFormat -> String
-toExtension expFormat =
-    case expFormat of
-        DOCX ->
-            "docx"
-
-        JSON ->
-            "json"
-
-        OPML ->
-            "opml"
-
-        PlainText ->
-            "md"
-
-
 
 -- VIEW
 

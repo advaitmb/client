@@ -13,10 +13,6 @@ type UpdatedAt
     = UpdatedAt { timestamp : Int, counter : Int, hash : String }
 
 
-type alias Data =
-    { timestamp : Int, counter : Int, hash : String }
-
-
 decoder : Decoder UpdatedAt
 decoder =
     Dec.string

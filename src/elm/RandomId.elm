@@ -1,29 +1,11 @@
 module RandomId exposing (generate, stringGenerator)
 
-import Hex
 import Random
 
 
 generate : (String -> msg) -> Cmd msg
 generate msgTag =
     Random.generate msgTag (stringGenerator 7)
-
-
-fromObjectId : Int -> String -> String
-fromObjectId seed objId =
-    case Hex.fromString (String.slice 17 24 objId) of
-        Ok val ->
-            Random.step (stringGenerator 7) (Random.initialSeed (seed + val))
-                |> Tuple.first
-
-        Err _ ->
-            objId
-                |> String.slice 17 24
-                |> String.toList
-                |> List.map Char.toCode
-                |> List.map (modBy 62)
-                |> List.map intToValidChar
-                |> String.fromList
 
 
 stringGenerator : Int -> Random.Generator String

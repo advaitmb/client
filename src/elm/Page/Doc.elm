@@ -7,9 +7,9 @@ import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.TreeUtils exposing (..)
 import Doc.UI as UI exposing (viewMobileButtons, viewSearchField)
 import GlobalData exposing (GlobalData)
-import Html exposing (Attribute, Html, div, node, text)
+import Html exposing (Html, div, node, text)
 import Html.Attributes as Attributes exposing (attribute, id, style)
-import Html.Events exposing (custom, on)
+import Html.Events exposing (on)
 import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy3)
 import Json.Decode as Json
@@ -2483,17 +2483,3 @@ normalMode model operation =
                 _ ->
                     identity
            )
-
-
-onWithOptions :
-    String
-    ->
-        { stopPropagation : Bool
-        , preventDefault : Bool
-        }
-    -> Json.Decoder msg
-    -> Attribute msg
-onWithOptions name { stopPropagation, preventDefault } decoder =
-    decoder
-        |> Json.map (\msg -> { message = msg, stopPropagation = stopPropagation, preventDefault = preventDefault })
-        |> custom name
