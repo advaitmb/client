@@ -84,7 +84,8 @@ Mutation-checked for sensitivity, each reverted afterwards:
 
 **Verification** (local, on the rebased tree that also carries ticket 03):
 `bun test` 14/14 (7 pre-existing + 7 new), `bun run test:elm` 7/7,
-`bun run newbuild` exit 0, `bun run config-check` exit 0.
+`bun run newbuild` exit 0, `bun run config-check` exit 0. CI green on the
+fix commit: <https://github.com/advaitmb/client/actions/runs/33064085053>.
 
 ## Comments
 
