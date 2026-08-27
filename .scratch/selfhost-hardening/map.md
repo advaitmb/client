@@ -20,6 +20,12 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   bun test 7), config-check is a real gate, `.github/workflows/ci.yml` green
   on `selfhost`; `build.yml`/`web-deploy.yml` deleted. Details in
   `issues/01-test-infrastructure.md`.
+- Ticket 03 resolved — payments/trial ring removed per ADR-0002 (trial block
+  derivation, `PaymentStatus`/`daysLeft`, upgrade modal ring, `Route.Upgrade`,
+  `Upgrade.elm`, `FlashPrice`/`CheckoutButtonClicked` + JS handler,
+  `Chadtech/elm-money`); stale stored `paymentStatus` is ignored and dropped on
+  next store; `setBlock` is history-view only. Unblocks 21 and 22. Details in
+  `issues/03-remove-trial-lockout.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
