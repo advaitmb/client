@@ -101,6 +101,19 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   and E2's preferences too; it is now lossless, pinned by a round trip.
   ADR-0001 gains seam 5 (`Session`'s stored-blob surface). 12 tests. Details in
   `issues/13-session-prefs.md`.
+- Ticket 12 resolved — D9 closed: a restore stages a row only for cards whose
+  **state** changes (`sameCardState`: content/parent/position/deleted, not the
+  version stamp), so cards already deleted are left alone instead of collecting
+  a fresh unsynced deletion row per restore, and an unchanged card is not
+  re-staged; `restore` sends no save at all when nothing changed. Op-less
+  deltas are dropped in `toDelta` — the one funnel every push and every test
+  goes through, while `cardDelta` can emit one from two limbs — and
+  `pushDeltas` (was `pushDelta`) sends no message when none survive: `dlts: []`
+  is not a no-op either, the server reads `dlts[dlts.length - 1].ts` before it
+  looks at the list. An op-less delta it *can* read is a "bump this card's
+  stamp" write broadcast to every collaborator, which is what made the bug
+  self-sustaining. 5 new tests at seam 1. Details in
+  `issues/12-history-restore-deltas.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
