@@ -410,8 +410,8 @@ pushed, `e`'s still unsynced -- so, like every card ever deleted, neither is in
 it.
 
 -}
-rowsNow : List (Data.Card_tests_only UpdatedAt)
-rowsNow =
+rowsBeforeRestore : List (Data.Card_tests_only UpdatedAt)
+rowsBeforeRestore =
     [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 }
     , unsyncedRow { id = "b", parentId = Just "a", position = 1, content = "Child, edited since", ts = 4000 }
     , syncedRow { id = "b", parentId = Just "a", position = 1, content = "Child", ts = 1000 }
@@ -440,7 +440,7 @@ snapshotRows =
 -}
 restoreChanges : Result String ChangeLists
 restoreChanges =
-    Data.model_tests_only rowsNow Nothing
+    Data.model_tests_only rowsBeforeRestore Nothing
         |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshotRows ) ])
         |> (\model -> Data.restore model snapshotId)
         |> savePayload
@@ -459,7 +459,7 @@ restoredDoc =
             (\changes ->
                 let
                     rowsAfter =
-                        applySave 6000 changes rowsNow
+                        applySave 6000 changes rowsBeforeRestore
                 in
                 case Data.cardDataReceived (encodeRows rowsAfter) ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" ) of
                     Nothing ->
@@ -955,5 +955,27 @@ suite =
                 in
                 Data.triggeredPush (Data.model_tests_only rows Nothing) "tree1"
                     |> pushMessageCount
+                    |> Expect.equal 0
+        , test "restoring the state the document is already in saves nothing" <|
+            \_ ->
+                let
+                    -- Nothing to do: `a` is already what the snapshot says
+                    -- (an older stamp for the same state is not a change) and
+                    -- `d` is already deleted.  The port layer stamps the tree
+                    -- row unsynced for every save it is handed, so a save with
+                    -- nothing in it is not free -- and the history view closes
+                    -- on an empty message list either way.
+                    rows =
+                        [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 }
+                        , deletedRow { id = "d", parentId = Just "a", position = 2, content = "Deleted", ts = 1200 }
+                        ]
+
+                    snapshot =
+                        [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 900 } ]
+                in
+                Data.model_tests_only rows Nothing
+                    |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshot ) ])
+                    |> (\model -> Data.restore model snapshotId)
+                    |> List.length
                     |> Expect.equal 0
         ]

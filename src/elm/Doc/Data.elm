@@ -89,11 +89,29 @@ restore model historyId =
             in
             case dataAtRestorePoint_ of
                 Just dataAtRestorePoint ->
-                    [ SaveCardBased
-                        (toSave
-                            (getRestoredData currentData dataAtRestorePoint)
-                        )
-                    ]
+                    let
+                        changes =
+                            getRestoredData currentData dataAtRestorePoint
+
+                        -- Restoring the state the document is already in has
+                        -- nothing to write, and an empty save is not free: the
+                        -- port layer stamps the tree row unsynced for every
+                        -- save it is handed.  `Page.App`'s Restore branch
+                        -- already closes the history view on an empty message
+                        -- list.
+                        changesSomething =
+                            not
+                                (List.isEmpty changes.toAdd
+                                    && List.isEmpty changes.toMarkSynced
+                                    && List.isEmpty changes.toMarkDeleted
+                                    && List.isEmpty changes.toRemove
+                                )
+                    in
+                    if changesSomething then
+                        [ SaveCardBased (toSave changes) ]
+
+                    else
+                        []
 
                 _ ->
                     []
