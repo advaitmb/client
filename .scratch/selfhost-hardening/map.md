@@ -340,6 +340,7 @@ ticket carries `needs-info` any more.
 | 28 | local-snapshot-newest-per-id | new (from 12) | 12 |
 | 29 | stale-row-save-reverts | new (from 11) | 11 |
 | 30 | merge-down-orphans-children | new (from 29) | 29 |
+| 31 | fullscreen-bypasses-block | new (from 15) | 15 |
 
 ## Not yet specified
 
