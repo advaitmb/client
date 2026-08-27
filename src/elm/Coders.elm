@@ -2,8 +2,6 @@ module Coders exposing (collabStateDecoder, collabStateEncoder, lazyRecurse, may
 
 import Json.Decode as Json exposing (..)
 import Json.Encode as Enc
-import Parser exposing ((|.), (|=), DeadEnd, Parser, Step(..), Trailing(..), chompUntil, getChompedString, loop, symbol)
-import Regex
 import Types exposing (..)
 
 
@@ -146,123 +144,6 @@ treeToOPMLBody tree =
 
 
 
--- Structured Markdown
-
-
-treeToMarkdownOutlineRecurse : Tree -> String
-treeToMarkdownOutlineRecurse tree =
-    case tree.children of
-        Children c ->
-            "<gingko-card id=\""
-                ++ tree.id
-                ++ "\">\n\n"
-                ++ tree.content
-                ++ "\n\n"
-                ++ (List.map treeToMarkdownOutlineRecurse c ++ [ "" ] |> String.join "\n")
-                ++ "</gingko-card>"
-
-
-
--- NORMALIZER
-
-
-normalizeInput : String -> String
-normalizeInput str =
-    str
-        |> normalizeOpenTags
-        |> normalizeCloseTags
-
-
-normalizeOpenTags : String -> String
-normalizeOpenTags str =
-    let
-        regex =
-            Regex.fromString "<\\s*gingko-card\\s{1,}id=\"([^\"]*)\"\\s*>"
-                |> Maybe.withDefault Regex.never
-    in
-    Regex.replace regex
-        (\m ->
-            case m.submatches of
-                (Just idMatch) :: _ ->
-                    "%!#<gingko-card|" ++ idMatch ++ ">"
-
-                _ ->
-                    m.match
-        )
-        str
-
-
-normalizeCloseTags : String -> String
-normalizeCloseTags str =
-    let
-        regex =
-            Regex.fromString "<\\/\\s*gingko-card\\s*>\\s*"
-                |> Maybe.withDefault Regex.never
-    in
-    Regex.replace regex
-        (\_ -> "%!#<gingko-card/>")
-        str
-
-
-
--- PARSER
-
-
-treesParser : Parser (List Tree)
-treesParser =
-    loop [] treeListHelper
-
-
-treeListHelper : List Tree -> Parser (Step (List Tree) (List Tree))
-treeListHelper revTrees =
-    Parser.oneOf
-        [ Parser.succeed (\tree -> Loop (tree :: revTrees))
-            |= parseTree
-        , Parser.succeed (Done (List.reverse revTrees))
-        ]
-
-
-parseTree : Parser Tree
-parseTree =
-    Parser.succeed (\id str ch -> Tree id str (Children ch))
-        |= openTagParser
-        |= contentParser
-        |= treesParser
-        |. closeTagParser
-
-
-openTagParser : Parser String
-openTagParser =
-    Parser.succeed identity
-        |. symbol "%!#<gingko-card|"
-        |= getChompedString (chompUntil ">")
-        |. symbol ">"
-
-
-contentParser : Parser String
-contentParser =
-    getChompedString
-        (chompUntil "%!#<gingko-card")
-        |> Parser.map
-            (\s ->
-                case ( String.startsWith "\n\n" s, String.endsWith "\n\n" s, String.length s >= 4 ) of
-                    ( True, True, True ) ->
-                        s |> String.dropLeft 2 |> String.dropRight 2
-
-                    _ ->
-                        s
-            )
-
-
-closeTagParser : Parser ()
-closeTagParser =
-    Parser.oneOf
-        [ symbol "%!#<gingko-card/>"
-        , Parser.end
-        ]
-
-
-
 -- Markdown
 
 
@@ -328,10 +209,6 @@ sortByEncoder sortBy =
 
         CreatedAt ->
             Enc.string "CreatedAt"
-
-
-
--- FONT SETTINGS
 
 
 
