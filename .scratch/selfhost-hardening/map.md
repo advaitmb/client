@@ -208,6 +208,19 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   gains seam 8 (routing, Elm, pure); 23 tests, including a round trip of every
   URL `Route.toString` builds back to the page it names. Details in
   `issues/14-cold-url-init.md`.
+- Ticket 28 resolved — the local snapshot is the card set again, not the
+  version log: `applyCardBasedSave` reads the document's rows through the plain
+  `treeId` index and reduces them in JS (`newestVersionPerId`, then the deleted
+  dropped — that order, per ADR-0005 §1). The `[treeId+deleted]` pre-filter
+  could not stay: the newest row of a deleted card is exactly the row it hides,
+  so the snapshot kept the card at its pre-deletion content and — `doc.js`
+  handing Elm every snapshot row as `deleted: 0` — restoring it brought the
+  card back. The snapshot's id keeps being the newest stamp in the log,
+  deletion rows included, rather than the newest row it holds: otherwise a save
+  that deletes is stamped with the last surviving edit and overwrites the
+  history entry that still had the card. So deleting now leaves a restore point
+  of its own. 4 tests at seam 4. Details in
+  `issues/28-local-snapshot-newest-per-id.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
