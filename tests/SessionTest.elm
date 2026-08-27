@@ -1,4 +1,4 @@
-module SessionTest exposing (preferences, sidebar, suite)
+module SessionTest exposing (loginResponse, preferences, sidebar, suite)
 
 {-| Tests at the ADR-0002 seam: `Session.decode` on the stored user data that
 `StoreUser` persists to localStorage.
@@ -13,6 +13,7 @@ to a guest session, i.e. logs them out).
 -}
 
 import Expect
+import Json.Decode as Dec
 import Json.Encode as Enc
 import Page.App
 import Session
@@ -140,4 +141,60 @@ sidebar =
             \_ ->
                 Page.App.sidebarIsOpen Page.App.SidebarClosed
                     |> Expect.equal False
+        ]
+
+
+{-| A stored session for a user who left the shortcut tray closed and the
+document list sorted alphabetically. Neither is the default, so a login that
+resets them is visible.
+-}
+storedWithPrefs : Enc.Value
+storedWithPrefs =
+    Enc.object
+        [ ( "email", Enc.string "user@example.com" )
+        , ( "shortcutTrayOpen", Enc.bool False )
+        , ( "sortBy", Enc.string "Alphabetical" )
+        ]
+
+
+{-| The guest session a logged-in user becomes on the way to the login screen
+(`Main.UserLoggedOut` → `Session.toGuest` → `Page.Login`), which is the session
+the login request decodes its response against.
+-}
+guestFrom : Enc.Value -> Result String Session.Guest
+guestFrom stored =
+    decodeLoggedIn stored |> Result.map Session.toGuest
+
+
+{-| Log in as that guest, with what the server answered. -}
+logIn : Result String Session.Guest -> List ( String, Enc.Value ) -> Result String ( Bool, SortBy )
+logIn guest_ responseFields =
+    guest_
+        |> Result.andThen
+            (\guest ->
+                Enc.object (( "email", Enc.string "user@example.com" ) :: responseFields)
+                    |> Dec.decodeValue (Session.responseDecoder Session.Other guest)
+                    |> Result.mapError Dec.errorToString
+            )
+        |> Result.map (\session -> ( Session.shortcutTrayOpen session, Session.sortBy session ))
+
+
+{-| Ticket 13 / E3: logging in used to hand back a session with the shortcut
+tray open and the document list sorted by modification date, whatever the user
+had chosen — and `storeLogin` then wrote those defaults over the real ones.
+-}
+loginResponse : Test
+loginResponse =
+    describe "Session, logging in"
+        [ test "a response that says nothing about the preferences keeps them" <|
+            \_ ->
+                logIn (guestFrom storedWithPrefs) []
+                    |> Expect.equal (Ok ( False, Alphabetical ))
+        , test "a response that carries preferences is believed" <|
+            \_ ->
+                logIn (guestFrom storedWithPrefs)
+                    [ ( "shortcutTrayOpen", Enc.bool True )
+                    , ( "sortBy", Enc.string "CreatedAt" )
+                    ]
+                    |> Expect.equal (Ok ( True, CreatedAt ))
         ]

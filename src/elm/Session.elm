@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -24,8 +24,12 @@ type Session
     | LoggedInSession LoggedIn
 
 
+{-| A guest carries the preferences of the user who was last logged in here,
+so that logging back in cannot reset them (E3): the login response is decoded
+against them, and only what the server actually says overrides them.
+-}
 type Guest
-    = Guest SessionData
+    = Guest SessionData UserPrefs
 
 
 type LoggedIn
@@ -33,11 +37,26 @@ type LoggedIn
 
 
 type alias SessionData =
-    -- Not persisted
     { fileMenuOpen : Bool
     , lastDocId : Maybe String
     , fromLegacy : Bool
     , firstRun : Bool
+    }
+
+
+{-| The preferences a login must preserve. They live in `UserData` for a
+logged-in session; this is how they cross the guest boundary.
+-}
+type alias UserPrefs =
+    { shortcutTrayOpen : Bool
+    , sortBy : SortBy
+    }
+
+
+defaultPrefs : UserPrefs
+defaultPrefs =
+    { shortcutTrayOpen = False
+    , sortBy = ModifiedAt
     }
 
 
@@ -56,8 +75,13 @@ type alias UserData =
 
 
 guestSessionData : Guest -> SessionData
-guestSessionData (Guest sessionData) =
+guestSessionData (Guest sessionData _) =
     sessionData
+
+
+guestPrefs : Guest -> UserPrefs
+guestPrefs (Guest _ prefs) =
+    prefs
 
 
 getFromLoggedInSession : (SessionData -> a) -> LoggedIn -> a
@@ -76,7 +100,7 @@ lastDocId session =
 
 
 fromLegacy : Guest -> Bool
-fromLegacy (Guest sessionData) =
+fromLegacy (Guest sessionData _) =
     sessionData.fromLegacy
 
 
@@ -252,14 +276,16 @@ updateDocuments docList (LoggedIn sessData userData) =
 
 public : Session
 public =
-    GuestSession
-        (Guest
-            { fileMenuOpen = False
-            , lastDocId = Nothing
-            , fromLegacy = False
-            , firstRun = False
-            }
-        )
+    GuestSession (Guest emptySessionData defaultPrefs)
+
+
+emptySessionData : SessionData
+emptySessionData =
+    { fileMenuOpen = False
+    , lastDocId = Nothing
+    , fromLegacy = False
+    , firstRun = False
+    }
 
 
 decode : Dec.Value -> Session
@@ -274,29 +300,28 @@ decode json =
                     GuestSession session
 
                 Err _ ->
-                    GuestSession
-                        (Guest
-                            { fileMenuOpen = False
-                            , lastDocId = Nothing
-                            , fromLegacy = False
-                            , firstRun = False
-                            }
-                        )
+                    GuestSession (Guest emptySessionData defaultPrefs)
 
 
 decoderGuestSession : Dec.Decoder Guest
 decoderGuestSession =
     Dec.succeed
-        (\legacy side ->
+        (\legacy side lastDoc_ trayOpen sortCriteria ->
             Guest
                 { fileMenuOpen = side
-                , lastDocId = Nothing
+                , lastDocId = lastDoc_
                 , fromLegacy = legacy
                 , firstRun = False
+                }
+                { shortcutTrayOpen = trayOpen
+                , sortBy = sortCriteria
                 }
         )
         |> optional "fromLegacy" Dec.bool False
         |> optional "sidebarOpen" Dec.bool False
+        |> optional "lastDocId" (Dec.maybe Dec.string) Nothing
+        |> optional "shortcutTrayOpen" Dec.bool defaultPrefs.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder defaultPrefs.sortBy
 
 
 decoderLoggedIn : Dec.Decoder LoggedIn
@@ -315,8 +340,8 @@ decoderLoggedIn =
         |> optional "fromLegacy" Dec.bool False
         |> optional "sidebarOpen" Dec.bool False
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
-        |> optional "shortcutTrayOpen" Dec.bool False
-        |> optional "sortBy" sortByDecoder ModifiedAt
+        |> optional "shortcutTrayOpen" Dec.bool defaultPrefs.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder defaultPrefs.sortBy
         |> optional "lastDocId" (Dec.maybe Dec.string) Nothing
         |> optional "features" Features.decoder []
 
@@ -334,6 +359,16 @@ type UserSource
     | Other
 
 
+{-| A logged-in session from what the server answered to a signup, login,
+forgotten-password or password-reset request — decoded against the guest
+session that made the request, so that preferences the response does not
+mention are the ones the user already had, not defaults (E3). `storeLogin`
+persists the result, so anything invented here is written over the real thing.
+
+Exposed for the login-decoding tests as well as for the request functions
+below.
+
+-}
 responseDecoder : UserSource -> Guest -> Dec.Decoder LoggedIn
 responseDecoder usrSrc session =
     let
@@ -348,15 +383,20 @@ responseDecoder usrSrc session =
                                 data
                    )
 
-        builder : String -> Maybe Time.Posix -> List Metadata -> List Feature -> LoggedIn
-        builder email confAt docs feats =
+        storedPrefs =
+            guestPrefs session
+
+        builder : String -> Maybe Time.Posix -> Bool -> SortBy -> List Metadata -> List Feature -> LoggedIn
+        builder email confAt trayOpen sortCriteria docs feats =
             LoggedIn
                 sessionData
-                (UserData email confAt True ModifiedAt (DocList.fromList docs) feats)
+                (UserData email confAt trayOpen sortCriteria (DocList.fromList docs) feats)
     in
     Dec.succeed builder
         |> required "email" Dec.string
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
+        |> optional "shortcutTrayOpen" Dec.bool storedPrefs.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder storedPrefs.sortBy
         |> optional "documents" Metadata.responseDecoder []
         |> optional "features" Features.decoder []
 
@@ -468,8 +508,11 @@ logout =
 
 
 toGuest : LoggedIn -> Guest
-toGuest (LoggedIn sessionData _) =
+toGuest (LoggedIn sessionData userData) =
     Guest sessionData
+        { shortcutTrayOpen = userData.shortcutTrayOpen
+        , sortBy = userData.sortBy
+        }
 
 
 

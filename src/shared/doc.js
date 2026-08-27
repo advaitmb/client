@@ -36,7 +36,7 @@ dexie.version(4).stores({
 });
 
 const helpers = require("./doc-helpers");
-const { SESSION_STORAGE_KEY, logoutUser } = require("./session");
+const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession } = require("./session");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -117,7 +117,7 @@ async function initElmAndPorts() {
       const res = await fetch("/me");
       if (res.ok) {
         const me = await res.json();
-        setSessionData(Object.assign({}, getSessionData() || {}, me), "AutoLogin");
+        setSessionData(mergeUserIntoSession(getSessionData(), me), "AutoLogin");
         if (Array.isArray(me.documents) && me.documents.length > 0) {
           await dexie.trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
         }

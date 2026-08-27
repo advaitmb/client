@@ -15,6 +15,44 @@
 const SESSION_STORAGE_KEY = "gingko-session-storage";
 
 /**
+ * The keys in the session blob that belong to this client and no one else.
+ * Elm writes them through the `SaveUserSetting` and `SetSidebarState` ports,
+ * which reach localStorage and stop there — nothing pushes them to the
+ * server — so a server answer that mentions them is not news, it is a reset.
+ */
+const CLIENT_PREF_KEYS = ["shortcutTrayOpen", "sortBy", "sidebarOpen", "lastDocId"];
+
+/**
+ * The session blob after adopting what the server says about the logged-in
+ * user: `/me` on boot (self-host has no login screen, so this is how the
+ * account is adopted).
+ *
+ * The server wins on everything it owns — the email, confirmation, features.
+ * It does not win on the preferences above once this client has stored them:
+ * those are only ever written here, so `/me` can offer them for a first boot
+ * but never overwrite them afterwards. Same rule the Elm login decoder
+ * follows for `shortcutTrayOpen` and `sortBy` (CODE_REVIEW E3).
+ *
+ * @param {Object|null} stored  the session blob as it is now, if any.
+ * @param {Object|null} fromServer  the parsed `/me` body.
+ * @returns {Object} the blob to store. Neither argument is mutated.
+ */
+function mergeUserIntoSession(stored, fromServer) {
+  const current = stored || {};
+  const merged = Object.assign({}, current);
+
+  Object.keys(fromServer || {}).forEach((key) => {
+    const isClientPref = CLIENT_PREF_KEYS.indexOf(key) !== -1;
+    if (isClientPref && Object.prototype.hasOwnProperty.call(current, key)) {
+      return;
+    }
+    merged[key] = fromServer[key];
+  });
+
+  return merged;
+}
+
+/**
  * End the session, everywhere: the server's, then the local one, then the
  * connections that were syncing as that user, and finally hand control back
  * to Elm (`userLoggedOutMsg` → Main.UserLoggedOut → the login page).
@@ -71,4 +109,5 @@ async function logoutUser({ teardown, onLoggedOut } = {}) {
 module.exports = {
   SESSION_STORAGE_KEY: SESSION_STORAGE_KEY,
   logoutUser: logoutUser,
+  mergeUserIntoSession: mergeUserIntoSession,
 };
