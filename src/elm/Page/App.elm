@@ -246,9 +246,16 @@ init nKey globalData session dbData_ =
                     ( newModel, maybeGetDocs )
 
 
+{-| The screen for a URL that names no document of this user's. It sends them
+to the sidebar to pick one, so the document list has to be asked for -- on a
+cold load this page is the first thing the app initializes, and nothing else
+has asked (E4).
+-}
 notFound : Nav.Key -> GlobalData -> LoggedIn -> ( Model, Cmd Msg )
 notFound nKey globalData session =
-    ( defaultModel nKey session (DocNotFound globalData session), Cmd.none )
+    ( defaultModel nKey session (DocNotFound globalData session)
+    , send <| GetDocumentList
+    )
 
 
 isDirty : Model -> Bool

@@ -7,7 +7,6 @@ import Dict
 import Doc.UI as UI
 import GlobalData exposing (GlobalData)
 import Html
-import Import.Template as Template
 import Json.Decode as Dec exposing (Value)
 import Outgoing exposing (Msg(..), send)
 import Page.App
@@ -43,129 +42,130 @@ type Model
       -- Public Pages:
 
 
+{-| Boot: the URL the app was opened at decides the first page, and that page's
+commands are the app's first commands. Anything less is E4 -- `init` used to
+build a page from the session alone, throw its `Cmd` away, and hand the model
+to `handleUrlChange`, which for half the URL shapes had nothing to add.
+-}
 init : Value -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init json url navKey =
-    let
-        session =
-            Session.decode json
-
-        globalData =
-            GlobalData.decode json
-
-        ( initModel, _ ) =
-            case session of
-                LoggedInSession loggedInSession ->
-                    Page.App.init navKey globalData loggedInSession Nothing |> updateWith App GotAppMsg
-
-                GuestSession guestSession ->
-                    Page.Login.init navKey globalData guestSession |> updateWith Login GotLoginMsg
-    in
-    handleUrlChange url initModel
-
-
-replaceUrl : String -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-replaceUrl path ( model, cmd ) =
-    ( model, Cmd.batch [ cmd, Nav.replaceUrl (getNavKey model) path ] )
+    routeUrl
+        { navKey = navKey
+        , globalData = GlobalData.decode json
+        , session = Session.decode json
+        , fromNewDocument = False
+        }
+        url
 
 
 handleUrlChange : Url -> Model -> ( Model, Cmd Msg )
 handleUrlChange url model =
+    routeUrl
+        { navKey = getNavKey model
+        , globalData = toGlobalData model
+        , session =
+            case ( toSession model, loginInProgress model ) of
+                -- A login or signup that has just completed routes as the user
+                -- it signed in: the auth page's own session is still a guest
+                -- one until the redirect it triggered lands here.
+                ( GuestSession _, Just loggingIn ) ->
+                    LoggedInSession loggingIn
+
+                ( session, _ ) ->
+                    session
+        , fromNewDocument =
+            case model of
+                DocNew _ ->
+                    True
+
+                _ ->
+                    False
+        }
+        url
+
+
+{-| Everything the routing decision needs that a URL does not carry.
+-}
+type alias Routing =
+    { navKey : Nav.Key
+    , globalData : GlobalData
+    , session : Session
+    , fromNewDocument : Bool
+    }
+
+
+{-| Carry out `Route`'s decision: initialize the page the URL names -- with its
+commands -- and correct the address bar if the URL was not one this session can
+be on.
+-}
+routeUrl : Routing -> Url -> ( Model, Cmd Msg )
+routeUrl routing url =
     let
-        navKey =
-            getNavKey model
-
-        globalData =
-            toGlobalData model
-
         appUrl =
             AppUrl.fromUrl url
     in
-    case toSession model of
+    case routing.session of
         LoggedInSession session ->
-            case appUrl.path of
-                [] ->
-                    if loginInProgress model == Nothing then
-                        Page.App.init navKey globalData session Nothing |> updateWith App GotAppMsg
-
-                    else
-                        ( model, Cmd.none )
-
-                [ "new" ] ->
-                    Page.DocNew.init navKey globalData session |> updateWith DocNew GotDocNewMsg
-
-                [ "import", templateName ] ->
-                    case Template.fromString templateName of
-                        Just template ->
-                            Page.Import.init navKey globalData session template
-                                |> updateWith Import GotImportMsg
-
-                        Nothing ->
-                            Page.App.init navKey globalData session Nothing
-                                |> updateWith App GotAppMsg
-
-                [ "login" ] ->
-                    ( model, Route.pushUrl navKey Route.Root )
-
-                [ "signup" ] ->
-                    ( model, Route.pushUrl navKey Route.Root )
-
-                [ dbName ] ->
-                    let
-                        isNew =
-                            case model of
-                                DocNew _ ->
-                                    True
-
-                                _ ->
-                                    False
-                    in
-                    Page.App.init navKey globalData session (Just { dbName = dbName, isNew = isNew })
-                        |> updateWith App GotAppMsg
-
-                [ dbName, "404-not-found" ] ->
-                    Page.App.notFound navKey globalData session |> updateWith App GotAppMsg
-
-                [ dbName, _ ] ->
-                    ( model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+            Route.loggedInLanding { fromNewDocument = routing.fromNewDocument } appUrl
+                |> applyLanding routing (loggedInPage routing session)
 
         GuestSession guestSession ->
-            case appUrl.path of
-                [] ->
-                    case loginInProgress model of
-                        Just loggingIn ->
-                            Page.App.init navKey globalData loggingIn Nothing |> updateWith App GotAppMsg
+            Route.guestLanding appUrl
+                |> applyLanding routing (guestPage routing guestSession)
 
-                        Nothing ->
-                            Page.Signup.init navKey globalData guestSession
-                                |> updateWith Signup GotSignupMsg
-                                |> replaceUrl "signup"
 
-                [ "login" ] ->
-                    Page.Login.init navKey globalData guestSession |> updateWith Login GotLoginMsg
+applyLanding : Routing -> (page -> ( Model, Cmd Msg )) -> Route.Landing page -> ( Model, Cmd Msg )
+applyLanding { navKey } toPage landing =
+    case landing.urlChange of
+        Just urlChange ->
+            toPage landing.page |> withUrlChange navKey urlChange
 
-                [ "signup" ] ->
-                    Page.Signup.init navKey globalData guestSession |> updateWith Signup GotSignupMsg
+        Nothing ->
+            toPage landing.page
 
-                [ "import", templateName ] ->
-                    case loginInProgress model of
-                        Just loggingIn ->
-                            case Template.fromString templateName of
-                                Just template ->
-                                    Page.Import.init navKey globalData loggingIn template
-                                        |> updateWith Import GotImportMsg
 
-                                Nothing ->
-                                    Page.App.init navKey globalData loggingIn Nothing
-                                        |> updateWith App GotAppMsg
+withUrlChange : Nav.Key -> Route.UrlChange -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+withUrlChange navKey urlChange ( model, cmd ) =
+    ( model
+    , Cmd.batch
+        [ cmd
+        , case urlChange of
+            Route.Push route ->
+                Route.pushUrl navKey route
 
-                        Nothing ->
-                            ( model, Cmd.none )
+            Route.Replace route ->
+                Route.replaceUrl navKey route
+        ]
+    )
 
-                _ ->
-                    ( model, Cmd.none )
+
+loggedInPage : Routing -> LoggedIn -> Route.LoggedInPage -> ( Model, Cmd Msg )
+loggedInPage { navKey, globalData } session page =
+    case page of
+        Route.Home ->
+            Page.App.init navKey globalData session Nothing |> updateWith App GotAppMsg
+
+        Route.Document dbData ->
+            Page.App.init navKey globalData session (Just dbData) |> updateWith App GotAppMsg
+
+        Route.DocumentNotFound ->
+            Page.App.notFound navKey globalData session |> updateWith App GotAppMsg
+
+        Route.NewDocument ->
+            Page.DocNew.init navKey globalData session |> updateWith DocNew GotDocNewMsg
+
+        Route.ImportTemplate template ->
+            Page.Import.init navKey globalData session template |> updateWith Import GotImportMsg
+
+
+guestPage : Routing -> Session.Guest -> Route.GuestPage -> ( Model, Cmd Msg )
+guestPage { navKey, globalData } guestSession page =
+    case page of
+        Route.LoginForm ->
+            Page.Login.init navKey globalData guestSession |> updateWith Login GotLoginMsg
+
+        Route.SignupForm ->
+            Page.Signup.init navKey globalData guestSession |> updateWith Signup GotSignupMsg
 
 
 loginInProgress : Model -> Maybe LoggedIn
@@ -308,7 +308,7 @@ update msg model =
                 LoggedInSession session ->
                     Page.Login.init navKey globalData (Session.toGuest session)
                         |> updateWith Login GotLoginMsg
-                        |> replaceUrl "/login"
+                        |> withUrlChange navKey (Route.Replace Route.Login)
 
                 _ ->
                     ( model, Cmd.none )
