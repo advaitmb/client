@@ -123,9 +123,11 @@ at seam 3 (`tests/tree.test.ts`, 1 red first).
 
 Rebased on `selfhost` at `504eaad`: `bun run test:elm` 122/122, `bun test`
 85/85 across 11 files, `bun run newbuild` succeeds, `bun run config-check` exit
-0. CI green on `selfhost`: run
+0. CI green on `selfhost`: runs
 <https://github.com/advaitmb/client/actions/runs/33075349905> (`504eaad`,
-carrying the CI fix). The two runs before it —
+carrying the CI fix) and
+<https://github.com/advaitmb/client/actions/runs/33075543048> (`5e33ebe`, the
+tracker). The two runs before them —
 <https://github.com/advaitmb/client/actions/runs/33074480423> (`0dbe35f`) and
 <https://github.com/advaitmb/client/actions/runs/33074852813> (`a5ebebb`) —
 were red in the TS-test step on the fixture bug below, and red for the two
