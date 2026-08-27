@@ -457,8 +457,8 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   unclaimed `"db"` is adoptable, so tidying `gingko-*` away restores the leak).
   22 tests at seam 4, ADR-0001 gains local-db.js there. Details in
   `issues/27-per-account-local-data.md`.
-- Ticket 21 resolved — §6's Elm side, all of it: net **−2,204 lines** over
-  eleven commits, five modules deleted, four `elm.json` pins dropped and
+- Ticket 21 resolved — §6's Elm side, all of it: net **−2,201 lines** of Elm
+  (86 added, 2,287 removed), five modules deleted, four `elm.json` pins dropped and
   `elm/parser` demoted to indirect. The method mattered more than the list.
   Re-verifying every entry against the *current* tree rather than the review's
   snapshot changed five answers — `GlobalData.public`,

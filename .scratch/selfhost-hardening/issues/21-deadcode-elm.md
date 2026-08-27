@@ -36,8 +36,11 @@ deliberately left for this ticket's deletion of that module.
 
 ## Answer
 
-**85 lines added, 2,289 removed across eleven commits — net −2,204.** Five
-Elm modules deleted, four `elm.json` pins dropped and one demoted to indirect.
+**86 lines added, 2,287 removed — net −2,201** across `src/elm`, `elm.json` and
+`tests/SessionTest.elm`, in twelve code commits (ticket 27's, which landed
+interleaved, touched none of those paths, so the whole delta since `1929f3b` is
+this ticket's). Five Elm modules deleted, four `elm.json` pins dropped and one
+demoted to indirect.
 Every removal was re-verified against the current tree (`src/` *and* `tests/`)
 rather than trusted from the review's snapshot, and that mattered: five of the
 review's entries had grown a caller in the thirty tickets since it was written,
@@ -214,13 +217,13 @@ This is load-bearing rather than cosmetic, because an unknown incoming tag is
 `Err "Unexpected info from outside: <tag>"`, which reaches `onError` and
 surfaces as a toast (ticket 18). Recorded in `ARCHITECTURE.md` §7.
 
-**CI green on all eleven commits**, checked per commit rather than only at the
-tip, because a purge is exactly the change that compiles at the end while
-having been broken in the middle: `fc7f519`, `49b3ad3`, `38828c0`, `3d2ece6`,
+**CI green on every commit**, checked per commit rather than only at the tip,
+because a purge is exactly the change that compiles at the end while having
+been broken in the middle: `fc7f519`, `49b3ad3`, `38828c0`, `3d2ece6`,
 `ad85898`, `bf4c795`, `84d4356`, `849735e`, `aafbf54`, `1d5e8d1`, `59e958f`,
-and `bed639f`+`4711d46` under the tip's run. Each was pushed as its own green
-group — the container restarted twice during this ticket, and the incremental
-pushes are why none of the work was lost.
+`d559894` (covering `bed639f` and `4711d46`), and `f73b667`. Each was pushed as
+its own green group — the container restarted twice during this ticket, and the
+incremental pushes are why none of the work was lost.
 
 **One environment note for the next agent in a cloud session.** `bun run
 test:elm` fails on a fresh container even after `scripts/install_elm_pkgs.sh`:
