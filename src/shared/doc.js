@@ -631,11 +631,12 @@ const fromElm = (msg, elmData) => {
     // handlers at a document with no subscriptions while the one still on
     // screen kept receiving rows.
     //
-    // Named `SaveCardBasedTree` here until ticket 24: Elm sent it as
-    // `Outgoing.SaveImportedTree`, so grep for either name missed this side
-    // (CODE_REVIEW.md S2). Both are `SaveImportedTree` now -- it names the
-    // operation rather than the storage format, and stops colliding with
-    // `SaveCardBased`, which is a different message entirely.
+    // The key is spelled exactly as Elm's `Outgoing.SaveImportedTree`, and must
+    // stay that way: this handler was `SaveCardBasedTree` while Elm called it
+    // `SaveImportedTree`, so a grep for either name found only one side of the
+    // message (CODE_REVIEW.md S2). The name that survived says what the message
+    // does rather than which storage format the document is in, and does not
+    // read as a variant of `SaveCardBased`, which is a different message.
     SaveImportedTree: async () => {
       const now = Date.now();
       const [importedTreeId, treeName] = elmData;

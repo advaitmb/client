@@ -18,8 +18,8 @@ test can make (the reason seams 5, 7-10 exist). They are verified by inspection.
 
 -}
 
-import Expect
 import Doc.UI as UI
+import Expect
 import Html
 import Html.Attributes as Attributes
 import Json.Encode as Enc

@@ -2,7 +2,7 @@ module Page.DocMessage exposing (..)
 
 import Ant.Icons.Svg as AntIcons
 import Html exposing (Html, br, button, div, h1, p, text)
-import Html.Attributes exposing (class, id, type_)
+import Html.Attributes exposing (id, type_)
 import Html.Events exposing (onClick)
 
 
