@@ -68,6 +68,19 @@ unsyncedRow args =
     { row | synced = False }
 
 
+{-| A version row that marks its card deleted, with the deletion not pushed yet.
+-}
+unsyncedDeletedRow :
+    { id : String, parentId : Maybe String, position : Float, content : String, ts : Int }
+    -> Data.Card_tests_only UpdatedAt
+unsyncedDeletedRow args =
+    let
+        row =
+            deletedRow args
+    in
+    { row | synced = False }
+
+
 {-| The `cards` rows as `src/shared/doc.js` hands them to Elm.
 -}
 encodeRows : List (Data.Card_tests_only UpdatedAt) -> Enc.Value
@@ -94,6 +107,24 @@ encodeRows rows =
                 ]
     in
     Enc.list encodeRow rows
+
+
+{-| History snapshots as `src/shared/doc.js` hands them to Elm: one entry per
+snapshot, its `data` the card rows alive when it was taken. The port builds a
+snapshot from `deleted: 0` rows only and forces `deleted = 0` on every row it
+passes on, so a deleted card is simply absent from a snapshot.
+-}
+encodeHistory : List ( String, Int, List (Data.Card_tests_only UpdatedAt) ) -> Enc.Value
+encodeHistory snapshots =
+    let
+        encodeSnapshot ( id, ts, rows ) =
+            Enc.object
+                [ ( "snapshot", Enc.string id )
+                , ( "ts", Enc.int ts )
+                , ( "data", encodeRows rows )
+                ]
+    in
+    Enc.list encodeSnapshot snapshots
 
 
 
@@ -208,6 +239,25 @@ pushedDeltas msgs =
         |> Maybe.withDefault (Ok [])
 
 
+{-| How many `PushDeltas` messages were sent. Sending one that carries no
+deltas is not a way of saying "nothing to push": the server reads
+`dlts[dlts.length - 1].ts` before it looks at the list.
+-}
+pushMessageCount : List Outgoing.Msg -> Int
+pushMessageCount msgs =
+    msgs
+        |> List.filter
+            (\msg ->
+                case msg of
+                    Outgoing.PushDeltas _ ->
+                        True
+
+                    _ ->
+                        False
+            )
+        |> List.length
+
+
 
 -- Resolving a content conflict (ADR-0005 §2)
 
@@ -314,8 +364,11 @@ resolveAs selection =
 
 
 {-| The port layer's half of a save (`src/shared/doc.js`): drop every row named
-in `toRemove`, then write each staged row with the fresh stamp the port gives it
-as it writes -- which makes it the newest row of its card.
+in `toRemove`, then write each staged row -- `toAdd` and `toMarkDeleted` alike --
+with the fresh stamp the port gives it as it writes, which makes it the newest
+row of its card. (The port stamps the deletion batch from one timestamp and
+`toAdd` from the HLC; either way no staged row is older than the rows it
+supersedes, which is all these tests depend on.)
 -}
 applySave : Int -> ChangeLists -> List (Data.Card_tests_only UpdatedAt) -> List (Data.Card_tests_only UpdatedAt)
 applySave ts changes rows =
@@ -336,6 +389,86 @@ applySave ts changes rows =
     in
     (rows |> List.filter (\row -> not (List.any (UpdatedAt.areEqual row.updatedAt) removed)))
         ++ (changes.toAdd |> List.map stampStaged)
+        ++ (changes.toMarkDeleted |> List.map stampStaged)
+
+
+-- Restoring a history snapshot (CODE_REVIEW.md D9)
+
+
+snapshotId : String
+snapshotId =
+    "2000:tree1"
+
+
+{-| The document as it stands now, in an order a raw-row scan would trip over.
+
+The snapshot below was taken when `a`, `b`, `f` and `g` were alive. Since then
+`b` was edited offline, `c` was added, `f` was deleted, and `g` was given a new
+stamp for the same state (what the server does to a card an op-less delta names).
+`d` and `e` were already deleted when the snapshot was taken -- `d`'s deletion
+pushed, `e`'s still unsynced -- so, like every card ever deleted, neither is in
+it.
+
+-}
+rowsNow : List (Data.Card_tests_only UpdatedAt)
+rowsNow =
+    [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 }
+    , unsyncedRow { id = "b", parentId = Just "a", position = 1, content = "Child, edited since", ts = 4000 }
+    , syncedRow { id = "b", parentId = Just "a", position = 1, content = "Child", ts = 1000 }
+    , syncedRow { id = "c", parentId = Just "a", position = 2, content = "Added since", ts = 3000 }
+    , deletedRow { id = "d", parentId = Just "a", position = 3, content = "Deleted before the snapshot", ts = 1200 }
+    , unsyncedDeletedRow { id = "e", parentId = Just "a", position = 4, content = "Deleted offline before the snapshot", ts = 1500 }
+    , syncedRow { id = "e", parentId = Just "a", position = 4, content = "Deleted offline before the snapshot", ts = 900 }
+    , deletedRow { id = "f", parentId = Just "a", position = 5, content = "Deleted since the snapshot", ts = 3500 }
+    , syncedRow { id = "g", parentId = Just "a", position = 6, content = "Stable", ts = 3000 }
+    ]
+
+
+{-| The rows the snapshot holds: the cards alive when it was taken, with the
+content, parent and position they had then.
+-}
+snapshotRows : List (Data.Card_tests_only UpdatedAt)
+snapshotRows =
+    [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 }
+    , syncedRow { id = "b", parentId = Just "a", position = 1, content = "Child", ts = 1000 }
+    , syncedRow { id = "f", parentId = Just "a", position = 5, content = "Deleted since the snapshot", ts = 1000 }
+    , syncedRow { id = "g", parentId = Just "a", position = 6, content = "Stable", ts = 1000 }
+    ]
+
+
+{-| The save `restore` stages for that snapshot, decoded.
+-}
+restoreChanges : Result String ChangeLists
+restoreChanges =
+    Data.model_tests_only rowsNow Nothing
+        |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshotRows ) ])
+        |> (\model -> Data.restore model snapshotId)
+        |> savePayload
+        |> Maybe.map (Dec.decodeValue changeListsDecoder >> Result.mapError Dec.errorToString)
+        |> Maybe.withDefault (Err "expected restore to stage a save")
+
+
+{-| The document after the restore: the staged save applied the way the port
+layer applies it, then handed back to Elm the way the Dexie liveQuery does. The
+tree is what the user is left looking at; the deltas are what the server is told.
+-}
+restoredDoc : Result String { tree : Tree, pushed : List PushedDelta }
+restoredDoc =
+    restoreChanges
+        |> Result.andThen
+            (\changes ->
+                let
+                    rowsAfter =
+                        applySave 6000 changes rowsNow
+                in
+                case Data.cardDataReceived (encodeRows rowsAfter) ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" ) of
+                    Nothing ->
+                        Err "expected cardDataReceived to report the restored rows"
+
+                    Just { newTree, outMsg } ->
+                        pushedDeltas outMsg
+                            |> Result.map (\pushed -> { tree = newTree, pushed = pushed })
+            )
 
 
 suite : Test
@@ -714,4 +847,113 @@ suite =
                                 ]
                             }
                         )
+        , test "restoring a snapshot stages nothing for cards that are already deleted" <|
+            \_ ->
+                -- A snapshot holds only living cards, so "absent from the
+                -- snapshot" is as true of every card ever deleted (`d`, `e`) as
+                -- it is of the cards added since (`c`).  Only the latter may be
+                -- deleted; a fresh deletion row per restore for the former is
+                -- CODE_REVIEW.md D9.  `g` is the other half of it: a new stamp
+                -- for the same content, parent and position is not a change
+                -- either.
+                restoreChanges
+                    |> Expect.equal
+                        (Ok
+                            { toAdd =
+                                [ { id = "b"
+                                  , treeId = "tree1"
+                                  , content = "Child"
+                                  , parentId = Just "a"
+                                  , position = 1
+                                  , deleted = 0
+                                  , synced = False
+                                  }
+                                , { id = "f"
+                                  , treeId = "tree1"
+                                  , content = "Deleted since the snapshot"
+                                  , parentId = Just "a"
+                                  , position = 5
+                                  , deleted = 0
+                                  , synced = False
+                                  }
+                                ]
+                            , toMarkSynced = []
+                            , toMarkDeleted =
+                                [ { id = "c"
+                                  , treeId = "tree1"
+                                  , content = "Added since"
+                                  , parentId = Just "a"
+                                  , position = 2
+                                  , deleted = 1
+                                  , synced = False
+                                  }
+                                ]
+                            , toRemove = []
+                            }
+                        )
+        , test "restoring a snapshot reverts the cards it holds and deletes the cards added since" <|
+            \_ ->
+                -- What the restore is for: `b` back to its snapshot content,
+                -- `f` back from the dead at its snapshot position, `c` gone,
+                -- and the cards deleted before the snapshot still gone.
+                restoredDoc
+                    |> Result.map .tree
+                    |> Expect.equal
+                        (Ok
+                            (Tree "0"
+                                ""
+                                (Children
+                                    [ Tree "a"
+                                        "Root"
+                                        (Children
+                                            [ Tree "b" "Child" (Children [])
+                                            , Tree "f" "Deleted since the snapshot" (Children [])
+                                            , Tree "g" "Stable" (Children [])
+                                            ]
+                                        )
+                                    ]
+                                )
+                            )
+                        )
+        , test "the push after a restore carries an op for every delta and no empty ones" <|
+            \_ ->
+                -- `e`'s pending deletion still goes up, `c`'s new deletion and
+                -- `f`'s undeletion follow it.  Nothing is sent for the cards
+                -- the restore left alone -- and nothing empty for `b`, whose
+                -- snapshot content is what the server already has.
+                restoredDoc
+                    |> Result.map .pushed
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "e"
+                              , ts = "1500:0:hash-e-1500"
+                              , ops = [ { t = "d", content = Nothing, expectedVersion = Just "900:0:hash-e-900" } ]
+                              }
+                            , { id = "c"
+                              , ts = "6000:0:hash-c-6000"
+                              , ops = [ { t = "d", content = Nothing, expectedVersion = Just "3000:0:hash-c-3000" } ]
+                              }
+                            , { id = "f"
+                              , ts = "6000:0:hash-f-6000"
+                              , ops = [ { t = "ud", content = Nothing, expectedVersion = Nothing } ]
+                              }
+                            ]
+                        )
+        , test "a card whose unsynced row matches the server is not pushed at all" <|
+            \_ ->
+                let
+                    -- The row a restore used to leave behind: unsynced, and
+                    -- identical to the server's version in every field a delta
+                    -- can carry.  There is no op that describes it, and an
+                    -- op-less delta is not how you say so -- the server reads
+                    -- one as "bump this card's version", writing and
+                    -- broadcasting a change nobody made.
+                    rows =
+                        [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Same", ts = 1000 }
+                        , unsyncedRow { id = "a", parentId = Nothing, position = 1, content = "Same", ts = 2000 }
+                        ]
+                in
+                Data.triggeredPush (Data.model_tests_only rows Nothing) "tree1"
+                    |> pushMessageCount
+                    |> Expect.equal 0
         ]

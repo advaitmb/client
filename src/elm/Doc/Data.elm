@@ -98,23 +98,25 @@ restore model historyId =
                 _ ->
                     []
 
+
+{-| The save that turns the current card set into the one a snapshot holds.
+
+Both sides are reduced to the newest row per card id first (ADR-0005 §1): the
+version log keeps the rows a card has outgrown, and a restore is a statement
+about the card the user sees, not about its history.
+
+-}
 getRestoredData : CardData -> CardData -> DBChangeLists
 getRestoredData currentData restoredData =
     let
-        currentDataByCardId =
-            currentData
-                |> UpdatedAt.sortOldestFirst .updatedAt
-                |> List.map (\c -> ( c.id, c ))
-                |> Dict.fromList
-
-        restoredDataByCardId =
-            restoredData
-                |> UpdatedAt.sortOldestFirst .updatedAt
+        byCardId cards =
+            cards
+                |> newestPerId
                 |> List.map (\c -> ( c.id, c ))
                 |> Dict.fromList
 
         ( toAdd, toMarkDeleted ) =
-            mergeRestoreData currentDataByCardId restoredDataByCardId
+            mergeRestoreData (byCardId currentData) (byCardId restoredData)
     in
     { toAdd = toAdd
     , toMarkSynced = []
@@ -123,15 +125,40 @@ getRestoredData currentData restoredData =
     }
 
 
+{-| The rows a restore has to write: the snapshot's version of every card whose
+state differs from it, plus a deletion row for every living card the snapshot
+does not have.
+
+Only cards whose state actually changes get a row. What is compared is card
+*state* -- every field a delta can carry -- and not the version stamp: two rows
+can differ by stamp and say the same thing (the server bumps a card's stamp for
+an op-less delta), and staging content the card already has just adds an
+unsynced row with nothing to push.
+
+-}
 mergeRestoreData : Dict String (Card UpdatedAt) -> Dict String (Card UpdatedAt) -> ( List (Card ()), List (Card ()) )
 mergeRestoreData currentDataByCardId restoredDataByCardId =
     let
+        -- A snapshot holds only living cards, so a card missing from one was
+        -- either added after it was taken -- delete it -- or already deleted
+        -- when it was taken, in which case it is already in the state the
+        -- snapshot describes.  Re-deleting those appended a fresh unsynced
+        -- deletion row per ever-deleted card on every restore (CODE_REVIEW.md
+        -- D9).
         onlyInCurrent =
             \_ currentCard ( toAddSoFar, toDeleteSoFar ) ->
-                ( toAddSoFar
-                , toDeleteSoFar ++ [ { currentCard | deleted = True } |> asUnsynced ]
-                )
+                if currentCard.deleted then
+                    ( toAddSoFar
+                    , toDeleteSoFar
+                    )
 
+                else
+                    ( toAddSoFar
+                    , toDeleteSoFar ++ [ { currentCard | deleted = True } |> asUnsynced ]
+                    )
+
+        -- In the snapshot, but with no row at all in the version log: write it
+        -- back as a new card.
         onlyInRestored =
             \_ restoredCard ( toAddSoFar, toDeleteSoFar ) ->
                 ( toAddSoFar ++ [ restoredCard |> asUnsynced ]
@@ -140,13 +167,13 @@ mergeRestoreData currentDataByCardId restoredDataByCardId =
 
         inBoth =
             \_ currentCard restoredCard ( toAddSoFar, toDeleteSoFar ) ->
-                if not (UpdatedAt.areEqual currentCard.updatedAt restoredCard.updatedAt) then
-                    ( toAddSoFar ++ [ restoredCard |> asUnsynced ]
+                if sameCardState currentCard restoredCard then
+                    ( toAddSoFar
                     , toDeleteSoFar
                     )
 
                 else
-                    ( toAddSoFar
+                    ( toAddSoFar ++ [ restoredCard |> asUnsynced ]
                     , toDeleteSoFar
                     )
     in
@@ -157,6 +184,18 @@ mergeRestoreData currentDataByCardId restoredDataByCardId =
         currentDataByCardId
         restoredDataByCardId
         ( [], [] )
+
+
+{-| Whether two version rows say the same thing about their card: every field a
+delta can carry, which is every field except the version stamp and whether the
+row has been pushed.
+-}
+sameCardState : Card a -> Card b -> Bool
+sameCardState left right =
+    (left.content == right.content)
+        && (left.parentId == right.parentId)
+        && (left.position == right.position)
+        && (left.deleted == right.deleted)
 
 
 lastSavedTime : Model -> Maybe Int
@@ -221,7 +260,7 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                 ( outMsg, conflicts_ ) =
                     case syncState of
                         Unsynced ->
-                            ( [ PushDeltas (pushDelta treeId cards) ]
+                            ( pushDeltas treeId cards
                             , Nothing
                             )
 
@@ -287,7 +326,7 @@ triggeredPush model treeId =
             in
             case syncState of
                 Unsynced ->
-                    [ PushDeltas (pushDelta treeId cards) ]
+                    pushDeltas treeId cards
 
                 _ ->
                     []
@@ -1248,32 +1287,58 @@ type CardOp
     | UndelOp
 
 
-pushDelta : String -> List (Card UpdatedAt) -> Enc.Value
-pushDelta treeId db =
-    let
-        deltas =
-            toDelta treeId db
+{-| The push message for everything unsynced in the document -- or no message
+at all, when nothing is left to say.
 
-        checkpoint =
-            db
-                |> List.filter .synced
-                |> List.map .updatedAt
-                |> UpdatedAt.maximum
-                |> Maybe.withDefault UpdatedAt.zero
-    in
-    Enc.object
-        [ ( "dlts", Enc.list encodeDelta deltas )
-        , ( "tr", Enc.string treeId )
-        , ( "chk", UpdatedAt.encode checkpoint )
-        ]
+`toDelta` drops the cards that ask for no ops, so a document can classify as
+`Unsynced` and still have nothing to push. An empty `dlts` is not how to say
+that: the server reads `dlts[dlts.length - 1].ts` before it looks at the list
+(gingko/server `src/index.ts`).
+
+-}
+pushDeltas : String -> List (Card UpdatedAt) -> List Outgoing.Msg
+pushDeltas treeId db =
+    case toDelta treeId db of
+        [] ->
+            []
+
+        deltas ->
+            let
+                checkpoint =
+                    db
+                        |> List.filter .synced
+                        |> List.map .updatedAt
+                        |> UpdatedAt.maximum
+                        |> Maybe.withDefault UpdatedAt.zero
+            in
+            [ PushDeltas
+                (Enc.object
+                    [ ( "dlts", Enc.list encodeDelta deltas )
+                    , ( "tr", Enc.string treeId )
+                    , ( "chk", UpdatedAt.encode checkpoint )
+                    ]
+                )
+            ]
 
 
+{-| Every card's delta, oldest first.
+
+Cards with nothing to say are dropped. A card whose newest unsynced row matches
+the row it is diffed against in every field produces no ops, and an op-less
+delta is not a no-op on the wire: the server reads it as "set this card's
+version to this stamp", writing a change nobody made and telling every
+collaborator to pull it (CODE_REVIEW.md D9). The filter sits here, over the
+whole list, because this is the one function every push and every test goes
+through, while `cardDelta` can emit an op-less delta from either of two limbs.
+
+-}
 toDelta : String -> List (Card UpdatedAt) -> List Delta
 toDelta treeId cards =
     cards
         |> List.map .id
         |> ListExtra.unique
         |> List.concatMap (cardDelta treeId cards)
+        |> List.filter (not << List.isEmpty << .ops)
         |> UpdatedAt.sortOldestFirst .ts
 
 
