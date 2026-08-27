@@ -93,14 +93,21 @@ function clipboardErrorMessage(operation, error) {
  * what it calls, so a rejection escaping this function is an unhandled one.
  * Nothing here rejects.
  *
+ * The collaborators default to the browser's, so the two call sites say only
+ * what they are copying. They are arguments at all so a test can drive the
+ * refusal path, which is the whole point of the module.
+ *
  * @param {string} text  what to put on the clipboard.
- * @param {Object} deps
- * @param {Object|undefined} deps.clipboard  `navigator.clipboard` — undefined
+ * @param {Object} [deps]
+ * @param {Object|undefined} [deps.clipboard]  `navigator.clipboard` — undefined
  *   outside a secure context, which is a failure to report like any other.
- * @param {Function} deps.onError  tell the user, given a message.
+ * @param {Function} [deps.onError]  tell the user, given a message.
  * @returns {Promise<boolean>} whether the text was copied.
  */
-async function copyText(text, { clipboard, onError }) {
+async function copyText(text, deps = {}) {
+  const clipboard = 'clipboard' in deps ? deps.clipboard : navigator.clipboard;
+  const onError = deps.onError || ((message) => alert(message));
+
   try {
     if (!clipboard || typeof clipboard.writeText !== 'function') {
       throw new Error('the clipboard is not available in this browser context');

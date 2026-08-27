@@ -132,6 +132,29 @@
     is the app's own route into the transition, not a side channel: the view
     stays the only thing that names the message.
 
+12. What a failure is worth telling the user (JS, pure) — the two decisions the
+    port layer used to make inline and inconsistently, extracted by ticket 18
+    for CODE_REVIEW.md E16: `src/shared/ws-errors.js`'s `wsMessageFailure`, from
+    (websocket message type, thrown value) to the console line and the
+    user-facing message — or no user-facing message, for the types where a
+    failure loses nothing; and `src/shared/clipboard.js`'s
+    `clipboardErrorMessage`, from (direction, thrown value) to what to tell the
+    user, with `copyText` alongside it for the copy path (its clipboard and its
+    reporter injected, so a test can drive a refusal — the browser's are the
+    defaults, so the call sites say only what they are copying).
+
+    Same extraction rule as seams 2 and 4 — nothing in `doc.js` is importable,
+    it boots the app at module load — and in scope for the same reason as seam
+    6: a swallowed error is indistinguishable from no error, so the policy has
+    to be somewhere a test can read it. Both are total functions over *whatever*
+    was thrown, `undefined` included, because a rejected Dexie or clipboard
+    promise can carry anything and the report must not be the second thing to
+    throw.
+
+    Out of reach at this seam, and so verified by inspection: the `switch` in
+    `ws.onmessage` itself (Dexie, a live socket and `doc.js`'s module state) and
+    the three call sites that hand these decisions their arguments.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context

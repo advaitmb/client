@@ -93,6 +93,17 @@ test("a refused copy reports the failure instead of rejecting", async () => {
   expect(errors[0]).toContain("padlock");
 });
 
+test("with no clipboard passed it reaches for the browser's", async () => {
+  // The two call sites pass neither collaborator, so the defaults have to be
+  // consulted rather than skipped. jsdom has no `navigator.clipboard`, which
+  // makes this the unavailable path -- and that is what proves it looked.
+  const errors: string[] = [];
+
+  await copyText("some cards", { onError: (message: string) => errors.push(message) });
+
+  expect(errors.length).toBe(1);
+});
+
 test("a copy with no clipboard at all is a reported failure, not a crash", async () => {
   // `navigator.clipboard` is undefined outside a secure context.
   const errors: string[] = [];

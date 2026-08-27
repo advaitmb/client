@@ -238,8 +238,9 @@ function stopSyncing() {
  * state when the failure means data did not reach this device.
  *
  * `ws-errors.js` decides which of those it is, per message type. The user-facing
- * half goes through `ErrorAlert`, the same channel the push-failure paths above
- * use, which shows a persistent toast and sets Elm's error state.
+ * half goes through `ErrorAlert`, the same channel the `pushError` and
+ * `cardsConflict` cases use, which shows a persistent toast and sets Elm's error
+ * state.
  *
  * @param {string|null} messageType  the message's `t`, or null if the frame did
  *   not parse.
@@ -676,10 +677,7 @@ const fromElm = (msg, elmData) => {
     CopyToClipboard: () => {
       // Reported rather than an unhandled rejection (E16). The flash below is
       // still optimistic, which is fine: an alert lands on top of it.
-      copyText(elmData.content, {
-        clipboard: navigator.clipboard,
-        onError: (message) => alert(message),
-      });
+      copyText(elmData.content);
 
       let addFlashClass = function () {
         document.querySelectorAll(elmData.element).forEach((e) => {e.classList.add("flash")});
