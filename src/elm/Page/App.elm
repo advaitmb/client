@@ -541,7 +541,7 @@ update msg model =
                                     -- sync the branch above reports, so the
                                     -- error state stays exactly as it was.
                                     ( model
-                                    , dataErrorToast
+                                    , errorToast Persistent
                                         "The server's reply to a sync could not be read, so your changes are still marked unsynced."
                                         reason
                                     )
@@ -1083,10 +1083,9 @@ update msg model =
             -- (E16). Temporary: the user asked for this once, and asking again
             -- is the whole of the retry.
             ( model
-            , delay 0
-                (AddToast Temporary
-                    (Toast Error ("Could not export to Word: " ++ httpErrorToString httpError))
-                )
+            , errorToast Temporary
+                ("Could not export to Word: " ++ httpErrorToString httpError ++ ".")
+                (httpErrorDetail httpError)
             )
 
         PrintRequested ->
@@ -1180,15 +1179,13 @@ update msg model =
                 Err decodeError ->
                     -- Picking the wrong file used to do nothing whatsoever
                     -- (E16): no new document, no error, no clue that the file
-                    -- was the problem rather than the app.
+                    -- was the problem rather than the app. The file's name goes
+                    -- to the console rather than into the toast, which is
+                    -- rendered as Markdown -- see `errorToast`.
                     ( model |> updateGlobalData newGlobalData
-                    , Cmd.batch
-                        [ delay 0
-                            (AddToast Temporary
-                                (Toast Error (fileName ++ " is not a Gingko JSON export, so there was nothing to import."))
-                            )
-                        , send <| ConsoleLogRequested ("Could not import " ++ fileName ++ ":\n" ++ errorToString decodeError)
-                        ]
+                    , errorToast Temporary
+                        "That file is not a Gingko JSON export, so there was nothing to import."
+                        (fileName ++ ": " ++ errorToString decodeError)
                     )
 
         ImportJSONIdGenerated tree fileName docId ->
@@ -1387,7 +1384,7 @@ cardDataReceived dataIn model =
                     -- (E16). Persistent, because it does not clear itself: the
                     -- next liveQuery emission carries the same unreadable rows.
                     ( themedModel
-                    , dataErrorToast
+                    , errorToast Persistent
                         "Some of this document's data could not be read, so what you see may be out of date. Please reload the page."
                         reason
                     )
@@ -1426,7 +1423,7 @@ historyReceived dataIn model =
                     -- Without this the history view is simply empty, which is
                     -- indistinguishable from a document with no history (E16).
                     ( model
-                    , dataErrorToast
+                    , errorToast Persistent
                         "This document's history could not be read, so the history view may be incomplete."
                         reason
                     )
@@ -1438,41 +1435,71 @@ historyReceived dataIn model =
             ( model, Cmd.none )
 
 
-{-| An `Http.Error` in words the user can act on.
+{-| An `Http.Error` as one short phrase, for the end of a sentence.
+
+Deliberately carries none of the server's own text: the phrase goes into a
+toast, and `Doc.UI.viewToast` renders a toast's message as Markdown, so
+interpolated server output could come back as emphasis, a heading, or -- if it
+does not parse at all -- the literal string "&lt;parse error&gt;". `errorToast`
+puts the untreated error in the console instead.
+
 -}
 httpErrorToString : Http.Error -> String
 httpErrorToString error =
     case error of
-        Http.BadUrl url ->
-            "bad address (" ++ url ++ ")"
+        Http.BadUrl _ ->
+            "the export address is wrong"
 
         Http.Timeout ->
             "the server took too long to answer"
 
         Http.NetworkError ->
-            "could not reach the server"
+            "the server could not be reached"
 
         Http.BadStatus status ->
             "the server answered with status " ++ String.fromInt status
 
+        Http.BadBody _ ->
+            "the server's answer could not be read"
+
+
+{-| The part of an `Http.Error` that `httpErrorToString` leaves out, for the
+console. (`Debug.toString` is not an option: the release build runs
+`--optimize`, which rejects it.)
+-}
+httpErrorDetail : Http.Error -> String
+httpErrorDetail error =
+    case error of
+        Http.BadUrl url ->
+            "bad URL: " ++ url
+
         Http.BadBody body ->
-            "the server's answer could not be read (" ++ body ++ ")"
+            "unreadable body: " ++ body
+
+        _ ->
+            ""
 
 
-{-| Tell the user that a payload from the port layer could not be read, and put
-the decoder's reason in the console for whoever has to fix it.
+{-| Tell the user something failed, and put the technical reason in the console
+for whoever has to fix it.
 
-Persistent rather than temporary: each of these means the app has stopped
-following its own database, and that condition lasts until the page is reloaded.
-`AddToast Persistent` adds with `Toast.addUnique`, so a liveQuery that emits the
-same unreadable payload on every write shows one toast rather than a stack of
-them.
+The two halves are separate on purpose. A decoder error is a multi-line dump of
+the JSON that did not fit, which no `max-w-xs` toast can show and which the
+Markdown renderer would mangle on the way; and the toast text has to be the same
+every time, because `AddToast Persistent` adds with `Toast.addUnique` -- one
+message for a liveQuery emitting the same unreadable payload on every write,
+rather than a stack of them.
+
+`Persistent` for the conditions that do not clear themselves (the app has
+stopped following its own database, and will keep not following it until the page
+is reloaded); `Temporary` for a one-off answer to something the user just asked
+for, where asking again is the whole of the retry.
 
 -}
-dataErrorToast : String -> String -> Cmd Msg
-dataErrorToast userMessage reason =
+errorToast : ToastPersistence -> String -> String -> Cmd Msg
+errorToast persistence userMessage reason =
     Cmd.batch
-        [ delay 0 (AddToast Persistent (Toast Error userMessage))
+        [ delay 0 (AddToast persistence (Toast Error userMessage))
         , send <| ConsoleLogRequested (userMessage ++ "\n" ++ reason)
         ]
 
