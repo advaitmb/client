@@ -1246,6 +1246,8 @@ const cleanBodyHelp = () => {
 
 const syncUI = (() => {
   let btn, status, wrap, lastCheckedId = null, busy = false;
+  // The header element currently being followed, and the observer following it.
+  let headerObserver = null, observedHeader = null;
 
   function build() {
     wrap = document.createElement("div");
@@ -1393,9 +1395,6 @@ const syncUI = (() => {
   window.addEventListener("resize", () => { if (wrap) refresh(); });
   return { refresh };
 })();
-
-let headerObserver = null;
-let observedHeader = null;
 
 // The header telling us it has rendered, which is the one thing a
 // ResizeObserver on it cannot: that there is a *new* header element, or that

@@ -14,6 +14,11 @@ Vocabulary used in code, issues, and tests. Full system description:
   `treeId` (aka `dbName` in routes). Rendered as **columns**: depth 1 in
   column 1, children of the active card in the next column, siblings grouped
   by parent into **groups**.
+- **Root card** — a card with no parent. A document normally has one, but
+  nothing enforces that: the tree is built from every parentless card, in
+  position order, and "the first card" means the first of those. It can also
+  have none, if the last one was deleted — which is a document the app has to
+  open anyway (CODE_REVIEW.md S8).
 - **Card tree operation (`CardTreeOp`)** — the operation vocabulary between
   editor and persistence: insert, update, move, merge, remove, paste-subtree.
 - **Merge** — joining two vertically adjacent cards into one. The card the user

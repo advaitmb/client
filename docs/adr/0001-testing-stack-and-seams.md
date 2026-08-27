@@ -41,7 +41,17 @@
    rows the server has not acknowledged, and when they go — driven by the two
    events the port layer reports, a liveQuery emission and the socket opening,
    against an injected fake socket, and observed through the messages it asks
-   to be sent). These are not pure, so
+   to be sent), and by ticket 23 with four more: reading the card log
+   (`src/shared/cards.js` — newest row per id then drop the deleted, which is
+   what the backup, the first-load activation and the local snapshot each
+   needed and none of them did the same way), renaming a document
+   (`src/shared/documents.js` — idempotent by value, against a fake whose
+   `transaction` models the serialization the rename depends on), what boot
+   reads out of localStorage (`readSessionData` in `session.js` and
+   `container-web.js`'s `localStore`, observed through the real localStorage),
+   and the DOM-readiness helper the timing hacks became (`whenReady` in
+   `doc-helpers.js`, observed through the jsdom document: what is on the page,
+   and whether the callback has run). These are not pure, so
    seam 2 does not cover them: the rule is the same extraction (nothing in
    `doc.js` itself is importable, it boots the app at module load) but they
    are observed through the boundaries they actually cross — a faked `fetch`,
@@ -161,17 +171,27 @@
     reporter injected, so a test can drive a refusal — the browser's are the
     defaults, so the call sites say only what they are copying).
 
+    Ticket 23 adds the third, on the other channel: `src/shared/port-errors.js`'s
+    `portMessageFailure`, from (the tag of a message from Elm, thrown value) to
+    the same pair — an allowlist of the benign tags, in the same direction and
+    for the same reasons as `ws-errors.js`'s, so that a case added to the
+    dispatch table later is loud until somebody has classified it. Alongside it,
+    `isExtensionInterference`, the guarded version of the test `doc.js`'s
+    `window` error handler ran on `err.message` — which the `error` event does
+    not always carry.
+
     Same extraction rule as seams 2 and 4 — nothing in `doc.js` is importable,
     it boots the app at module load — and in scope for the same reason as seam
     6: a swallowed error is indistinguishable from no error, so the policy has
-    to be somewhere a test can read it. Both are total functions over *whatever*
+    to be somewhere a test can read it. All are total functions over *whatever*
     was thrown, `undefined` included, because a rejected Dexie or clipboard
     promise can carry anything and the report must not be the second thing to
     throw.
 
     Out of reach at this seam, and so verified by inspection: the `switch` in
-    `ws.onmessage` itself (Dexie, a live socket and `doc.js`'s module state) and
-    the three call sites that hand these decisions their arguments.
+    `ws.onmessage` itself and the dispatch table in `fromElm` (Dexie, a live
+    socket and `doc.js`'s module state) and the call sites that hand these
+    decisions their arguments.
 13. What the session says about a document, and the codecs behind it (Elm,
     pure) — recorded by ticket 24. Two halves of one subject: decisions taken
     over the document list a session holds, and whether a value this client

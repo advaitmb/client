@@ -48,7 +48,10 @@ Elm ───────────────────────▶ gw-
 | `src/shared/doc.js` | JS side of the Elm ports: storage, sync, dispatch table |
 | `src/shared/doc-helpers.js` | Shared helpers + the `gw-textarea` custom element |
 | `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
-| `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
+| `src/shared/session.js` | The session blob: its key, reading it back (a corrupt one is a guest, not a blank page), and the logout sequence (POST /logout, clear, hand back to Elm) |
+| `src/shared/cards.js` | Reading the card log: one row per id, the newest, deletions dropped — the document's cards, its root card, and the ImmortalDB backup text |
+| `src/shared/documents.js` | Document-level writes: renaming, once, however many times Elm asks |
+| `src/shared/port-errors.js` | What a failed message *from Elm* is worth telling the user, per tag; and whether an uncaught error is a browser extension rewriting the DOM |
 | `src/shared/save.js` | The local half of a save: apply a `SaveCardBased` payload to the document it names (cards, snapshot, tree timestamp) |
 | `src/shared/drag.js` | The drag lifecycle: which drag is in progress (a card, or text from outside the app), what Elm is told about it, and drag auto-scroll |
 | `src/shared/metadata.js` | Document metadata going out: which `trees` rows the server has not acknowledged, and when they go — on a liveQuery emission, and again when the socket comes back |
@@ -347,7 +350,9 @@ next/prev in column, descendants, scroll-position calculation, `sha1` ids).
 `doc.js` runs `initElmAndPorts()` at module load:
 
 1. Read `localStorage["gingko-session-storage"]`; build Elm flags (plus
-   `seed`, `isMac`, `currentTime`).
+   `seed`, `isMac`, `currentTime`). A value that is missing, unparseable or not
+   an object is a guest session (`readSessionData`): this is the first step of
+   boot, so an unguarded parse here was a blank page (CODE_REVIEW.md S8).
 2. **Auto-login**: if there is no stored email or the local `trees` table is
    empty, fetch `/me`, merge the response into the session blob, and seed
    Dexie with the server's document list.
@@ -356,7 +361,11 @@ next/prev in column, descendants, scroll-position calculation, `sha1` ids).
    `liveQuery` on `trees` that pushes `documentListChanged` to Elm and hands
    each snapshot to that sync, which sends the unsynced rows (§6.3).
 4. `Elm.Main.init({flags})`, then subscribe `gingko.ports.infoForOutside` to
-   the `fromElm(tag, data)` dispatch table.
+   the `fromElm(tag, data)` dispatch table. A tag with no handler is reported as
+   an unexpected message; a handler that fails — including the `async` ones,
+   whose rejections used to reach nobody — is reported by tag, and reaches the
+   user when the failure means a change did not persist
+   (`src/shared/port-errors.js`).
 5. Global listeners: `window.checkboxClicked` (used by rendered markdown),
    a `beforeunload` dirty guard, fullscreen-change, and print.
 
@@ -391,6 +400,12 @@ Server → client: `user` (settings sync), `cards` (bulk-put synced rows),
 On reconnect: the send queue drains, the unsynced `trees` rows are re-sent,
 `rt:join` is re-sent for the open document, and Elm gets `SocketConnected`
 (which re-triggers a push of unsynced deltas).
+
+`SocketConnected` waits for both halves of "connected": the socket being open,
+and Elm having been handed a document's cards. It does nothing on any other
+state, and the socket is opened during boot *before* Elm is initialized, so it
+used to be sent on a one-second timer instead (ticket 23, CODE_REVIEW.md S5).
+It is sent once per open socket.
 
 The queue and the metadata resend are two different mechanisms on purpose. The
 queue holds messages that are **events** (`pull`, `pullHistoryMeta`,
@@ -502,6 +517,7 @@ the phantom `@playwright/test` devDependency.
 Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
 `*.test.ts` for bun test (custom elements against jsdom, the extracted
 sequences in `src/shared/stamps.js`, `src/shared/session.js`,
-`src/shared/save.js`, `src/shared/drag.js` and `src/shared/metadata.js`, and
-the build's `config-check` / `elm-postprocess` seams). The pre-agreed seams are
-ADR-0001's.
+`src/shared/save.js`, `src/shared/drag.js`, `src/shared/metadata.js`,
+`src/shared/cards.js`, `src/shared/documents.js`, `src/shared/port-errors.js`
+and `doc-helpers.js`'s `whenReady`, and the build's `config-check` /
+`elm-postprocess` seams). The pre-agreed seams are ADR-0001's.
