@@ -105,3 +105,9 @@ Vocabulary used in code, issues, and tests. Full system description:
    page a URL names, and `Route.toString` round-tripping back to it.
 9. Drop placement (Elm, pure): `Doc.TreeStructure.dropPlacement` — where a
    dragged card lands, and which drops are no move at all.
+10. Document chrome (Elm, pure): `Page.Doc.Incoming.fromOutside` (a port
+    message's tag → `Msg`), `Page.Doc.Export.toString`/`toMimeType` (what an
+    export writes and is saved as), `Doc.UI.documentWordcount` with
+    `Page.Doc.getStartingWordcount` (the word-count modal's session row), and
+    `Translation.tr` for the shortcut tray. Whether a port command is sent at
+    all is out of reach here.

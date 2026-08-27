@@ -242,7 +242,7 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   `Cmd`, which elm-test cannot inspect — ADR-0001 seam 10 (added here) records
   that limit, and the adjacent hole it exposes (`changeMode`'s
   `FullscreenEditing` targets ignore `block` entirely, so shift+enter edits a
-  history view) is written up for 24. 51 tests. Details in
+  history view) is written up for 24. 37 tests. Details in
   `issues/15-small-functional-fixes.md`.
 
 - Ticket 30 resolved — the follow-up ticket 29 filed on itself, and a plain

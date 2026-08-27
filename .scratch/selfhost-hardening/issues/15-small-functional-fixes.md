@@ -43,9 +43,9 @@ Six fixes, one commit each, all on `selfhost`:
 | E14 | `02e8a21` | `Translation.elm`: `AltKey` → "Alt", `ParenNumber` → "(1-6)", `SetHeadingLevel` → "to Set Title Level" |
 | E13 | `068056d` | `Page/Doc/Export.elm`: leaves/column exports go through `stringFn`; `toMimeType` replaces the MIME literals |
 | E6 | `5b4825e` | `Page/Doc/Incoming.elm`: `fromOutside` extracted + `FullscreenChanged` branch; `Page/Doc.elm` exits fullscreen editing on it |
-| E11 | `6569a23` | `Page/Doc.elm` records a session-start wordcount; `Doc/UI.elm` gains `documentWordcount`; `Page/App.elm` passes it to the modal |
-| E5 | `e621603` | `Page/Doc.elm`: `preventIfBlocked` moved last in `changeMode`'s two guarded branches |
-| added (07) | `d2ac77f` | `doc-helpers.js`: `observedAttributes` watches `disabled` |
+| E11 | `2b771c8` | `Page/Doc.elm` records a session-start wordcount; `Doc/UI.elm` gains `documentWordcount`; `Page/App.elm` passes it to the modal |
+| E5 | `f458f32` | `Page/Doc.elm`: `preventIfBlocked` moved last in `changeMode`'s two guarded branches |
+| added (07) | `dce2eb7` | `doc-helpers.js`: `observedAttributes` watches `disabled` |
 
 **E5** — `changeMode`'s `(Normal, Editing)` and `(Editing, Editing)` branches
 ran the guard and *then* appended the broadcast with `andThen`, so a blocked
@@ -136,9 +136,8 @@ sets it while the element is on screen (a collaborator opens the card) and
 clears it when they leave, so both directions were lost; only a card already
 taken when it was first drawn came up disabled, from `connectedCallback`.
 
-**Tests** — 51 new (elm-test 75 → 125 including ticket 16's 12; `bun test`
-58 → 65 including ticket 28's): `tests/IncomingTest.elm` (7),
-`tests/ExportTest.elm` (15), `tests/WordcountTest.elm` (9),
+**Tests** — 34 new Elm tests + 3 TS: `tests/IncomingTest.elm` (7),
+`tests/ExportTest.elm` (14), `tests/WordcountTest.elm` (9),
 `tests/TranslationTest.elm` (4), `tests/textarea.test.ts` (+3). All red first:
 E14's four failed on the constructor names; E13's four on OPML-of-leaves being
 Markdown ("no XML declaration: Aardvark\n\nBeetle's first\n\nCricket") and two
@@ -158,9 +157,10 @@ pure), covering `Incoming.fromOutside`, `Export.toString`/`toMimeType`,
 `documentWordcount` + `getStartingWordcount`, and `Translation.tr` — and
 recording that whether a port command is sent at all is out of reach there.
 
-**Verification** — `bun run test:elm` 125/125, `bun test` 65/65,
+**Verification** — `bun run test:elm` 133/133, `bun test` 88/88,
 `bun run newbuild` exit 0, `bun run config-check` exit 0, all on the rebased
-tree carrying tickets 16, 28, 30.
+tree carrying tickets 16, 28 and 30 (which is where those totals come from:
+this ticket's own share is the 37 above).
 
 ## Comments
 
@@ -188,10 +188,6 @@ tree carrying tickets 16, 28, 30.
   a uniform "blocked ⇒ no editing broadcast" rule would have changed a third
   branch's behavior under the banner of a one-line fix. The bug above is the
   honest way to record that, and the ordering fix stands on its own.
-- **`CONTEXT.md`'s mirrored seam list is now two entries behind** the ADR (it
-  stops at 8; ticket 16 added 9, this adds 10). Left alone deliberately —
-  editing it for another ticket's entry is out of scope here — but it is a
-  doc-sync item for 20/24.
 - **`Outgoing.RequestFullscreen` is dead** and `doc.js`'s handler for it with
   it: nothing in Elm ever sends the tag, so the browser is only ever put into
   fullscreen by the user. E6's fix is what makes the *return* trip work
