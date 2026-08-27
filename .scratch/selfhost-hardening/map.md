@@ -49,6 +49,15 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   edit that delete-vs-edit resolution exists to keep — the surviving
   `toRemove` already yields `UndelOp` + our edit. 5 new tests at seam 1.
   Details in `issues/05-newest-version-dedupe.md`.
+- Ticket 10 resolved — D7 closed: stamp ordering lives in one pure module,
+  `src/shared/stamps.js` (seam 2), whose `compareStamps` orders numerically by
+  timestamp then counter then hash, mirroring `UpdatedAt.elm` (Elm's `"0"`
+  zero encoding included). `doc.js` delegates all four stamp orderings to it —
+  `maxStamp` for `pushOk`, `computeCheckpoint` for both pull checkpoints
+  (`getChk` deleted), `newestVersionPerId` for the ImmortalDB backup — so a
+  12-card save no longer re-pulls its two-digit-counter rows or backs up a
+  stale card version. 9 tests in `tests/stamps.test.ts`. Details in
+  `issues/10-hlc-numeric-comparison.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
