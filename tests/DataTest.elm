@@ -130,6 +130,20 @@ encodeHistory snapshots =
     Enc.list encodeSnapshot snapshots
 
 
+{-| `historyReceived` for a payload the test built itself.
+
+It decodes by construction, so the `Err` branch is unreachable here; the
+fallback is a document with nothing in it rather than the model back unchanged,
+so that a regression shows up as an obviously empty result instead of passing
+quietly.
+
+-}
+receiveHistory : Enc.Value -> Data.Model -> Data.Model
+receiveHistory json model =
+    Data.historyReceived json model
+        |> Result.withDefault Data.emptyCardBased
+
+
 
 -- Decoding the DBChangeLists JSON that localSave emits
 
@@ -328,10 +342,13 @@ save the way the port layer would, then look at what the next push carries.
 resolveAs : ConflictSelection -> Result String Resolution
 resolveAs selection =
     case Data.cardDataReceived (encodeRows conflictedRows) ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" ) of
-        Nothing ->
+        Ok Nothing ->
             Err "expected cardDataReceived to report the received rows"
 
-        Just { newData } ->
+        Err err ->
+            Err ("cardDataReceived could not read the rows: " ++ err)
+
+        Ok (Just { newData }) ->
             if not (Data.hasConflicts newData) then
                 Err "expected the offline edits to be reported as a conflict for the user to resolve"
 
@@ -460,7 +477,7 @@ importedTree =
 restoreChanges : Result String ChangeLists
 restoreChanges =
     Data.model_tests_only rowsBeforeRestore Nothing
-        |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshotRows ) ])
+        |> receiveHistory (encodeHistory [ ( snapshotId, 2000, snapshotRows ) ])
         |> (\model -> Data.restore "tree1" model snapshotId)
         |> savePayload
         |> Maybe.map (Dec.decodeValue changeListsDecoder >> Result.mapError Dec.errorToString)
@@ -481,10 +498,13 @@ restoredDoc =
                         applySave 6000 changes rowsBeforeRestore
                 in
                 case Data.cardDataReceived (encodeRows rowsAfter) ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" ) of
-                    Nothing ->
+                    Ok Nothing ->
                         Err "expected cardDataReceived to report the restored rows"
 
-                    Just { newTree, outMsg } ->
+                    Err err ->
+                        Err ("cardDataReceived could not read the restored rows: " ++ err)
+
+                    Ok (Just { newTree, outMsg }) ->
                         pushedDeltas outMsg
                             |> Result.map (\pushed -> { tree = newTree, pushed = pushed })
             )
@@ -593,10 +613,13 @@ step ts op =
                             applySave ts changes doc.rows
                     in
                     case Data.cardDataReceived (encodeRows rowsAfter) ( savedModel, doc.tree, "tree1" ) of
-                        Nothing ->
+                        Ok Nothing ->
                             Err "expected cardDataReceived to report the saved rows"
 
-                        Just received ->
+                        Err err ->
+                            Err ("cardDataReceived could not read the saved rows: " ++ err)
+
+                        Ok (Just received) ->
                             Ok
                                 { model = received.newData
                                 , rows = rowsAfter
@@ -1133,10 +1156,7 @@ suite =
                             ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" )
                 in
                 case received of
-                    Nothing ->
-                        Expect.fail "expected cardDataReceived to report the conflict resolution"
-
-                    Just { newData, outMsg } ->
+                    Ok (Just { newData, outMsg }) ->
                         ( outMsg |> savePayload |> Maybe.map (Dec.decodeValue changeListsDecoder)
                         , Data.hasConflicts newData
                         )
@@ -1152,6 +1172,9 @@ suite =
                                     )
                                 , False
                                 )
+
+                    other ->
+                        Expect.fail ("expected cardDataReceived to report the conflict resolution, got " ++ describeReceived other)
         , test "the conflict tree is newest-version-wins, whatever order the rows arrive in" <|
             \_ ->
                 let
@@ -1406,7 +1429,7 @@ suite =
                         [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 900 } ]
                 in
                 Data.model_tests_only rows Nothing
-                    |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshot ) ])
+                    |> receiveHistory (encodeHistory [ ( snapshotId, 2000, snapshot ) ])
                     |> (\model -> Data.restore "tree1" model snapshotId)
                     |> List.length
                     |> Expect.equal 0
@@ -1716,12 +1739,89 @@ suite =
                             ( afterInsert, Tree "0" "" (Children []), "tree1" )
                 in
                 case echoed of
-                    Nothing ->
-                        Expect.fail "expected cardDataReceived to report the received rows"
-
-                    Just { newData } ->
+                    Ok (Just { newData }) ->
                         Data.localSave "tree1" (CTIns "c" "Third" Nothing 1) newData
                             |> Tuple.second
                             |> stagedPositions
                             |> Expect.equal (Ok [ ( "c", 0.5 ) ])
+
+                    other ->
+                        Expect.fail ("expected cardDataReceived to report the received rows, got " ++ describeReceived other)
+
+        -- Malformed payloads (CODE_REVIEW.md E16). Each of these three used to
+        -- answer a payload it could not read the same way it answers "nothing
+        -- changed" -- `Nothing`, or the model back unaltered -- so the document
+        -- froze or the history stayed empty with nothing said. The reason the
+        -- decoder gives has to come back out, because it is the only
+        -- description of what went wrong that anything has.
+        , test "card data that does not decode reports the reason instead of looking unchanged" <|
+            \_ ->
+                Data.cardDataReceived
+                    (Enc.list identity
+                        [ Enc.object
+                            [ ( "id", Enc.string "a" )
+                            , ( "treeId", Enc.string "tree1" )
+                            , ( "content", Enc.string "Root" )
+                            , ( "parentId", Enc.null )
+
+                            -- The server (or a newer client) sent a string here.
+                            , ( "position", Enc.string "1" )
+                            , ( "deleted", Enc.int 0 )
+                            , ( "synced", Enc.bool True )
+                            , ( "updatedAt", Enc.string "1000:0:hash-a-1000" )
+                            ]
+                        ]
+                    )
+                    ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" )
+                    |> Result.mapError (String.contains "position")
+                    |> Expect.equal (Err True)
+        , test "an unchanged card payload is still reported as no change, not as an error" <|
+            \_ ->
+                -- The distinction the `Result` has to keep: an echo of rows the
+                -- model already holds is the common case, not a failure.
+                Data.cardDataReceived (encodeRows [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 } ])
+                    ( Data.model_tests_only [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 } ] Nothing
+                    , Tree "0" "" (Children [ Tree "a" "Root" (Children []) ])
+                    , "tree1"
+                    )
+                    |> Expect.equal (Ok Nothing)
+        , test "a push acknowledgement that does not parse reports the reason and the values" <|
+            \_ ->
+                Data.model_tests_only
+                    [ unsyncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 2000 } ]
+                    Nothing
+                    |> Data.pushOkHandler "tree1" [ "not-a-stamp" ]
+                    |> Result.mapError (\err -> ( String.contains "UpdatedAt" err, String.contains "not-a-stamp" err ))
+                    |> Expect.equal (Err ( True, True ))
+        , test "history that does not decode reports the reason instead of the model back" <|
+            \_ ->
+                Data.model_tests_only [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Root", ts = 1000 } ] Nothing
+                    |> Data.historyReceived
+                        (Enc.list identity
+                            [ Enc.object
+                                [ ( "snapshot", Enc.string snapshotId )
+
+                                -- No `ts`: the snapshot's timestamp is what the
+                                -- history slider orders by.
+                                , ( "data", encodeRows [] )
+                                ]
+                            ]
+                        )
+                    |> Result.mapError (String.contains "ts")
+                    |> Expect.equal (Err True)
         ]
+
+
+{-| What `cardDataReceived` answered, for a failure message.
+-}
+describeReceived : Result String (Maybe a) -> String
+describeReceived received =
+    case received of
+        Ok Nothing ->
+            "no change"
+
+        Ok (Just _) ->
+            "a change"
+
+        Err err ->
+            "the error " ++ err

@@ -499,41 +499,52 @@ update msg model =
                 PushOk chkStrings ->
                     case model.documentState of
                         Doc { data, docId } ->
-                            let
-                                pushOkMsgs =
-                                    Data.pushOkHandler docId chkStrings data
-                                        |> Maybe.map send
-                                        |> Maybe.withDefault Cmd.none
+                            case Data.pushOkHandler docId chkStrings data of
+                                Ok outMsg ->
+                                    let
+                                        ( newToastTray, newToastCmd ) =
+                                            if model.errorState then
+                                                model.tray
+                                                    |> Toast.filter
+                                                        (\toast ->
+                                                            case toast.role of
+                                                                Error ->
+                                                                    False
 
-                                ( newToastTray, newToastCmd ) =
-                                    if model.errorState then
-                                        model.tray
-                                            |> Toast.filter
-                                                (\toast ->
-                                                    case toast.role of
-                                                        Error ->
-                                                            False
-
-                                                        _ ->
-                                                            True
-                                                )
-                                            |> (\newTray ->
-                                                    ( newTray
-                                                    , delay 0
-                                                        (AddToast Temporary
-                                                            (Toast SuccessToast "Sync successful")
+                                                                _ ->
+                                                                    True
                                                         )
-                                                    )
-                                               )
+                                                    |> (\newTray ->
+                                                            ( newTray
+                                                            , delay 0
+                                                                (AddToast Temporary
+                                                                    (Toast SuccessToast "Sync successful")
+                                                                )
+                                                            )
+                                                       )
 
-                                    else
-                                        ( model.tray
-                                        , Cmd.none
-                                        )
-                            in
-                            ( { model | tray = newToastTray, errorState = False }
-                            , Cmd.batch [ pushOkMsgs, newToastCmd ]
-                            )
+                                            else
+                                                ( model.tray
+                                                , Cmd.none
+                                                )
+                                    in
+                                    ( { model | tray = newToastTray, errorState = False }
+                                    , Cmd.batch [ send outMsg, newToastCmd ]
+                                    )
+
+                                Err reason ->
+                                    -- A confirmation this client cannot read
+                                    -- marks nothing synced, so the same rows go
+                                    -- out again -- silently, forever, if the
+                                    -- server keeps sending stamps Elm does not
+                                    -- parse (E16). This is not the successful
+                                    -- sync the branch above reports, so the
+                                    -- error state stays exactly as it was.
+                                    ( model
+                                    , dataErrorToast
+                                        "The server's reply to a sync could not be read, so your changes are still marked unsynced."
+                                        reason
+                                    )
 
                         Empty _ _ ->
                             ( model, Cmd.none )
@@ -1066,8 +1077,17 @@ update msg model =
             in
             ( model, Download.bytes filename mime bytes )
 
-        Exported _ (Err _) ->
-            ( model, Cmd.none )
+        Exported _ (Err httpError) ->
+            -- A DOCX export is a round trip through the server's converter, and
+            -- a failed one produced no download and no word of explanation
+            -- (E16). Temporary: the user asked for this once, and asking again
+            -- is the whole of the retry.
+            ( model
+            , delay 0
+                (AddToast Temporary
+                    (Toast Error ("Could not export to Word: " ++ httpErrorToString httpError))
+                )
+            )
 
         PrintRequested ->
             ( model, send <| Print )
@@ -1157,8 +1177,19 @@ update msg model =
                     , RandomId.generate (ImportJSONIdGenerated tree copyName)
                     )
 
-                Err _ ->
-                    ( model |> updateGlobalData newGlobalData, Cmd.none )
+                Err decodeError ->
+                    -- Picking the wrong file used to do nothing whatsoever
+                    -- (E16): no new document, no error, no clue that the file
+                    -- was the problem rather than the app.
+                    ( model |> updateGlobalData newGlobalData
+                    , Cmd.batch
+                        [ delay 0
+                            (AddToast Temporary
+                                (Toast Error (fileName ++ " is not a Gingko JSON export, so there was nothing to import."))
+                            )
+                        , send <| ConsoleLogRequested ("Could not import " ++ fileName ++ ":\n" ++ errorToString decodeError)
+                        ]
+                    )
 
         ImportJSONIdGenerated tree fileName docId ->
             let
@@ -1314,7 +1345,7 @@ cardDataReceived dataIn model =
                     { model | theme = Theme.fromLocalStore model.theme dataIn }
             in
             case Data.cardDataReceived dataIn ( docState.data, tree, docId ) of
-                Just { newData, newTree, outMsg } ->
+                Ok (Just { newData, newTree, outMsg }) ->
                     let
                         newWorkingTree =
                             TreeStructure.setTree newTree workingTree
@@ -1347,8 +1378,19 @@ cardDataReceived dataIn model =
                         |> Cmd.batch
                     )
 
-                Nothing ->
+                Ok Nothing ->
                     ( themedModel, Cmd.none )
+
+                Err reason ->
+                    -- The tree on screen no longer follows the database, which
+                    -- looks like a frozen editor and used to say nothing at all
+                    -- (E16). Persistent, because it does not clear itself: the
+                    -- next liveQuery emission carries the same unreadable rows.
+                    ( themedModel
+                    , dataErrorToast
+                        "Some of this document's data could not be read, so what you see may be out of date. Please reload the page."
+                        reason
+                    )
 
         Empty _ _ ->
             ( model, Cmd.none )
@@ -1360,33 +1402,79 @@ cardDataReceived dataIn model =
 historyReceived : Json.Value -> Model -> ( Model, Cmd Msg )
 historyReceived dataIn model =
     case model.documentState of
-        Doc ({ docModel } as docState) ->
-            let
-                newData =
-                    Data.historyReceived dataIn docState.data
-            in
-            ( { model
-                | documentState =
-                    Doc
-                        { docState
-                            | data = newData
-                        }
-                , headerMenu =
-                    case model.headerMenu of
-                        HistoryView currentHistory ->
-                            HistoryView (History.update newData currentHistory)
+        Doc docState ->
+            case Data.historyReceived dataIn docState.data of
+                Ok newData ->
+                    ( { model
+                        | documentState =
+                            Doc
+                                { docState
+                                    | data = newData
+                                }
+                        , headerMenu =
+                            case model.headerMenu of
+                                HistoryView currentHistory ->
+                                    HistoryView (History.update newData currentHistory)
 
-                        _ ->
-                            model.headerMenu
-              }
-            , Cmd.none
-            )
+                                _ ->
+                                    model.headerMenu
+                      }
+                    , Cmd.none
+                    )
+
+                Err reason ->
+                    -- Without this the history view is simply empty, which is
+                    -- indistinguishable from a document with no history (E16).
+                    ( model
+                    , dataErrorToast
+                        "This document's history could not be read, so the history view may be incomplete."
+                        reason
+                    )
 
         Empty _ _ ->
             ( model, Cmd.none )
 
         DocNotFound _ _ ->
             ( model, Cmd.none )
+
+
+{-| An `Http.Error` in words the user can act on.
+-}
+httpErrorToString : Http.Error -> String
+httpErrorToString error =
+    case error of
+        Http.BadUrl url ->
+            "bad address (" ++ url ++ ")"
+
+        Http.Timeout ->
+            "the server took too long to answer"
+
+        Http.NetworkError ->
+            "could not reach the server"
+
+        Http.BadStatus status ->
+            "the server answered with status " ++ String.fromInt status
+
+        Http.BadBody body ->
+            "the server's answer could not be read (" ++ body ++ ")"
+
+
+{-| Tell the user that a payload from the port layer could not be read, and put
+the decoder's reason in the console for whoever has to fix it.
+
+Persistent rather than temporary: each of these means the app has stopped
+following its own database, and that condition lasts until the page is reloaded.
+`AddToast Persistent` adds with `Toast.addUnique`, so a liveQuery that emits the
+same unreadable payload on every write shows one toast rather than a stack of
+them.
+
+-}
+dataErrorToast : String -> String -> Cmd Msg
+dataErrorToast userMessage reason =
+    Cmd.batch
+        [ delay 0 (AddToast Persistent (Toast Error userMessage))
+        , send <| ConsoleLogRequested (userMessage ++ "\n" ++ reason)
+        ]
 
 
 applyParentMsgs : List MsgToParent -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )

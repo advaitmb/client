@@ -273,7 +273,21 @@ parseUpdatedAt str =
         |> Maybe.andThen String.toInt
 
 
-cardDataReceived : Dec.Value -> ( Model, Tree, String ) -> Maybe { newData : Model, newTree : Tree, outMsg : List Outgoing.Msg }
+{-| The `cards` rows of the open document, as the Dexie liveQuery hands them
+over.
+
+Three answers, and they are three different things (CODE_REVIEW.md E16):
+
+  - `Err reason` — the payload does not decode. Nothing about the document can
+    be read from it, so the tree on screen stays where it is; the caller owes
+    the user the reason, because a document that silently stops following the
+    database looks like a frozen editor.
+  - `Ok Nothing` — it decoded and changed nothing. The ordinary case: every
+    write to the table fires the liveQuery, including this client's own echo.
+  - `Ok (Just …)` — the new data, the new tree, and what to tell the server.
+
+-}
+cardDataReceived : Dec.Value -> ( Model, Tree, String ) -> Result String (Maybe { newData : Model, newTree : Tree, outMsg : List Outgoing.Msg })
 cardDataReceived json ( oldModel, oldTree, treeId ) =
     case Dec.decodeValue decodeCards json of
         Ok cards ->
@@ -348,13 +362,13 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
 
             in
             if (newModel /= oldModel) || (newTree /= oldTree) then
-                Just { newData = newModel, newTree = newTree, outMsg = outMsg }
+                Ok (Just { newData = newModel, newTree = newTree, outMsg = outMsg })
 
             else
-                Nothing
+                Ok Nothing
 
         Err err ->
-            Nothing
+            Err (Dec.errorToString err)
 
 
 triggeredPush : Model -> String -> List Outgoing.Msg
@@ -1447,7 +1461,17 @@ resolveDeleteConflicts allCards versions =
     { toAdd = [], toMarkSynced = [], toMarkDeleted = [], toRemove = ourDeletionTimestamps ++ theirDeletionsToRemove |> UpdatedAt.unique }
 
 
-pushOkHandler : String -> List String -> Model -> Maybe Outgoing.Msg
+{-| The server acknowledging a push: the version stamps it now holds.
+
+`Err reason` means the acknowledgement did not parse, so no row can be marked
+synced from it. Those rows stay unsynced and go out again on the next push,
+which is self-correcting but silent — and if the server keeps sending stamps
+this client cannot read, the document never syncs and nothing would say so
+(CODE_REVIEW.md E16). The reason names the values that came in, since they are
+the only evidence of what the server is saying.
+
+-}
+pushOkHandler : String -> List String -> Model -> Result String Outgoing.Msg
 pushOkHandler treeId chkValStrings model =
     case model of
         CardBased data _ _ _ ->
@@ -1482,12 +1506,12 @@ pushOkHandler treeId chkValStrings model =
                         versionsToMarkSynced =
                             List.concatMap markVersionSynced chkVals
                     in
-                    Just <|
+                    Ok <|
                         SaveCardBased <|
                             toSave treeId { toAdd = [], toMarkSynced = versionsToMarkSynced, toMarkDeleted = [], toRemove = [] }
 
                 Err err ->
-                    Nothing
+                    Err (err ++ ": " ++ String.join ", " chkValStrings)
 
 
 
@@ -1722,7 +1746,16 @@ opEncoder op =
 -- HISTORY
 
 
-historyReceived : Dec.Value -> Model -> Model
+{-| The document's history snapshots, as the `tree_snapshots` liveQuery hands
+them over.
+
+`Err reason` means the payload did not decode, so the model comes back
+unchanged — which is exactly what an empty history looks like, and why the
+caller has to say so rather than leave the user with a history view that does
+nothing (CODE_REVIEW.md E16).
+
+-}
+historyReceived : Dec.Value -> Model -> Result String Model
 historyReceived json model =
     case model of
         CardBased data staged oldHistory conflicts_ ->
@@ -1763,10 +1796,11 @@ historyReceived json model =
                                 newHistoryDict
                                 []
                     in
-                    CardBased data staged newHistory conflicts_
+                    Ok (CardBased data staged newHistory conflicts_)
 
                 Err err ->
-                    model
+                    Err (Dec.errorToString err)
+
 
 decodeHistory : Dec.Decoder (List ( String, Time.Posix, Maybe (List (Card UpdatedAt)) ))
 decodeHistory =
