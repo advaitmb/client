@@ -44,9 +44,9 @@ The build writes the whole deployable site to `web/` (gitignored):
 ### Serving it
 
 `web/` is a static directory, but it is not standalone: the client makes
-**same-origin** requests for authentication (`/login`, `/signup`), the session
-probe (`/me`), document sync (`/sync` and the `/ws` WebSocket), image upload,
-docx export, and the starter templates. So `web/` has to be served as the
+**same-origin** requests for authentication (`/login`, `/signup`, `/logout`),
+the session probe (`/me`), document sync (`/sync` and the `/ws` WebSocket),
+image upload, docx export, and the starter templates. So `web/` has to be served as the
 document root of [gingko/server](https://github.com/gingko/server) (follow that
 repo's README for the server itself) — not from a separate static host. The
 full port and endpoint contract is in

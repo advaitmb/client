@@ -430,6 +430,7 @@ Electron-era `build.yml` and `master`-only `web-deploy.yml` are deleted, as is
 the phantom `@playwright/test` devDependency.
 
 Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
-`*.test.ts` for bun test (custom elements against jsdom, plus the pure helpers
-in `src/shared/stamps.js` and the build's `config-check` / `elm-postprocess`
-seams). The three pre-agreed seams are ADR-0001's.
+`*.test.ts` for bun test (custom elements against jsdom, the extracted
+sequences in `src/shared/stamps.js` and `src/shared/session.js`, and the
+build's `config-check` / `elm-postprocess` seams). The pre-agreed seams are
+ADR-0001's.

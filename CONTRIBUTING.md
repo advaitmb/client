@@ -78,12 +78,14 @@ watch/dev script on this branch — re-run `bun run newbuild`.
 3. **Open a pull request early**, before the work is finished. It's the place
    to have the conversation about a proposed change, not just to deliver one.
 
-4. **Write the test first** where there's a seam for one. The three pre-agreed
+4. **Write the test first** where there's a seam for one. The pre-agreed
    testing seams are listed in
    [ADR-0001](./docs/adr/0001-testing-stack-and-seams.md): the `Doc.Data`
-   public API (Elm, pure), extracted pure helpers of `doc.js`, and custom
-   elements (attribute-in → DOM/`CustomEvent`-out). Elm tests go in `tests/*.elm`,
-   TS/JS tests in `tests/*.test.ts`.
+   public API (Elm, pure), extracted pure helpers of `doc.js`, custom elements
+   (attribute-in → DOM/`CustomEvent`-out), and session-level sequences
+   extracted from `doc.js`. Adding a test at a seam outside that list means
+   updating the ADR in the same PR. Elm tests go in `tests/*.elm`, TS/JS tests
+   in `tests/*.test.ts`.
 
 5. **Keep commits small and self-contained**, and make sure `bun run test` and
    `bun run newbuild` both pass before pushing. CI runs exactly those on every
