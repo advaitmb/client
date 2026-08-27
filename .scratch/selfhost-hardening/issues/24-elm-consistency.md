@@ -17,6 +17,14 @@ encoder/decoder asymmetries in Metadata/UpdatedAt round-trip (S10); the
 `<img src="" onerror>` message hack and non-keyboard-operable clickable divs
 get honest interactive elements (S12).
 
+**Added scope (from ticket 31's resolution):** `mod+j`/`mod+k`/`mod+l`
+truncate the open card's field and run `saveCardIfEditing` BEFORE calling
+`insert`, so `insert`'s guard treats the already-mutated model as "original"
+— on a blocked document the keypress inserts nothing but leaves the card
+truncated in the working tree. Unreachable after ticket 31's guards, but the
+shape is wrong; fix while collapsing the triplicated save-card logic (S/P4).
+Same shape in the `Editing` limbs.
+
 ## Acceptance criteria
 
 - [ ] Copy-naming tests: regex metacharacters in names, substring names,
