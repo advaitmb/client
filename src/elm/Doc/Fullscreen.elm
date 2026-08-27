@@ -12,7 +12,6 @@ import Json.Encode as Enc
 import Time
 import Translation exposing (TranslationId(..))
 import Types exposing (..)
-import UI.Collaborators
 
 
 

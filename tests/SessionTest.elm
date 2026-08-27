@@ -226,7 +226,7 @@ logIn guest_ responseFields =
         |> Result.andThen
             (\guest ->
                 Enc.object (( "email", Enc.string "user@example.com" ) :: responseFields)
-                    |> Dec.decodeValue (Session.responseDecoder Session.Other guest)
+                    |> Dec.decodeValue (Session.responseDecoder guest)
                     |> Result.mapError Dec.errorToString
             )
         |> Result.map (\session -> ( Session.shortcutTrayOpen session, Session.sortBy session ))
@@ -287,7 +287,7 @@ withDocuments docs =
                     [ ( "email", Enc.string "user@example.com" )
                     , ( "documents", Enc.list docRow docs )
                     ]
-                    |> Dec.decodeValue (Session.responseDecoder Session.Other guest)
+                    |> Dec.decodeValue (Session.responseDecoder guest)
                     |> Result.mapError Dec.errorToString
             )
 

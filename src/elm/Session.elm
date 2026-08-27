@@ -1,9 +1,8 @@
-port module Session exposing (Guest, LoggedIn, Ownership(..), Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, lastDocId, lastDocIdSetting, logout, name, ownership, public, requestLogin, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, signupBody, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Ownership(..), Session(..), confirmEmail, copyNaming, decode, documents, fileMenuOpen, fromLegacy, getDocName, getMetadata, isNotConfirmed, encode, lastDocId, lastDocIdSetting, logout, name, ownership, requestLogin, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, signupBody, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
 import Doc.Metadata as Metadata exposing (Metadata)
-import Features exposing (Feature)
 import Http
 import Json.Decode as Dec exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -44,7 +43,6 @@ type alias SessionData =
     , shortcutTrayOpen : Bool
     , sortBy : SortBy
     , fromLegacy : Bool
-    , firstRun : Bool
     }
 
 
@@ -54,7 +52,6 @@ type alias UserData =
     { email : String
     , confirmedAt : Maybe Time.Posix
     , documents : DocList.Model
-    , features : List Feature
     }
 
 
@@ -87,24 +84,9 @@ fromLegacy (Guest sessionData) =
     sessionData.fromLegacy
 
 
-isFirstRun : LoggedIn -> Bool
-isFirstRun (LoggedIn sessionData _) =
-    sessionData.firstRun
-
-
-endFirstRun : LoggedIn -> LoggedIn
-endFirstRun (LoggedIn sessionData userData) =
-    LoggedIn { sessionData | firstRun = False } userData
-
-
 fileMenuOpen : LoggedIn -> Bool
 fileMenuOpen session =
     getFromLoggedInSession .fileMenuOpen session
-
-
-features : LoggedIn -> List Feature
-features (LoggedIn _ userData) =
-    userData.features
 
 
 isNotConfirmed : LoggedIn -> Bool
@@ -314,11 +296,6 @@ updateDocuments docList (LoggedIn sessData userData) =
 -- ENCODER & DECODER
 
 
-public : Session
-public =
-    GuestSession (Guest emptySessionData)
-
-
 {-| A session nobody has set anything in yet: the defaults every decoder falls
 back to, in one place.
 -}
@@ -329,7 +306,6 @@ emptySessionData =
     , shortcutTrayOpen = False
     , sortBy = ModifiedAt
     , fromLegacy = False
-    , firstRun = False
     }
 
 
@@ -358,7 +334,6 @@ decoderGuestSession =
                 , shortcutTrayOpen = trayOpen
                 , sortBy = sortCriteria
                 , fromLegacy = legacy
-                , firstRun = False
                 }
         )
         |> optional "fromLegacy" Dec.bool False
@@ -371,16 +346,15 @@ decoderGuestSession =
 decoderLoggedIn : Dec.Decoder LoggedIn
 decoderLoggedIn =
     Dec.succeed
-        (\email legacy side confirmTime trayOpen sortCriteria lastDoc_ featList ->
+        (\email legacy side confirmTime trayOpen sortCriteria lastDoc_ ->
             LoggedIn
                 { fileMenuOpen = side
                 , lastDocId = lastDoc_
                 , shortcutTrayOpen = trayOpen
                 , sortBy = sortCriteria
                 , fromLegacy = legacy
-                , firstRun = False
                 }
-                (UserData email confirmTime DocList.init featList)
+                (UserData email confirmTime DocList.init)
         )
         |> required "email" Dec.string
         |> optional "fromLegacy" Dec.bool False
@@ -389,7 +363,6 @@ decoderLoggedIn =
         |> optional "shortcutTrayOpen" Dec.bool emptySessionData.shortcutTrayOpen
         |> optional "sortBy" sortByDecoder emptySessionData.sortBy
         |> optional "lastDocId" (Dec.maybe Dec.string) emptySessionData.lastDocId
-        |> optional "features" Features.decoder []
 
 
 decodeConfirmedStatus : Decoder (Maybe Time.Posix)
@@ -398,11 +371,6 @@ decodeConfirmedStatus =
         [ Dec.null Nothing
         , Dec.int |> Dec.map Time.millisToPosix |> Dec.maybe
         ]
-
-
-type UserSource
-    = FromSignup
-    | Other
 
 
 {-| A logged-in session from what the server answered to a signup or login
@@ -415,25 +383,17 @@ Exposed for the login-decoding tests as well as for the request functions
 below.
 
 -}
-responseDecoder : UserSource -> Guest -> Dec.Decoder LoggedIn
-responseDecoder usrSrc session =
+responseDecoder : Guest -> Dec.Decoder LoggedIn
+responseDecoder session =
     let
         sessionData =
             guestSessionData session
-                |> (\data ->
-                        case usrSrc of
-                            FromSignup ->
-                                { data | firstRun = True }
 
-                            _ ->
-                                data
-                   )
-
-        builder : String -> Maybe Time.Posix -> Bool -> SortBy -> List Metadata -> List Feature -> LoggedIn
-        builder email confAt trayOpen sortCriteria docs feats =
+        builder : String -> Maybe Time.Posix -> Bool -> SortBy -> List Metadata -> LoggedIn
+        builder email confAt trayOpen sortCriteria docs =
             LoggedIn
                 { sessionData | shortcutTrayOpen = trayOpen, sortBy = sortCriteria }
-                (UserData email confAt (DocList.fromList docs) feats)
+                (UserData email confAt (DocList.fromList docs))
     in
     Dec.succeed builder
         |> required "email" Dec.string
@@ -441,7 +401,6 @@ responseDecoder usrSrc session =
         |> optional "shortcutTrayOpen" Dec.bool sessionData.shortcutTrayOpen
         |> optional "sortBy" sortByDecoder sessionData.sortBy
         |> optional "documents" Metadata.responseDecoder []
-        |> optional "features" Features.decoder []
 
 
 {-| The stored session blob, as `StoreUser` writes it. That write replaces the
@@ -484,7 +443,7 @@ requestSignup toMsg email password session =
     Http.post
         { url = "/signup"
         , body = signupBody email password |> Http.jsonBody
-        , expect = Http.expectJson toMsg (responseDecoder FromSignup session)
+        , expect = Http.expectJson toMsg (responseDecoder session)
         }
 
 
@@ -508,7 +467,7 @@ requestLogin toMsg email password session =
         , url = "/login"
         , headers = []
         , body = requestBody
-        , expect = Http.expectJson toMsg (responseDecoder Other session)
+        , expect = Http.expectJson toMsg (responseDecoder session)
         , timeout = Nothing
         , tracker = Nothing
         }

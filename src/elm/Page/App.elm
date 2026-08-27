@@ -12,8 +12,6 @@ import Doc.Metadata as Metadata exposing (Metadata)
 import Doc.Switcher
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.UI as UI
-import Feature
-import Features exposing (Feature(..))
 import File exposing (File)
 import File.Download as Download
 import File.Select as Select

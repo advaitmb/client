@@ -5,8 +5,6 @@ import Browser.Dom exposing (Element)
 import Coders exposing (treeToMarkdownString)
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.TreeUtils as TreeUtils exposing (..)
-import Feature
-import Features exposing (Feature(..))
 import GlobalData exposing (GlobalData)
 import Html exposing (Html, a, div, h2, h3, h5, hr, input, li, node, pre, span, textarea)
 import Html.Attributes exposing (..)
