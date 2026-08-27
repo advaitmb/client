@@ -1,6 +1,6 @@
 # 12: History restore stops re-deleting already-deleted cards
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
