@@ -1,4 +1,4 @@
-port module Page.Doc.Incoming exposing (Msg(..), subscribe)
+port module Page.Doc.Incoming exposing (Msg(..), fromOutside, subscribe)
 
 import Coders exposing (..)
 import File exposing (File)
@@ -20,6 +20,7 @@ type
     | FieldChanged String
     | AutoSaveRequested
     | FullscreenCardFocused String String
+    | FullscreenChanged Bool
     | TextCursor TextCursorInfo
     | ClickedOutsideCard
     | CheckboxClicked String Int
@@ -69,136 +70,162 @@ textCursorInfoDecoder =
 -- SUBSCRIPTION HELPER
 
 
+{-| What a `{ tag, data }` message from `src/shared/doc.js` means.
+
+Total: every tag the JS side sends has a branch, and anything else is an error
+naming the tag. Kept out of `subscribe` because a `Sub msg` cannot be run --
+this is the half worth testing, and a missing tag is otherwise invisible (the
+app logs a line and carries on).
+
+-}
+fromOutside : OutsideData -> Result String Msg
+fromOutside outsideInfo =
+    case outsideInfo.tag of
+        -- === Dialogs, Menus, Window State ===
+        "CancelCardConfirmed" ->
+            Ok CancelCardConfirmed
+
+        -- === DOM ===
+        "InitialActivation" ->
+            case decodeValue (Dec.oneOf [ Dec.string, Dec.null "" ]) outsideInfo.data of
+                Ok cardId ->
+                    Ok (InitialActivation cardId)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "DragStarted" ->
+            case decodeValue Dec.string outsideInfo.data of
+                Ok dragId ->
+                    Ok (DragStarted dragId)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "DragExternalStarted" ->
+            Ok DragExternalStarted
+
+        "DropExternal" ->
+            case decodeValue Dec.string outsideInfo.data of
+                Ok dropText ->
+                    Ok (DropExternal dropText)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "Paste" ->
+            case decodeValue treeOrString outsideInfo.data of
+                Ok tree ->
+                    Ok (Paste tree)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "PasteInto" ->
+            case decodeValue treeOrString outsideInfo.data of
+                Ok tree ->
+                    Ok (PasteInto tree)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "FieldChanged" ->
+            case decodeValue Dec.string outsideInfo.data of
+                Ok str ->
+                    Ok (FieldChanged str)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "AutoSaveRequested" ->
+            Ok AutoSaveRequested
+
+        "FullscreenCardFocused" ->
+            case decodeValue (tupleDecoder Dec.string Dec.string) outsideInfo.data of
+                Ok ( cardId, fieldId ) ->
+                    Ok (FullscreenCardFocused cardId fieldId)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "FullscreenChanged" ->
+            case decodeValue Dec.bool outsideInfo.data of
+                Ok isFullscreen ->
+                    Ok (FullscreenChanged isFullscreen)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "TextCursor" ->
+            case decodeValue textCursorInfoDecoder outsideInfo.data of
+                Ok textCursorInfo ->
+                    Ok (TextCursor textCursorInfo)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "ClickedOutsideCard" ->
+            Ok ClickedOutsideCard
+
+        "CheckboxClicked" ->
+            case decodeValue (tupleDecoder Dec.string Dec.int) outsideInfo.data of
+                Ok ( cardId, checkboxNumber ) ->
+                    Ok (CheckboxClicked cardId checkboxNumber)
+
+                Err e ->
+                    Err (errorToString e)
+
+        -- === UI ===
+        "Keyboard" ->
+            case decodeValue Dec.string outsideInfo.data of
+                Ok shortcut ->
+                    Ok (Keyboard shortcut)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "WillPrint" ->
+            Ok WillPrint
+
+        -- === Misc ===
+        "RecvCollabState" ->
+            case decodeValue collabStateDecoder outsideInfo.data of
+                Ok collabState ->
+                    Ok (RecvCollabState collabState)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "RecvCollabUsers" ->
+            case decodeValue (Dec.list collabStateDecoder) outsideInfo.data of
+                Ok collabStates ->
+                    Ok (RecvCollabUsers collabStates)
+
+                Err e ->
+                    Err (errorToString e)
+
+        "CollaboratorDisconnected" ->
+            case decodeValue Dec.string outsideInfo.data of
+                Ok uid ->
+                    Ok (CollaboratorDisconnected uid)
+
+                Err e ->
+                    Err (errorToString e)
+
+        _ ->
+            Err <| "Unexpected info from outside: " ++ outsideInfo.tag
+
+
 subscribe : (Msg -> msg) -> (String -> msg) -> Sub msg
 subscribe tagger onError =
     docMsgs
         (\outsideInfo ->
-            case outsideInfo.tag of
-                -- === Dialogs, Menus, Window State ===
-                "CancelCardConfirmed" ->
-                    tagger <| CancelCardConfirmed
+            case fromOutside outsideInfo of
+                Ok msg ->
+                    tagger msg
 
-                -- === DOM ===
-                "InitialActivation" ->
-                    case decodeValue (Dec.oneOf [ Dec.string, Dec.null "" ]) outsideInfo.data of
-                        Ok cardId ->
-                            tagger <| InitialActivation cardId
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "DragStarted" ->
-                    case decodeValue Dec.string outsideInfo.data of
-                        Ok dragId ->
-                            tagger <| DragStarted dragId
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "DragExternalStarted" ->
-                    tagger <| DragExternalStarted
-
-                "DropExternal" ->
-                    case decodeValue Dec.string outsideInfo.data of
-                        Ok dropText ->
-                            tagger <| DropExternal dropText
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "Paste" ->
-                    case decodeValue treeOrString outsideInfo.data of
-                        Ok tree ->
-                            tagger <| Paste tree
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "PasteInto" ->
-                    case decodeValue treeOrString outsideInfo.data of
-                        Ok tree ->
-                            tagger <| PasteInto tree
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "FieldChanged" ->
-                    case decodeValue Dec.string outsideInfo.data of
-                        Ok str ->
-                            tagger <| FieldChanged str
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "AutoSaveRequested" ->
-                    tagger <| AutoSaveRequested
-
-                "FullscreenCardFocused" ->
-                    case decodeValue (tupleDecoder Dec.string Dec.string) outsideInfo.data of
-                        Ok ( cardId, fieldId ) ->
-                            tagger <| FullscreenCardFocused cardId fieldId
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "TextCursor" ->
-                    case decodeValue textCursorInfoDecoder outsideInfo.data of
-                        Ok textCursorInfo ->
-                            tagger <| TextCursor textCursorInfo
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "ClickedOutsideCard" ->
-                    tagger <| ClickedOutsideCard
-
-                "CheckboxClicked" ->
-                    case decodeValue (tupleDecoder Dec.string Dec.int) outsideInfo.data of
-                        Ok ( cardId, checkboxNumber ) ->
-                            tagger <| CheckboxClicked cardId checkboxNumber
-
-                        Err e ->
-                            onError (errorToString e)
-
-                -- === UI ===
-                "Keyboard" ->
-                    case decodeValue Dec.string outsideInfo.data of
-                        Ok shortcut ->
-                            tagger <| Keyboard shortcut
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "WillPrint" ->
-                    tagger <| WillPrint
-
-                -- === Misc ===
-                "RecvCollabState" ->
-                    case decodeValue collabStateDecoder outsideInfo.data of
-                        Ok collabState ->
-                            tagger <| RecvCollabState collabState
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "RecvCollabUsers" ->
-                    case decodeValue (Dec.list collabStateDecoder) outsideInfo.data of
-                        Ok collabStates ->
-                            tagger <| RecvCollabUsers collabStates
-
-                        Err e ->
-                            onError (errorToString e)
-
-                "CollaboratorDisconnected" ->
-                    case decodeValue Dec.string outsideInfo.data of
-                        Ok uid ->
-                            tagger <| CollaboratorDisconnected uid
-
-                        Err e ->
-                            onError (errorToString e)
-
-                _ ->
-                    onError <| "Unexpected info from outside: " ++ outsideInfo.tag
+                Err err ->
+                    onError err
         )
 
 

@@ -596,6 +596,26 @@ incoming incomingMsg model =
                 _ ->
                     ( model, Cmd.none, [] )
 
+        FullscreenChanged isFullscreenNow ->
+            case ( isFullscreenNow, vs.viewMode ) of
+                ( False, FullscreenEditing { cardId, field } ) ->
+                    -- The browser left fullscreen on its own -- Esc, F11, the
+                    -- window manager -- so the fullscreen editor has to come
+                    -- with it, landing where the exit button lands
+                    -- (ExitFullscreenRequested): still editing this card, in
+                    -- the normal view, with what was typed saved.
+                    changeMode
+                        { to = Editing { cardId = cardId, field = field }
+                        , instant = True
+                        , save = True
+                        }
+                        model
+
+                _ ->
+                    -- Entering fullscreen is the app's own doing (or the user's
+                    -- F11, which is not a request to open an editor).
+                    ( model, Cmd.none, [] )
+
         TextCursor textCursorInfo ->
             if model.textCursorInfo /= textCursorInfo then
                 ( { model | textCursorInfo = textCursorInfo }
