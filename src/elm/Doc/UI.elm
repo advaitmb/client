@@ -20,7 +20,7 @@ import Octicons as Icon exposing (defaultOptions)
 import Regex exposing (Regex, replace)
 import Route
 import Session exposing (LoggedIn)
-import SharedUI exposing (ctrlOrCmdText, modalWrapper)
+import SharedUI exposing (ctrlOrCmdText)
 import Svg exposing (g, svg)
 import Svg.Attributes exposing (d, fill, fontFamily, fontSize, fontWeight, preserveAspectRatio, stroke, strokeDasharray, strokeDashoffset, strokeLinecap, strokeLinejoin, strokeMiterlimit, strokeWidth, textAnchor, version, viewBox)
 import Time exposing (posixToMillis)

@@ -1,10 +1,10 @@
-port module Outgoing exposing (Msg(..), infoForOutside, send)
+port module Outgoing exposing (Msg(..), send)
 
 import Coders exposing (..)
 import Doc.TreeUtils exposing (ScrollPosition, scrollPositionToValue)
 import Json.Encode as Enc exposing (..)
 import Page.Doc.Theme as Theme exposing (Theme)
-import Types exposing (Collaborator, CursorPosition(..), DropId, OutsideData, TextCursorInfo, Tree)
+import Types exposing (OutsideData)
 
 
 
@@ -25,36 +25,25 @@ type Msg
     | LoadDocument String
     | GetDocumentList
     | RequestDelete String (Maybe String)
-    | NoDataToSave
     | RenameDocument String
     | SaveCardBased Enc.Value
     | SaveImportedTree ( String, String )
-    | SaveCardBasedMigration Enc.Value
     | PushDeltas Enc.Value
       -- === Collaboration ===
     | SendCollabState Enc.Value
-      -- === Desktop ===
-    | SaveToFile String String
-    | ExportToFile String String
       -- === DOM ===
     | ScrollCards (List String) (List ( Int, ScrollPosition )) Int Bool
-    | ScrollFullscreenCards String
     | DragStart Enc.Value
     | CopyCurrentSubtree Enc.Value
     | CopyToClipboard String String
     | SelectAll String
     | TextSurround String String
     | InsertMarkdownLink String
-    | SetField String String
     | SetCursorPosition Int
-    | SetFullscreen Bool
-    | PositionTourStep Int String
       -- === UI ===
-    | UpdateCommits ( Enc.Value, Maybe String )
     | HistorySlider Bool Int
     | SetSidebarState Bool
     | SaveThemeSetting Theme
-    | RequestFullscreen
     | Print
       -- === Misc ===
     | ConsoleLogRequested String
@@ -99,9 +88,6 @@ send info =
         SaveImportedTree ( docId, name ) ->
             dataToSend "SaveImportedTree" (tupleToValue string ( docId, name ))
 
-        SaveCardBasedMigration data ->
-            dataToSend "SaveCardBasedMigration" data
-
         PushDeltas data ->
             dataToSend "PushDeltas" data
 
@@ -117,21 +103,9 @@ send info =
         RequestDelete dbName docName_ ->
             dataToSend "RequestDelete" (tupleToValue string ( dbName, docName_ |> Maybe.withDefault "Untitled" ))
 
-        NoDataToSave ->
-            dataToSend "NoDataToSave" null
-
         -- === Collaboration ===
-
-
         SendCollabState collabState ->
             dataToSend "SendCollabState" collabState
-
-        -- === Desktop ===
-        SaveToFile filename str ->
-            dataToSend "SaveToFile" (tupleToValue string ( filename, str ))
-
-        ExportToFile format str ->
-            dataToSend "ExportToFile" (tupleToValue string ( format, str ))
 
         -- === DOM ===
         ScrollCards lastActives listScrollPositions colIdx instant ->
@@ -154,9 +128,6 @@ send info =
                     ]
                 )
 
-        ScrollFullscreenCards cardId ->
-            dataToSend "ScrollFullscreenCards" (string cardId)
-
         DragStart event ->
             dataToSend "DragStart" event
 
@@ -175,31 +146,10 @@ send info =
         InsertMarkdownLink id ->
             dataToSend "InsertMarkdownLink" (string id)
 
-        SetField id str ->
-            dataToSend "SetField" (list string [ id, str ])
-
         SetCursorPosition pos ->
             dataToSend "SetCursorPosition" (int pos)
 
-        SetFullscreen shouldFullscreen ->
-            dataToSend "SetFullscreen" (bool shouldFullscreen)
-
-        PositionTourStep step elId ->
-            dataToSend "PositionTourStep" (tupleToValue identity ( int step, string elId ))
-
         -- === UI ===
-        UpdateCommits ( objectsValue, head_ ) ->
-            let
-                headToValue mbs =
-                    case mbs of
-                        Just str ->
-                            string str
-
-                        Nothing ->
-                            null
-            in
-            dataToSend "UpdateCommits" (tupleToValue identity ( objectsValue, headToValue head_ ))
-
         HistorySlider firstOpen delta ->
             dataToSend "HistorySlider" (tupleToValue identity ( bool firstOpen, int delta ))
 
@@ -209,12 +159,8 @@ send info =
         SaveThemeSetting newTheme ->
             dataToSend "SaveThemeSetting" (Theme.toValue newTheme)
 
-        RequestFullscreen ->
-            dataToSend "RequestFullscreen" null
-
         Print ->
             dataToSend "Print" null
-
 
         -- === Misc ===
         ConsoleLogRequested err ->

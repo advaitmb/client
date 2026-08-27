@@ -231,7 +231,6 @@ getNavKey model =
 type Msg
     = ChangedUrl Url
     | ClickedLink Browser.UrlRequest
-    | SettingsChanged Dec.Value
     | GotSignupMsg Page.Signup.Msg
     | GotLoginMsg Page.Login.Msg
     | GotImportMsg Page.Import.Msg

@@ -35,7 +35,7 @@ import Page.DocMessage
 import RandomId
 import Route
 import Session exposing (LoggedIn, Session(..))
-import SharedUI exposing (ctrlOrCmdText, unsavedChangesAlert)
+import SharedUI exposing (unsavedChangesAlert)
 import Svg.Attributes
 import Task
 import Time
@@ -54,7 +54,6 @@ type alias Model =
     , documentState : DocumentState
     , conflictViewerState : ConflictViewerState
     , sidebarState : SidebarState
-    , sidebarMenuState : SidebarMenuState
     , headerMenu : HeaderMenuState
     , exportSettings : ( ExportSelection, ExportFormat )
     , modalState : ModalState
@@ -116,11 +115,6 @@ sidebarIsOpen state =
             False
 
 
-type SidebarMenuState
-    = NoSidebarMenu
-    | Account (Maybe Element)
-
-
 {-| Which header menu is open. Moved here from UI/Header.elm when the header
 became <gw-header>; the state stays in Elm, only the markup left.
 -}
@@ -151,7 +145,6 @@ defaultModel nKey session newDocState =
         else
             SidebarClosed
     , conflictViewerState = NoConflict
-    , sidebarMenuState = NoSidebarMenu
     , headerMenu = NoHeaderMenu
     , exportSettings = ( ExportEverything, DOCX )
     , modalState = NoModal
@@ -400,10 +393,6 @@ type Msg
     | PrintRequested
       -- HELP Modal
     | ToggledHelpMenu
-    | ClickedShowVideos
-    | CopyEmailClicked Bool
-      -- Account menu
-    | ToggledAccountMenu Bool
       -- Import
     | ImportJSONLoaded String String
     | ImportJSONIdGenerated Tree String String
@@ -793,19 +782,10 @@ update msg model =
             let
                 isOpen =
                     sidebarIsOpen newSidebarState
-
-                newDropdownState =
-                    case ( newSidebarState, model.sidebarMenuState ) of
-                        ( File, Account _ ) ->
-                            NoSidebarMenu
-
-                        _ ->
-                            model.sidebarMenuState
             in
             ( { model
                 | sidebarState = newSidebarState
                 , tooltip = Nothing
-                , sidebarMenuState = newDropdownState
               }
                 |> updateSession (Session.setFileOpen isOpen session)
             , send <| SetSidebarState isOpen
@@ -1126,34 +1106,6 @@ update msg model =
         ToggledHelpMenu ->
             ( { model | modalState = HelpScreen }, Cmd.none )
 
-        ClickedShowVideos ->
-            ( model, Cmd.none )
-
-        CopyEmailClicked isUrgent ->
-            if isUrgent then
-                ( model, send <| CopyToClipboard "{%SUPPORT_URGENT_EMAIL%}" "#email-copy-btn" )
-
-            else
-                ( model, send <| CopyToClipboard "{%SUPPORT_EMAIL%}" "#email-copy-btn" )
-
-        -- Account menu TODO
-        ToggledAccountMenu isOpen ->
-            let
-                ( newDropdownState, newSidebarState ) =
-                    if isOpen then
-                        ( Account Nothing, SidebarClosed )
-
-                    else
-                        ( NoSidebarMenu, model.sidebarState )
-            in
-            ( { model
-                | sidebarMenuState = newDropdownState
-                , sidebarState = newSidebarState
-                , tooltip = Nothing
-              }
-            , Cmd.none
-            )
-
         -- Import
         ImportJSONLoaded fileName jsonString ->
             let
@@ -1301,9 +1253,7 @@ update msg model =
             ( { model | tooltip = Nothing }, Cmd.none )
 
         ModalClosed ->
-            case model.modalState of
-                _ ->
-                    ( { model | modalState = NoModal }, Cmd.none )
+            ( { model | modalState = NoModal }, Cmd.none )
 
 
 andThen : (Model -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
@@ -1854,10 +1804,6 @@ view ({ documentState } as model) =
 
 viewModal : GlobalData -> LoggedIn -> ModalState -> List (Html Msg)
 viewModal globalData session modalState =
-    let
-        ctrlOrCmd =
-            ctrlOrCmdText (GlobalData.isMac globalData)
-    in
     case modalState of
         NoModal ->
             []
@@ -2092,14 +2038,6 @@ subscriptions model =
                 Sub.none
         , DocList.subscribe ReceivedDocuments
         , Session.userSettingsChange SettingsChanged
-        , case model.modalState of
-
-            _ ->
-                Sub.none
-        , case model.modalState of
-
-            _ ->
-                Sub.none
         , Time.every (9 * 1000) TimeUpdate
         ]
 
