@@ -75,12 +75,12 @@ messages the module asks to be sent:
 
 | Gate | Result |
 |---|---|
-| `bun test` | **98/98** across 12 files (88 before + 10) |
-| `bun run test:elm` | **139/139** (untouched by this ticket) |
+| `bun test` | **98/98** across 12 files at `c1595b1` (88 before + 10); **108/108** across 13 files once ticket 17's suite rebased in |
+| `bun run test:elm` | **139/139**, then **154/154** — untouched by this ticket either way |
 | `bun run newbuild` | exit 0 |
 | `node config-check.js` | exit 0 |
 | built bundle | `web/doc.js` carries `createMetadataSync`, `treesChanged`, `socketOpened` |
-| CI | `570af59` green (run 33088504485); `c1595b1` run 33088917522 |
+| CI | all green on `selfhost`: `570af59` (run 33088504485), `c1595b1` (33088917522), `a4ed2f2` (33089126136) |
 
 Docs: `ARCHITECTURE.md` §2 (module table), §6.1 (bootstrap), §6.3 (the
 reconnect list and the queue-vs-state rule) and §8 (test inventory);
