@@ -40,6 +40,15 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   re-parent by `tree.ts` no longer drops keystrokes or reverts in-flight text.
   7 tests at seam 3 in `tests/textarea.test.ts`. Details in
   `issues/07-editor-reconnect.md`.
+- Ticket 05 resolved — every version-row scan in `Doc/Data.elm` goes through
+  `newestPerId`/`newestVisible` per ADR-0005 §1, so subtree delete keeps
+  moved-away cards (D1), merges neither re-parent stale children nor offset by
+  deleted ones (D2), and the conflict tree is order-independent (S9).
+  `resolveDeleteConflicts`' dead `toAdd` limb is **removed**, not repaired:
+  inverting its filter would have pushed pre-deletion content over the local
+  edit that delete-vs-edit resolution exists to keep — the surviving
+  `toRemove` already yields `UndelOp` + our edit. 5 new tests at seam 1.
+  Details in `issues/05-newest-version-dedupe.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
