@@ -1,6 +1,6 @@
 module IncomingTest exposing (everyTagTheDocSends, fullscreenChanged)
 
-{-| Tests at the ADR-0001 seam 9: the port tag → `Msg` mapping.
+{-| Tests at the ADR-0001 seam 10: the port tag → `Msg` mapping.
 
 `src/shared/doc.js` sends the document's inbound messages as
 `{ tag, data }` pairs on one port. `Page.Doc.Incoming.subscribe` used to hold

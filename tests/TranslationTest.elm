@@ -1,6 +1,6 @@
 module TranslationTest exposing (editModeTrayStrings)
 
-{-| Tests at the ADR-0001 seam 9: the strings the shortcut tray renders.
+{-| Tests at the ADR-0001 seam 10: the strings the shortcut tray renders.
 
 `Doc.UI.viewShortcutsToggle` builds each tray row out of `TranslationId`s --
 the key names, in `span.shortcut-key`, then the action they perform -- and

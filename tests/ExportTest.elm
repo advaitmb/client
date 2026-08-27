@@ -1,6 +1,6 @@
 module ExportTest exposing (leavesAndColumnKeepTheirFormat, oneMimeTypePerFormat)
 
-{-| Tests at the ADR-0001 seam 9: what an export writes, and what it is saved
+{-| Tests at the ADR-0001 seam 10: what an export writes, and what it is saved
 as.
 
 `Page.Doc.Export.toString` is a pure function of (document name, selection,
