@@ -37,6 +37,11 @@ that tests could not) or stop claiming it. Also: the theme write ring
 producer — do NOT remove it without checking the owner's pending decision on
 restoring the theme picker (see ticket 17's Comments).
 
+**Added scope (from ticket 21's resolution):** the four doc.js handler
+halves whose Elm senders ticket 21 just removed can no longer fire — and
+matter more than usual because ticket 18's dispatch policy TOASTS an unknown
+incoming tag rather than ignoring it. See ticket 21's Comments for the list.
+
 ## Acceptance criteria
 
 - [ ] All §6 JS/TS items removed or justified in Comments; coordinate with
