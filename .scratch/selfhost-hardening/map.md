@@ -124,6 +124,7 @@ ticket carries `needs-info` any more.
 | 24 | elm-consistency | S1 S2 S3 S4 S10 S12 | 01 |
 | 25 | perf-data-layer | P1–P5 | 05 06 12 |
 | 26 | deploy-workflow | (new) | resolved: wontfix |
+| 27 | per-account-local-data | new (from 04) | 04 |
 
 ## Not yet specified
 

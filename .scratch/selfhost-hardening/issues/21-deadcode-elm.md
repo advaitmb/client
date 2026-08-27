@@ -17,6 +17,10 @@ machinery. Follow the review's inventory; where removal would change behavior
 (it shouldn't — everything listed is zero-caller), stop and note it in
 Comments instead.
 
+**Added scope (from ticket 04's resolution):** `ToggledAccountMenu` and
+`SidebarMenuState.Account` are confirmed zero-producer after the logout
+control landed — remove with the rest.
+
 ## Acceptance criteria
 
 - [ ] All §6 Elm items removed (or individually justified in Comments).

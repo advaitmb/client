@@ -26,6 +26,10 @@ carries the dead payments-modal selectors (`#upgrade-*`, `#pwyw*`,
 interleaved with live `#migrate-modal` rules). Remove them with the other
 static residue; the producers were deleted in ticket 03.
 
+**Added scope (from ticket 04's resolution):** `#account-menu` CSS in
+`src/static/style.css` is dead (the menu was removed; logout now lives in the
+sidebar rail) — remove with the payments CSS.
+
 ## Acceptance criteria
 
 - [ ] `bun run newbuild` still produces a working `web/` (CI proves it).
