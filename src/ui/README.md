@@ -1,6 +1,6 @@
 # The interface layer
 
-Surfaces are moving out of Elm one at a time. Each becomes a **custom element**:
+Surfaces move out of Elm one at a time. Each becomes a **custom element**:
 
 ```
 Elm                                  TS (this directory)
@@ -11,53 +11,104 @@ node "gw-help-modal"                 class HelpModal extends HTMLElement
   ] []
 ```
 
-Elm decides **when** a surface is on screen and what state it carries in.
-This directory owns **what it looks like** and reports back with a bubbling
+Elm decides **when** a surface is on screen and what state it carries in. This
+directory owns **what it looks like** and reports back with a bubbling
 `CustomEvent`.
+
+**`index.ts`'s header is the list of what has moved**, kept beside the imports
+that register the elements so it cannot drift far from them. This file is the
+boundary and the rules; it deliberately does not keep a second copy of that
+list, because the copy that used to be here named one element out of nine for
+months (CODE_REVIEW.md S11).
+
+Still in Elm, and rendering their own DOM: the fullscreen editor
+(`Doc/Fullscreen.elm`), the shortcut tray, breadcrumbs, search field and
+loading spinners (`Doc/UI.elm`), the modals and banners `Page/App.elm` renders
+directly (the sidebar context menu, the delete and confirm-email prompts,
+toasts), the export dialog (`Page/Doc/Export.elm`) and the auth pages.
+
+`gw-textarea` — the editing textarea — is the pattern's precedent: it was
+already a custom element before this directory existed, and it stays in
+`src/shared/doc-helpers.js` beside the port layer's drag, paste and
+click-outside handling.
 
 ## Why attributes and events, not ports
 
 A port boundary needs an encoder in Elm and a decoder in TS for every message —
 about a hundred of them if the whole interface moved. Attributes and events are
 the web platform's own boundary and need neither, and a surface can be moved (or
-moved back) without touching anything else. There was already one instance of
-this pattern in the codebase before the split started: `gw-textarea`, in
-`src/shared/doc-helpers.js`.
+moved back) without touching anything else.
 
-## What has moved
+## Two kinds of surface
 
-| Element | Replaced | Lines |
-| --- | --- | --- |
-| `gw-help-modal` | `Doc/HelpScreen.elm` | 174 |
+The difference decides what a rule below means, so it is worth naming.
 
-Still in Elm: the card tree, the header and sidebar, the document list, and the
-remaining modals (switcher, word count, template selector).
+**Built once** — `gw-help-modal`, `gw-wordcount-modal`, `gw-template-modal`.
+They declare no `observedAttributes`: Elm makes the element when the surface
+opens and drops it when it closes, so `connectedCallback` builds everything and
+nothing reconciles.
+
+**Updated in place** — `gw-tree`, `gw-header`, `gw-sidebar`,
+`gw-save-indicator`, `gw-markdown`, `gw-switcher-modal`. Elm keeps handing these
+new attributes for as long as they are on screen, so what a re-render
+*preserves* is part of their contract: `gw-tree` reconciles its columns and
+cards against the incoming tree rather than replacing them, `gw-header` keeps
+the title span and refocuses the control the user was on by id, and `gw-sidebar`
+re-renders only the document rows unless the whole rail changed.
+
+`dom.ts` is three functions for both kinds. That is enough because the state
+lives in Elm: an element is handed the answer, not the inputs to compute one.
 
 ## Rules
 
-- **Class names must match `src/static/style.css`.** These surfaces reuse the
-  existing stylesheet; a renamed class silently loses its styling.
+- **Class names and ids must match `src/static/style.css`.** These surfaces
+  reuse the existing stylesheet; a renamed class silently loses its styling.
 - **Events must bubble.** Elm attaches its listener on the custom element, so a
   non-bubbling event never reaches it. `emit()` in `dom.ts` sets this.
-- **Clean up in `disconnectedCallback`.** Elm removes the element from the DOM
-  when the modal closes; anything bound to `window` or `document` outlives it
-  otherwise.
-- **No framework.** These surfaces render once when opened and are discarded
-  when closed, so there is nothing for a virtual DOM to diff. `dom.ts` is three
-  functions and that is enough.
+- **`attributeChangedCallback` must check that the element was built.** It
+  fires while the element is being upgraded, before `connectedCallback` has run:
+  `if (!this.isConnected) return`, or a null check on whatever the build
+  produced (`gw-switcher-modal` guards on its list).
+- **Clean up in `disconnectedCallback`.** Anything bound to `window` or
+  `document` outlives the element otherwise — and so does in-element state: a
+  `<gw-tree>` taken off the page mid-drag used to come back believing a card was
+  still in flight (S13).
+- **Text inputs are uncontrolled.** The title, the sidebar filter and the
+  switcher search all report what was typed and are never written back to while
+  they have focus. Elm re-renders on every save-status tick, so a controlled
+  input loses the caret — or the word.
+- **A `keydown` an element handles must not also reach the app.** Mousetrap
+  binds the shortcuts on `document` and ignores only form fields, so Enter on a
+  menu button opens the active card's editor as well as choosing the entry.
+  `stopPropagation` on the keys you handle, and only those — Escape has to get
+  through.
+- **Loading states render but wire nothing.** The `static` attribute is the
+  convention (`gw-sidebar`): draw the surface, attach no handlers.
+- **DOM tests share one document.** `bunfig.toml` preloads `tests/dom.ts`, and
+  bun shares that jsdom — and its `customElements` registry — across test
+  files. A fixture must not name its nodes after real elements; `<gw-tree>`'s
+  `connectedCallback` will replace their children with its own scaffolding, and
+  the failure looks environmental. `tests/dom.ts` records this.
 
 ## Checking it
 
 ```sh
-../../../server/node_modules/.bin/tsc -p tsconfig.json   # strict, no emit
+bun run typecheck   # tsc -p src/ui/tsconfig.json: strict, no emit
+bun test            # the whole TS suite; these elements run against jsdom
+bun run newbuild    # esbuild bundles this directory into web/ui.js
 ```
 
-`moduleResolution` is `node` rather than `bundler` because the pinned compiler
-is TypeScript 4.9. This matters: an unsupported value is not a hard error, it
-silently degrades cross-module imports to `any`. If you change it, verify the
-checking is still real by introducing a deliberate type error across a module
-boundary and confirming `tsc` catches it.
+The typecheck is a step in `.github/workflows/ci.yml`, and it is the only thing
+in the pipeline that reads a type annotation: `bun test` and esbuild both strip
+types without checking them. It caught nothing for a long time because it did
+not exist — this file claimed it, pointing at a `tsc` in a sibling checkout,
+while `typescript` was not even a dependency (S11). Ticket 22 made it real;
+ticket 17 found what it costs to go without, a field shadowing
+`HTMLElement.prototype.title` that no test could see.
 
-The typecheck runs as part of the build gate, and `verify/smoke.mjs` asserts on
-rendered output rather than implementation, so it verifies a moved surface still
-behaves the same.
+`moduleResolution` is `bundler`, because esbuild is what builds this directory.
+If you change it, verify the checking is still real the way that change was
+verified: introduce a deliberate type error **across a module boundary** and
+confirm `tsc` catches it. An unsupported or mismatched value is not an error —
+it silently degrades cross-module imports to `any`, and a gate that checks
+nothing is worse than no gate, because the README says there is one.

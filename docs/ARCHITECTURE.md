@@ -57,7 +57,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/drag.js` | The drag lifecycle: which drag is in progress (a card, or text from outside the app), what Elm is told about it, and drag auto-scroll |
 | `src/shared/metadata.js` | Document metadata going out: which `trees` rows the server has not acknowledged, and when they go — on a liveQuery emission, and again when the socket comes back |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
-| `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
+| `src/web/container-web.js` | The per-document localStorage settings store (`localStore`), and nothing else since ticket 22 removed the PouchDB/Electron-era exports; aliased as `require("Container")`, which with the file's name is the last trace of the two-container build |
 | `src/web/database-download.js` | Standalone IndexedDB export page (bundled to `web/database-download.js`, loaded by `database-download.html`) |
 | `src/static/` | `index.html`, CSS, fonts, images, `templates/*.json`; copied verbatim into `web/` |
 | `elm-kernel-replacements/` | Patched copies of `elm/html`, `elm/browser`, `elm/virtual-dom` |
@@ -235,7 +235,9 @@ modal, template modal, header (incl. the history slider), the save indicator
 (`<gw-save-indicator>`, rendered by the header *and* by the still-Elm
 fullscreen view — one implementation, which is why it is its own element),
 sidebar, markdown rendering (`<gw-markdown>`), and the card tree (`<gw-tree>`).
-(`src/ui/README.md`'s "what has moved" table predates most of these moves.)
+(`src/ui/index.ts`'s header is the canonical list, beside the imports that
+register them; ticket 22 removed the copy in `src/ui/README.md`, which had
+drifted to naming one of the nine.)
 
 `Toast.elm` is a **vendored third-party module** (documented in its header);
 Elm's `--optimize` dead-code elimination strips the unused parts, so its size
@@ -497,8 +499,10 @@ as `gw-drop` and stops it propagating, and announces the drag itself as
 `gw-drag-start` / `gw-drag-end` so `src/shared/drag.js` can tell it from text
 dragged in from outside the app. `markdown.ts` renders card content with
 `marked` (GFM + breaks) plus
-a CriticMarkup preprocessor. `header.ts`, `sidebar.ts`, and the modals are
-render-once surfaces following the rules in `src/ui/README.md`.
+a CriticMarkup preprocessor. `header.ts` and `sidebar.ts` are updated in place
+for as long as they are on screen, so what a re-render *preserves* is part of
+their contract; the help, word-count and template modals are built once and
+dropped when they close. Both kinds follow the rules in `src/ui/README.md`.
 
 One element is rendered from two places rather than one: `save-indicator.ts`
 (`<gw-save-indicator>`) is inside the header's title span *and* in
@@ -555,19 +559,28 @@ kept; see `src/shared/session.js`.
 `appMsgs` — `SocketConnected`, `CardDataReceived`, `HistoryDataReceived`,
 `PushOk`, `PushError`, `MetadataUpdate`, `ErrorAlert`, `NotFound`.
 
-Every tag listed above has a live sender at the other end; ticket 21 removed
-the Elm ends that did not (`DragStart`/`DragStarted`, the elm-dnd path;
-`ScrollFullscreenCards`; `SavedRemotely`; and the nine outgoing tags no Elm
-code constructed).
+**Both lists are now exhaustive in both directions**: every tag above has a
+live sender *and* a live handler, and there are no others. Ticket 21 removed
+the Elm ends that had no other side (`DragStart`/`DragStarted`, the elm-dnd
+path; `ScrollFullscreenCards`; `SavedRemotely`; and the nine outgoing tags no
+Elm code constructed), and ticket 22 removed the `doc.js` halves of the same
+pairs — the `SaveCardBasedMigration`, `ScrollFullscreenCards`, `DragStart`
+(with the `DragStarted` send inside it), `SetField`, `SetFullscreen`,
+`RequestFullscreen`, `UpdateCommits`, `InitBeamer` and `SocketSend` handlers,
+and `pushSuccessHandler`.
 
-The `doc.js` halves of those pairs are still there and are ticket 22's, but
-none of them can fire: `DragStarted` is sent only from inside the `DragStart`
-handler, and `ScrollFullscreenCards` is itself a handler — both keyed on
-outgoing tags Elm can no longer construct — and `SavedRemotely`'s only
-`toElm` call sits in `pushSuccessHandler`, which nothing calls. That matters
-because an unknown incoming tag is *not* ignored: `Page.Doc.Incoming`'s
-catch-all returns `Err "Unexpected info from outside: <tag>"`, which reaches
-`onError` and surfaces as a toast (ticket 18).
+That symmetry is load-bearing rather than tidy, in both directions. An unknown
+*incoming* tag is not ignored: `Page.Doc.Incoming`'s catch-all returns
+`Err "Unexpected info from outside: <tag>"`, which reaches `onError` and
+surfaces as a toast (ticket 18). An *outgoing* tag with no handler is likewise
+reported — `doc.js`'s dispatch says "Unexpected message from Elm", and
+`port-errors.js` decides whether the user hears about it — so a handler kept
+for a tag that can no longer arrive is not inert, it is a claim about this
+table that has stopped being true.
+
+`screenfull` survives the removal of the two fullscreen *request* handlers: its
+`change` event is still a live `FullscreenChanged` sender, so the app learns
+about a fullscreen it never asks for (F11, or the browser's own chrome).
 
 ---
 
@@ -576,7 +589,18 @@ catch-all returns `Err "Unexpected info from outside: <tag>"`, which reaches
 One workflow, `.github/workflows/ci.yml`, runs on every push and PR to
 `selfhost`: `bun install --frozen-lockfile`, a check that `package-lock.json`
 is still in sync with `package.json` (ADR-0004), `config-check`, `bun run
-newbuild`, then `bun run test:elm` and `bun run test:ts`. The upstream
+typecheck`, `bun run newbuild`, then `bun run test:elm` and `bun run test:ts`.
+
+`bun run typecheck` (`tsc -p src/ui/tsconfig.json`, strict, no emit) is the only
+step that reads a type annotation — `bun test` and esbuild both strip types
+without checking them — and it is new in ticket 22: `src/ui/README.md` had
+documented the gate for months while `typescript` was not a dependency and
+nothing in `ci.yml` ran it (CODE_REVIEW.md S11). `src/ui/README.md` says how to
+confirm the gate is real, which matters because an unsupported
+`moduleResolution` silently degrades cross-module imports to `any` rather than
+failing.
+
+The upstream
 Electron-era `build.yml` and `master`-only `web-deploy.yml` are deleted, as is
 the phantom `@playwright/test` devDependency.
 
