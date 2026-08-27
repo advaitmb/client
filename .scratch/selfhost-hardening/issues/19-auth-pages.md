@@ -103,7 +103,7 @@ matches an `id` in the same form) and in the built bundle.
 Local: `bun run test:elm` 35/35 before the rebase (was 29), 42/42 after it
 picked up tickets 11 and 20; `bun test` 51/51, unchanged by this ticket;
 `bun run newbuild` exit 0, `node config-check.js` exit 0. All re-run after the
-rebase. Grep-zero over
+rebase. CI green on `selfhost`: run 33070676955 (`6ba6ad1`, both commits). Grep-zero over
 `src/`: `forgot-password`, `requestForgotPassword`, `requestResetPassword`,
 `singup`, `subscribed`, `gingkoapp.com` — no matches; same six over the built
 `web/elm.js` and `web/style.css` — no matches.
