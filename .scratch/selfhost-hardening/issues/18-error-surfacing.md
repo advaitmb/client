@@ -153,5 +153,12 @@ sites.
   (S5–S8, S13) if anyone wants them.
 - One drive-by that is worth knowing: the outer `catch (e)` in `ws.onmessage`
   **shadowed the `MessageEvent` parameter `e`**. It is `catch (err)` now.
+- All seven toast strings this ticket adds were run through
+  `Markdown.Parser.parse |> Markdown.Renderer.render` in a throwaway test and
+  all seven render, so none of them can come out as `<parse error>`. The test
+  was deleted rather than kept: it would have to duplicate the constants from
+  `Page.App`, so it would pass forever while the real strings drifted. The rule
+  it was checking is written down on `errorToast` instead, where anyone adding
+  a toast will read it.
 - Verification: `bun run test:elm` 158/158, `bun test` 143/143,
   `bun run newbuild` succeeds, `node config-check.js` exits 0.
