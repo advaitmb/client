@@ -155,39 +155,46 @@ init : Nav.Key -> GlobalData -> LoggedIn -> Maybe DbData -> ( Model, Cmd Msg )
 init nKey globalData session dbData_ =
     case dbData_ of
         Just dbData ->
+            let
+                -- Opening a document makes it the one to reopen when the app
+                -- is next opened at `/` (E2).
+                ( sessionWithLastDoc, rememberLastDoc ) =
+                    Session.storeLastDocId (Just dbData.dbName) session
+            in
             if dbData.isNew then
                 ( defaultModel nKey
-                    session
+                    sessionWithLastDoc
                     (Doc
-                        { session = session
+                        { session = sessionWithLastDoc
                         , docId = dbData.dbName
                         , docModel = Page.Doc.init True globalData
                         , data = Data.emptyCardBased
                         , lastRemoteSave = Nothing
                         , lastLocalSave = Just (GlobalData.currentTime globalData)
-                        , titleField = Session.getDocName session dbData.dbName
+                        , titleField = Session.getDocName sessionWithLastDoc dbData.dbName
                         }
                     )
                 , Cmd.batch
                     [ send <| InitDocument dbData.dbName
+                    , rememberLastDoc
                     , Task.attempt (always NoOp) (Browser.Dom.focus "card-edit-1")
                     ]
                 )
 
             else
                 ( defaultModel nKey
-                    session
+                    sessionWithLastDoc
                     (Doc
-                        { session = session
+                        { session = sessionWithLastDoc
                         , docId = dbData.dbName
                         , docModel = Page.Doc.init False globalData
                         , data = Data.emptyCardBased
                         , lastRemoteSave = Nothing
                         , lastLocalSave = Nothing
-                        , titleField = Session.getDocName session dbData.dbName
+                        , titleField = Session.getDocName sessionWithLastDoc dbData.dbName
                         }
                     )
-                , send <| LoadDocument dbData.dbName
+                , Cmd.batch [ send <| LoadDocument dbData.dbName, rememberLastDoc ]
                 )
 
         Nothing ->
@@ -551,7 +558,16 @@ update msg model =
                     ( { model | errorState = True }, delay 0 (AddToast Persistent (Toast Error alertMsg)) )
 
                 NotFound dbName ->
-                    ( model, Route.pushUrl model.navKey (Route.NotFound dbName) )
+                    -- Whatever we were asked to open is not there, so it is no
+                    -- longer the document to reopen at `/` (E2) -- otherwise
+                    -- every visit to `/` would land here again.
+                    let
+                        ( sessionWithoutLastDoc, forgetLastDoc ) =
+                            Session.storeLastDocId Nothing session
+                    in
+                    ( model |> updateSession sessionWithoutLastDoc
+                    , Cmd.batch [ forgetLastDoc, Route.pushUrl model.navKey (Route.NotFound dbName) ]
+                    )
 
         IncomingDocMsg incomingMsg ->
             let
@@ -773,37 +789,41 @@ update msg model =
 
         ReceivedDocuments newListState ->
             let
-                newSession =
+                sessionWithDocs =
                     Session.updateDocuments newListState session
 
-                ( routeCmd, isLoading ) =
-                    case ( model.documentState, Session.documents newSession ) of
+                ( newSession, routeCmd, isLoading ) =
+                    case ( model.documentState, Session.documents sessionWithDocs ) of
                         ( Doc { docId }, Success docList ) ->
-                            ( docList
-                                |> List.map (\d -> Metadata.getDocId d == docId)
-                                |> List.any identity
-                                |> (\docStillExists ->
-                                        if docStillExists then
-                                            Cmd.none
+                            if docList |> List.any (\d -> Metadata.getDocId d == docId) then
+                                ( sessionWithDocs, Cmd.none, True )
 
-                                        else
-                                            Route.replaceUrl model.navKey Route.Root
-                                   )
-                            , True
-                            )
+                            else
+                                -- The open document is gone (deleted here or on
+                                -- another client). Forget it before going back
+                                -- to `/`, or `/` would reopen it (E2).
+                                let
+                                    ( sessionWithoutLastDoc, forgetLastDoc ) =
+                                        Session.storeLastDocId Nothing sessionWithDocs
+                                in
+                                ( sessionWithoutLastDoc
+                                , Cmd.batch [ forgetLastDoc, Route.replaceUrl model.navKey Route.Root ]
+                                , True
+                                )
 
                         ( Empty _ _, Success [] ) ->
-                            ( Cmd.none, False )
+                            ( sessionWithDocs, Cmd.none, False )
 
                         ( Empty _ _, Success docList ) ->
-                            ( DocList.getLastUpdated (Success docList)
+                            ( sessionWithDocs
+                            , DocList.getLastUpdated (Success docList)
                                 |> Maybe.map (\s -> Route.replaceUrl model.navKey (Route.DocUntitled s))
                                 |> Maybe.withDefault Cmd.none
                             , True
                             )
 
                         _ ->
-                            ( Cmd.none, True )
+                            ( sessionWithDocs, Cmd.none, True )
 
                 maybeUpdateTitleField m =
                     case m.documentState of

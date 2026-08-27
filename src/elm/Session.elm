@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -201,6 +201,31 @@ setFileOpen isOpen (LoggedIn sessData userData) =
     LoggedIn { sessData | fileMenuOpen = isOpen } userData
 
 
+{-| Remember which document was open last, both in the session and in storage.
+`Page.App.init` reads it back to reopen that document when the app is opened at
+`/` (E2), so the two halves are set together, from one value, rather than by
+separate call sites that can disagree.
+
+`Nothing` forgets the document — sent when the open document turns out not to
+exist, so that `/` does not redirect straight back to it.
+
+-}
+storeLastDocId : Maybe String -> LoggedIn -> ( LoggedIn, Cmd msg )
+storeLastDocId docId_ (LoggedIn sessData userData) =
+    ( LoggedIn { sessData | lastDocId = docId_ } userData
+    , send <| SaveUserSetting (lastDocIdSetting docId_)
+    )
+
+
+{-| How the last-opened document is written into the stored session blob: the
+key `decoderLoggedIn` reads, and an encoding it can read back (`null` for "no
+document", never a missing key, so the write is not a no-op).
+-}
+lastDocIdSetting : Maybe String -> ( String, Enc.Value )
+lastDocIdSetting docId_ =
+    ( "lastDocId", Coders.maybeToValue Enc.string docId_ )
+
+
 confirmEmail : Time.Posix -> LoggedIn -> LoggedIn
 confirmEmail currentTime (LoggedIn key data) =
     LoggedIn key { data | confirmedAt = Just currentTime }
@@ -277,10 +302,10 @@ decoderGuestSession =
 decoderLoggedIn : Dec.Decoder LoggedIn
 decoderLoggedIn =
     Dec.succeed
-        (\email legacy side confirmTime trayOpen sortCriteria _ featList ->
+        (\email legacy side confirmTime trayOpen sortCriteria lastDoc_ featList ->
             LoggedIn
                 { fileMenuOpen = side
-                , lastDocId = Nothing
+                , lastDocId = lastDoc_
                 , fromLegacy = legacy
                 , firstRun = False
                 }

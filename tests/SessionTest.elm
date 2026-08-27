@@ -1,4 +1,4 @@
-module SessionTest exposing (suite)
+module SessionTest exposing (preferences, suite)
 
 {-| Tests at the ADR-0002 seam: `Session.decode` on the stored user data that
 `StoreUser` persists to localStorage.
@@ -16,6 +16,7 @@ import Expect
 import Json.Encode as Enc
 import Session
 import Test exposing (Test, describe, test)
+import Types exposing (SortBy(..))
 
 
 bootTimeMillis : Int
@@ -89,4 +90,35 @@ suite =
         , test "an unparseable stale payment status is ignored, not fatal" <|
             \_ ->
                 expectSameAsClean (storedUser [ ( "paymentStatus", Enc.string "trial-expired-2019" ) ])
+        ]
+
+
+{-| Ticket 13: the three preferences that reach `Session` as stored JSON —
+which document was open last, whether the shortcut tray is open, and how the
+document list is sorted. Every one of them is written by one path and read
+back by another, so they are pinned at the decode seam.
+-}
+preferences : Test
+preferences =
+    describe "Session, stored preferences"
+        [ test "the last opened document is remembered, so / can reopen it" <|
+            \_ ->
+                decodeLoggedIn (storedUser [ ( "lastDocId", Enc.string "tree-abc" ) ])
+                    |> Result.map Session.lastDocId
+                    |> Expect.equal (Ok (Just "tree-abc"))
+        , test "stored data with no last document has none to reopen" <|
+            \_ ->
+                decodeLoggedIn (storedUser [])
+                    |> Result.map Session.lastDocId
+                    |> Expect.equal (Ok Nothing)
+        , test "opening a document writes it back as the one to reopen" <|
+            \_ ->
+                decodeLoggedIn (storedUser [ Session.lastDocIdSetting (Just "tree-xyz") ])
+                    |> Result.map Session.lastDocId
+                    |> Expect.equal (Ok (Just "tree-xyz"))
+        , test "forgetting the last document writes null, which is read back as none, not as a broken session" <|
+            \_ ->
+                decodeLoggedIn (storedUser [ Session.lastDocIdSetting Nothing ])
+                    |> Result.map (\session -> ( Session.name session, Session.lastDocId session ))
+                    |> Expect.equal (Ok ( "user@example.com", Nothing ))
         ]
