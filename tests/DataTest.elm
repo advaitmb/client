@@ -145,7 +145,8 @@ type alias StagedRow =
 
 
 type alias ChangeLists =
-    { toAdd : List StagedRow
+    { treeId : String
+    , toAdd : List StagedRow
     , toMarkSynced : List Dec.Value
     , toMarkDeleted : List StagedRow
     , toRemove : List String
@@ -164,9 +165,13 @@ stagedRowDecoder =
         (Dec.field "synced" Dec.bool)
 
 
+{-| `treeId` is required of every save: which document a save is for is the
+payload's to say, not the port layer's to remember (CODE_REVIEW.md D5).
+-}
 changeListsDecoder : Dec.Decoder ChangeLists
 changeListsDecoder =
-    Dec.map4 ChangeLists
+    Dec.map5 ChangeLists
+        (Dec.field "treeId" Dec.string)
         (Dec.field "toAdd" (Dec.list stagedRowDecoder))
         (Dec.field "toMarkSynced" (Dec.list Dec.value))
         (Dec.field "toMarkDeleted" (Dec.list stagedRowDecoder))
@@ -331,7 +336,7 @@ resolveAs selection =
 
             else
                 case
-                    Data.resolveConflicts selection newData
+                    Data.resolveConflicts "tree1" selection newData
                         |> Maybe.map List.singleton
                         |> Maybe.withDefault []
                         |> savePayload
@@ -438,13 +443,24 @@ snapshotRows =
     ]
 
 
+{-| A tree as `Import.Single` decodes one: a root wrapper holding the cards.
+-}
+importedTree : Tree
+importedTree =
+    Tree "0"
+        ""
+        (Children
+            [ Tree "r" "Imported root" (Children [ Tree "c" "Imported child" (Children []) ]) ]
+        )
+
+
 {-| The save `restore` stages for that snapshot, decoded.
 -}
 restoreChanges : Result String ChangeLists
 restoreChanges =
     Data.model_tests_only rowsBeforeRestore Nothing
         |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshotRows ) ])
-        |> (\model -> Data.restore model snapshotId)
+        |> (\model -> Data.restore "tree1" model snapshotId)
         |> savePayload
         |> Maybe.map (Dec.decodeValue changeListsDecoder >> Result.mapError Dec.errorToString)
         |> Maybe.withDefault (Err "expected restore to stage a save")
@@ -674,7 +690,8 @@ suite =
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
                         (Ok
-                            { toAdd =
+                            { treeId = "tree1"
+                            , toAdd =
                                 [ { id = "b"
                                   , treeId = "tree1"
                                   , content = "Second card"
@@ -710,7 +727,8 @@ suite =
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
                         (Ok
-                            { toAdd =
+                            { treeId = "tree1"
+                            , toAdd =
                                 [ { id = "a"
                                   , treeId = "tree1"
                                   , content = "Edited content"
@@ -777,7 +795,8 @@ suite =
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
                         (Ok
-                            { toAdd = []
+                            { treeId = "tree1"
+                            , toAdd = []
                             , toMarkSynced = []
                             , toMarkDeleted =
                                 [ { id = "a"
@@ -837,7 +856,8 @@ suite =
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
                         (Ok
-                            { toAdd =
+                            { treeId = "tree1"
+                            , toAdd =
                                 [ { id = "c"
                                   , treeId = "tree1"
                                   , content = "Current\n\nOther"
@@ -906,7 +926,8 @@ suite =
                             |> Expect.equal
                                 ( Just
                                     (Ok
-                                        { toAdd = []
+                                        { treeId = "tree1"
+                                        , toAdd = []
                                         , toMarkSynced = []
                                         , toMarkDeleted = []
                                         , toRemove = [ "1000:0:orig" ]
@@ -972,7 +993,8 @@ suite =
                     |> Expect.equal
                         (Ok
                             { changes =
-                                { toAdd = []
+                                { treeId = "tree1"
+                                , toAdd = []
                                 , toMarkSynced = []
                                 , toMarkDeleted = []
                                 , toRemove = ourLineStamps
@@ -990,7 +1012,8 @@ suite =
                     |> Expect.equal
                         (Ok
                             { changes =
-                                { toAdd =
+                                { treeId = "tree1"
+                                , toAdd =
                                     [ { id = "a"
                                       , treeId = "tree1"
                                       , content = "Original"
@@ -1020,7 +1043,8 @@ suite =
                     |> Expect.equal
                         (Ok
                             { changes =
-                                { toAdd = []
+                                { treeId = "tree1"
+                                , toAdd = []
                                 , toMarkSynced = []
                                 , toMarkDeleted = []
 
@@ -1049,7 +1073,8 @@ suite =
                 restoreChanges
                     |> Expect.equal
                         (Ok
-                            { toAdd =
+                            { treeId = "tree1"
+                            , toAdd =
                                 [ { id = "b"
                                   , treeId = "tree1"
                                   , content = "Child"
@@ -1165,7 +1190,7 @@ suite =
                 in
                 Data.model_tests_only rows Nothing
                     |> Data.historyReceived (encodeHistory [ ( snapshotId, 2000, snapshot ) ])
-                    |> (\model -> Data.restore model snapshotId)
+                    |> (\model -> Data.restore "tree1" model snapshotId)
                     |> List.length
                     |> Expect.equal 0
         , test "sixty-one inserts at the same spot keep the order they were made in" <|
@@ -1269,4 +1294,31 @@ suite =
                     |> Tuple.second
                     |> stagedPositions
                     |> Expect.equal (Ok [ ( "z", 1 ), ( "b", 2 ) ])
+
+        -- Importing a JSON tree (CODE_REVIEW.md D5)
+        --
+        -- The save an import hands over is for a document that is not the one
+        -- on screen -- nothing has opened it yet -- and it travels in the same
+        -- unordered `Cmd.batch` as the message that creates that document. So
+        -- it has to name the document itself.
+        , test "importing a tree stages every card of it, for the document being imported into" <|
+            \_ ->
+                Data.importTree "imported-doc" importedTree
+                    |> Dec.decodeValue changeListsDecoder
+                    |> Result.mapError Dec.errorToString
+                    |> Result.map
+                        (\changes ->
+                            { savingInto = changes.treeId
+                            , staged = changes.toAdd |> List.map (\row -> ( row.id, row.treeId, row.parentId ))
+                            }
+                        )
+                    |> Expect.equal
+                        (Ok
+                            { savingInto = "imported-doc"
+                            , staged =
+                                [ ( "r", "imported-doc", Nothing )
+                                , ( "c", "imported-doc", Just "r" )
+                                ]
+                            }
+                        )
         ]

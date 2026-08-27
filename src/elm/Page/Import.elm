@@ -73,6 +73,10 @@ update msg model =
                 cardData =
                     Data.importTree docId tree
             in
+            -- The cards and the document row they belong to. `Cmd.batch` does
+            -- not order these, and neither needs the other: both name `docId`,
+            -- and the port layer's save works on the document its payload
+            -- names rather than on whatever is open (CODE_REVIEW.md D5).
             ( model
             , Cmd.batch
                 [ send <| SaveCardBased cardData

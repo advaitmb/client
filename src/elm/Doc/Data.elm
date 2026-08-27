@@ -88,8 +88,8 @@ conflictList model =
             []
 
 
-restore : Model -> String -> List Outgoing.Msg
-restore model historyId =
+restore : String -> Model -> String -> List Outgoing.Msg
+restore treeId model historyId =
     case model of
         CardBased currentData _ history _ ->
             let
@@ -121,7 +121,7 @@ restore model historyId =
                                 )
                     in
                     if changesSomething then
-                        [ SaveCardBased (toSave changes) ]
+                        [ SaveCardBased (toSave treeId changes) ]
 
                     else
                         []
@@ -299,7 +299,7 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                             )
 
                         CanFastForward ffids ->
-                            ( [ SaveCardBased (toSave { toAdd = [], toMarkSynced = [], toMarkDeleted = [], toRemove = ffids |> UpdatedAt.unique }) ]
+                            ( [ SaveCardBased (toSave treeId { toAdd = [], toMarkSynced = [], toMarkDeleted = [], toRemove = ffids |> UpdatedAt.unique }) ]
                             , Nothing
                             )
 
@@ -324,7 +324,7 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                                         )
                             in
                             if mergeHandledIt then
-                                ( [ SaveCardBased (toSave mergedChanges) ]
+                                ( [ SaveCardBased (toSave treeId mergedChanges) ]
                                 , Nothing
                                 )
 
@@ -379,8 +379,8 @@ card's synced count back under `historyLimit`, which is what takes it out of the
 `Conflicted` state.
 
 -}
-resolveConflicts : ConflictSelection -> Model -> Maybe Outgoing.Msg
-resolveConflicts selectedVersion model =
+resolveConflicts : String -> ConflictSelection -> Model -> Maybe Outgoing.Msg
+resolveConflicts treeId selectedVersion model =
     case model of
         CardBased allCards _ _ (Just versions) ->
             let
@@ -428,7 +428,7 @@ resolveConflicts selectedVersion model =
                                    )
                             )
             in
-            SaveCardBased (toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = toRemove |> UpdatedAt.unique }) |> Just
+            SaveCardBased (toSave treeId { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = toRemove |> UpdatedAt.unique }) |> Just
 
         _ ->
             Nothing
@@ -489,10 +489,22 @@ decodeCard =
         (Dec.field "updatedAt" UpdatedAt.decoder)
 
 
-toSave : DBChangeLists -> Enc.Value
-toSave { toAdd, toMarkSynced, toMarkDeleted, toRemove } =
+{-| The `SaveCardBased` payload: which document the save is for, and what it
+changes.
+
+`treeId` is here, and not left to the port layer's idea of the current
+document, because a save is not always for the document on screen: an import
+saves into a document nobody has opened yet, and its two port messages travel
+in one `Cmd.batch`, whose order is unspecified (CODE_REVIEW.md D5). Every
+sender says which document it means; `src/shared/save.js` refuses a save that
+does not.
+
+-}
+toSave : String -> DBChangeLists -> Enc.Value
+toSave treeId { toAdd, toMarkSynced, toMarkDeleted, toRemove } =
     Enc.object
-        [ ( "toAdd", Enc.list encodeNewCard toAdd )
+        [ ( "treeId", Enc.string treeId )
+        , ( "toAdd", Enc.list encodeNewCard toAdd )
         , ( "toMarkSynced", Enc.list encodeExistingCard toMarkSynced )
         , ( "toMarkDeleted", Enc.list encodeNewCard toMarkDeleted )
         , ( "toRemove", Enc.list UpdatedAt.encode toRemove )
@@ -557,7 +569,7 @@ importTree treeId tree =
         |> List.map asUnsynced
         |> (\cards ->
                 { toAdd = cards, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
-                    |> toSave
+                    |> toSave treeId
            )
 
 
@@ -621,7 +633,7 @@ localSave treeId op model =
             case localChanges treeId op staged data of
                 Ok changes ->
                     ( CardBased data (stageRows (changes.toAdd ++ changes.toMarkDeleted) staged) history conflicts_
-                    , toSave changes
+                    , toSave treeId changes
                     )
 
                 Err errs ->
@@ -1401,8 +1413,8 @@ resolveDeleteConflicts allCards versions =
     { toAdd = [], toMarkSynced = [], toMarkDeleted = [], toRemove = ourDeletionTimestamps ++ theirDeletionsToRemove |> UpdatedAt.unique }
 
 
-pushOkHandler : List String -> Model -> Maybe Outgoing.Msg
-pushOkHandler chkValStrings model =
+pushOkHandler : String -> List String -> Model -> Maybe Outgoing.Msg
+pushOkHandler treeId chkValStrings model =
     case model of
         CardBased data _ _ _ ->
             let
@@ -1438,7 +1450,7 @@ pushOkHandler chkValStrings model =
                     in
                     Just <|
                         SaveCardBased <|
-                            toSave { toAdd = [], toMarkSynced = versionsToMarkSynced, toMarkDeleted = [], toRemove = [] }
+                            toSave treeId { toAdd = [], toMarkSynced = versionsToMarkSynced, toMarkDeleted = [], toRemove = [] }
 
                 Err err ->
                     Nothing
@@ -1793,7 +1805,7 @@ model_tests_only cards conflicts_ =
     CardBased cards [] [] conflicts_
 
 
-toSave_tests_only : DBChangeLists -> Enc.Value
+toSave_tests_only : String -> DBChangeLists -> Enc.Value
 toSave_tests_only =
     toSave
 

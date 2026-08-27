@@ -49,6 +49,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/doc-helpers.js` | Shared helpers + the `gw-textarea` custom element |
 | `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
 | `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
+| `src/shared/save.js` | The local half of a save: apply a `SaveCardBased` payload to the document it names (cards, snapshot, tree timestamp) |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
 | `src/web/database-download.js` | Standalone IndexedDB export page (bundled to `web/database-download.js`, loaded by `database-download.html`) |
@@ -260,12 +261,22 @@ time and feeds received stamps back with `hlc.recv()`.
 
 ### 5.3 Local save
 
-`Data.localSave docId op model` (`Data.elm:481`) turns a `CardTreeOp` into a
-`DBChangeLists = { toAdd, toMarkSynced, toMarkDeleted, toRemove }` which JS
-applies transactionally (`doc.js` `SaveCardBased`): `toAdd` rows get fresh HLC
-stamps, content changes also write a local history snapshot, and Dexie
-`liveQuery` subscriptions echo the new row set back to Elm as
+`Data.localSave docId op model` turns a `CardTreeOp` into a
+`DBChangeLists = { toAdd, toMarkSynced, toMarkDeleted, toRemove }`, encoded for
+the port with the id of the document it is for: `{ treeId, toAdd, … }`. JS
+applies it transactionally (`src/shared/save.js`, reached from `doc.js`'s
+`SaveCardBased`): `toAdd` rows get fresh HLC stamps, content changes also write
+a local history snapshot, the document's `trees` row is stamped unsynced, and
+Dexie `liveQuery` subscriptions echo the new row set back to Elm as
 `CardDataReceived`.
+
+Every sender of `SaveCardBased` names its document, and the handler refuses a
+payload that does not: a save is not always for the document on screen. A JSON
+import saves into a document nobody has opened — its cards and the `trees` row
+that makes them a document travel as two port messages in one `Cmd.batch`,
+whose order is unspecified — so keying the snapshot and the timestamp off the
+port layer's current-document global wrote another document's rows, or failed
+outright on a fresh session (CODE_REVIEW.md D5).
 
 ### 5.4 Sync states and deltas
 
@@ -398,6 +409,12 @@ incoming ones (`docMsgs`, `appMsgs`, `documentListChanged`, `importComplete`,
 `SetSidebarState`, `SaveThemeSetting`, `Print`, `EmptyMessageShown`,
 `ConsoleLogRequested`, `LogoutUser`.
 
+`SaveCardBased` carries `{ treeId, toAdd, toMarkSynced, toMarkDeleted,
+toRemove }` — the document it saves into is part of the payload, not the port
+layer's current document (§5.3). `SaveImportedTree` carries `(docId, name)` for
+the same document; the two are batched by the import and arrive in either
+order, and neither depends on the other having landed.
+
 `LogoutUser` is the one round trip that ends in JS telling Elm to change
 pages: `<gw-sidebar>`'s `gw-logout` → `Page.App.LogoutRequested` →
 `Session.logout` → `doc.js` (POST `/logout`, drop the session blob, close the
@@ -431,6 +448,6 @@ the phantom `@playwright/test` devDependency.
 
 Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
 `*.test.ts` for bun test (custom elements against jsdom, the extracted
-sequences in `src/shared/stamps.js` and `src/shared/session.js`, and the
-build's `config-check` / `elm-postprocess` seams). The pre-agreed seams are
-ADR-0001's.
+sequences in `src/shared/stamps.js`, `src/shared/session.js` and
+`src/shared/save.js`, and the build's `config-check` / `elm-postprocess`
+seams). The pre-agreed seams are ADR-0001's.

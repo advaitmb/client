@@ -37,6 +37,9 @@ dexie.version(4).stores({
 
 const helpers = require("./doc-helpers");
 const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession } = require("./session");
+// The local half of a save, extracted for the same reason as session.js:
+// nothing in this file is importable by a test (ADR-0001 seam 4).
+const { applyCardBasedSave } = require("./save");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -547,60 +550,31 @@ const fromElm = (msg, elmData) => {
     },
 
     SaveCardBased : async () => {
-      if (elmData && Array.isArray(elmData.errors)) {
-        alert("Error saving data!\n\n" + elmData.errors.join("\n----\n"));
-        return;
-      }
-
-      if (!elmData || !elmData.toAdd || !elmData.toMarkSynced || !elmData.toMarkDeleted || !elmData.toRemove) {
-        alert("Error saving data!\nInvalid data sent to DB:\n" + JSON.stringify(elmData));
-        return;
-      }
-
-      let newData = elmData.toAdd.map((c) => { return { ...c, updatedAt: hlc.nxt() }})
-      const toMarkSynced = elmData.toMarkSynced.map((c) => { return { ...c, synced: true }})
-      const timestamp = Date.now();
-
-      let toMarkDeleted = [];
-      if (elmData.toMarkDeleted.length > 0) {
-        const deleteHash = uuid();
-        toMarkDeleted = elmData.toMarkDeleted.map((c, i) => ({ ...c, updatedAt: `${timestamp}:${i}:${deleteHash}` }));
-      }
-
-      try {
-        await dexie.transaction('rw', dexie.cards, async () => {
-            dexie.cards.bulkPut(newData.concat(toMarkSynced).concat(toMarkDeleted));
-            dexie.cards.bulkDelete(elmData.toRemove);
-            params.DIRTY = false;
-        });
-
-        if (elmData.toAdd.length > 0 || toMarkDeleted.length > 0) {
-          if (elmData.toAdd.length == 1 && elmData.toAdd[0].content == "") {
-            // Don't add new empty cards to history.
-            return;
-          }
-
-          const cards = await dexie.cards.where({ treeId: TREE_ID, deleted: 0 }).toArray();
-          const lastUpdatedTime = cards.map((c) => c.updatedAt.split(':')[0]).reduce((a, b) => Math.max(a, b));
-          const snapshotId = `${lastUpdatedTime}:${TREE_ID}`;
-          const snapshotData = cards.map((c) => ({ ...c, snapshot: snapshotId, delta: 0}));
-          const snapshot = { snapshot: snapshotId, treeId: TREE_ID, data: snapshotData, local: true, ts: Number(lastUpdatedTime)};
-          await dexie.tree_snapshots.put(snapshot);
-        }
-        await dexie.trees.update(TREE_ID, {updatedAt: timestamp, synced: false});
-      } catch (e) {
-        alert("Error saving data!" + e);
-      }
+      await applyCardBasedSave(elmData, {
+        db: dexie,
+        nextStamp: () => hlc.nxt(),
+        newDeleteHash: uuid,
+        now: Date.now,
+        markClean: () => { params.DIRTY = false; },
+        onError: (message) => alert(message),
+      });
     },
 
+    // The other half of an import: the row that makes the imported cards a
+    // document. It does NOT become the current document here -- `TREE_ID` is
+    // the document on screen, and this one is not on screen until Elm has
+    // navigated to it and sent `LoadDocument`. Setting it here was how the
+    // import's save found its document on the orders where this message
+    // happened to land first (CODE_REVIEW.md D5); the save names its own
+    // document now, and claiming the global early only pointed the socket
+    // handlers at a document with no subscriptions while the one still on
+    // screen kept receiving rows.
     SaveCardBasedTree: async () => {
-      console.log("SaveCardBasedTree", elmData);
       const now = Date.now();
-      const treeName = elmData[1];
-      TREE_ID = elmData[0];
-      const treeDoc = {...treeDocDefaults, name: treeName, id: TREE_ID, location: "cardbased", owner: email, createdAt: now, updatedAt: now};
+      const [importedTreeId, treeName] = elmData;
+      const treeDoc = {...treeDocDefaults, name: treeName, id: importedTreeId, location: "cardbased", owner: email, createdAt: now, updatedAt: now};
       await dexie.trees.add(treeDoc);
-      toElm(TREE_ID, "importComplete")
+      toElm(importedTreeId, "importComplete")
     },
 
     SaveCardBasedMigration : async () => {

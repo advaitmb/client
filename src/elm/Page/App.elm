@@ -491,10 +491,10 @@ update msg model =
 
                 PushOk chkStrings ->
                     case model.documentState of
-                        Doc { data } ->
+                        Doc { data, docId } ->
                             let
                                 pushOkMsgs =
-                                    Data.pushOkHandler chkStrings data
+                                    Data.pushOkHandler docId chkStrings data
                                         |> Maybe.map send
                                         |> Maybe.withDefault Cmd.none
 
@@ -751,10 +751,10 @@ update msg model =
 
         ConflictResolved ->
             case ( model.documentState, model.conflictViewerState ) of
-                ( Doc { data }, Conflict selectedVersion ) ->
+                ( Doc { data, docId }, Conflict selectedVersion ) ->
                     let
                         outMsg_ =
-                            Data.resolveConflicts selectedVersion data
+                            Data.resolveConflicts docId selectedVersion data
                     in
                     ( model
                     , Maybe.map send outMsg_ |> Maybe.withDefault Cmd.none
@@ -977,7 +977,7 @@ update msg model =
                     let
                         outMsgs =
                             History.getCurrentVersionId history
-                                |> Maybe.map (Data.restore docState.data)
+                                |> Maybe.map (Data.restore docState.docId docState.data)
                                 |> Maybe.withDefault []
 
                     in
@@ -1158,6 +1158,10 @@ update msg model =
                 cardData =
                     Data.importTree docId tree
             in
+            -- The cards and the document row they belong to. `Cmd.batch` does
+            -- not order these, and neither needs the other: both name `docId`,
+            -- and the port layer's save works on the document its payload
+            -- names rather than on whatever is open (CODE_REVIEW.md D5).
             ( model
             , Cmd.batch
                 [ send <| SaveCardBased cardData

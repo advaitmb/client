@@ -62,9 +62,10 @@ Vocabulary used in code, issues, and tests. Full system description:
    computation) — extract to module scope to test, don't test via Dexie.
 3. Custom elements: attribute-in → DOM/CustomEvent-out, in a DOM test
    environment.
-4. Session sequences extracted from `doc.js` (`src/shared/session.js`:
-   logout, adopting the server's account on boot) — faked `fetch`, real
-   `localStorage`, injected callbacks.
+4. Session and port sequences extracted from `doc.js` (`src/shared/session.js`:
+   logout, adopting the server's account on boot; `src/shared/save.js`:
+   applying a save) — faked `fetch`, real `localStorage`, injected callbacks
+   and, for a database writer, an injected in-memory fake of the tables.
 5. `Session`'s stored-blob surface (Elm, pure): `decode`/`encode` of the
    session blob and `responseDecoder` for a login answer — the preferences
    this client persists.
