@@ -81,6 +81,7 @@
     "gsap": "^3.11.3",
     "immortal-db": "^1.1.0",
     "lodash": "^4.17.15",
+    "marked": "^18.0.11",
     "mousetrap": "^1.6.1",
     "platform": "^1.3.6",
     "pws": "^7.0.0",

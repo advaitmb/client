@@ -2526,64 +2526,13 @@ preventIfBlocked originalModel ( newModel, cmd, parentMsgs ) =
 
 viewContent : String -> String -> Html Msg
 viewContent cardId content =
-    let
-        options =
-            { githubFlavored = Just { tables = True, breaks = True }
-            , defaultHighlighting = Nothing
-            , sanitize = False
-            , smartypants = False
-            }
-
-        processedContent =
-            let
-                checkboxes =
-                    Regex.fromStringWith { caseInsensitive = True, multiline = True }
-                        "\\[(x| )\\]"
-                        |> Maybe.withDefault Regex.never
-
-                openAddDiff =
-                    Regex.fromString "{\\+\\+" |> Maybe.withDefault Regex.never
-
-                closeAddDiff =
-                    Regex.fromString "\\+\\+}" |> Maybe.withDefault Regex.never
-
-                openDelDiff =
-                    Regex.fromString "{--" |> Maybe.withDefault Regex.never
-
-                closeDelDiff =
-                    Regex.fromString "--}" |> Maybe.withDefault Regex.never
-
-                checkboxReplacer { match, number } =
-                    let
-                        checkState =
-                            if match == "[x]" || match == "[X]" then
-                                "checked"
-
-                            else
-                                ""
-                    in
-                    "<input type='checkbox'"
-                        ++ checkState
-                        ++ " onClick='checkboxClicked(\""
-                        ++ cardId
-                        ++ "\", "
-                        ++ String.fromInt number
-                        ++ ")'/>"
-            in
-            content
-                |> Regex.replace openAddDiff (\_ -> "<ins class='diff'>")
-                |> Regex.replace closeAddDiff (\_ -> "</ins>")
-                |> Regex.replace openDelDiff (\_ -> "<del class='diff'>")
-                |> Regex.replace closeDelDiff (\_ -> "</del>")
-                |> Regex.replace checkboxes checkboxReplacer
-    in
-    Markdown.toHtmlWith options
-        [ attribute "data-private" "lipsum" ]
-        processedContent
-
-
-
--- SUBSCRIPTIONS
+    -- Rendered by src/ui/markdown.ts. The CriticMarkup and checkbox
+    -- preprocessing moved with it.
+    node "gw-markdown"
+        [ attribute "src" content
+        , attribute "card-id" cardId
+        ]
+        []
 
 
 subscriptions : Model -> Sub Msg

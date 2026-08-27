@@ -17,8 +17,10 @@
  *   gw-template-modal    Doc/UI.viewTemplateSelector
  *   gw-header            UI/Header.elm, Doc.UI.viewSaveIndicator, Doc/History.view
  *   gw-sidebar           UI/Sidebar.elm, Doc.List.viewSidebarList
+ *   gw-markdown          Page/Doc.viewContent + the Export preview
  *
- * Still in Elm: the card tree.
+ * Still in Elm: the card tree's structure and interaction (its content is
+ * rendered by gw-markdown).
  */
 
 import "./help-modal";
@@ -27,3 +29,4 @@ import "./switcher-modal";
 import "./template-modal";
 import "./header";
 import "./sidebar";
+import "./markdown";
