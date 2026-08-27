@@ -58,6 +58,22 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   12-card save no longer re-pulls its two-digit-counter rows or backs up a
   stale card version. 9 tests in `tests/stamps.test.ts`. Details in
   `issues/10-hlc-numeric-comparison.md`.
+- Ticket 04 resolved — C3 closed: logout is a real chain again —
+  `<gw-sidebar>`'s new bottom-of-rail button emits `gw-logout` →
+  `Page.App.LogoutRequested` (which now refuses while the document is dirty,
+  sharing the router's alert via `SharedUI.unsavedChangesAlert`) →
+  `Session.logout` → the previously unhandled `LogoutUser` tag → new
+  `src/shared/session.js` (verified POST `/logout`, clear
+  `gingko-session-storage`, doc.js's new `stopSyncing`) → `userLoggedOutMsg`,
+  which finally reaches `Main.UserLoggedOut`. Every step is best-effort, so a
+  down or out-of-date server cannot trap a self-host user in a session;
+  handing back to Elm rather than reloading `/login` keeps boot auto-login
+  (`/me`) from undoing the logout. **Local data is kept** — unsynced rows are
+  the only copy of offline work, so logout is never a delete; the flip side
+  (one global Dexie `"db"`, so a switched-to account still sees the previous
+  document list) is a schema property to fix at login, not at logout. 12 tests
+  (4 at seam 3, 8 at a new **seam 4** the ADR now records for session
+  sequences extracted from `doc.js`). Details in `issues/04-logout.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
