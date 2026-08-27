@@ -186,22 +186,6 @@ update msg ({ workingTree } as model) =
 
         SearchFieldUpdated inputField ->
             let
-                searchFilter term_ cols =
-                    case term_ of
-                        Just term ->
-                            let
-                                hasTerm tree =
-                                    term
-                                        |> Regex.fromStringWith { caseInsensitive = True, multiline = False }
-                                        |> Maybe.withDefault Regex.never
-                                        |> (\t -> Regex.contains t tree.content)
-                            in
-                            cols
-                                |> List.map (\c -> List.map (\g -> List.filter hasTerm g) c)
-
-                        Nothing ->
-                            cols
-
                 ( maybeBlur, newSearchField ) =
                     case inputField of
                         "" ->
@@ -2088,22 +2072,6 @@ treeView _ vstate model =
         activeId =
             getActiveIdFromViewState vstate
 
-        searchFilter term_ cols =
-            case term_ of
-                Just term ->
-                    let
-                        hasTerm tree =
-                            term
-                                |> Regex.fromStringWith { caseInsensitive = True, multiline = False }
-                                |> Maybe.withDefault Regex.never
-                                |> (\t -> Regex.contains t tree.content)
-                    in
-                    cols
-                        |> List.map (\c -> List.map (\g -> List.filter hasTerm g) c)
-
-                Nothing ->
-                    cols
-
         columnsFiltered =
             model.columns
                 |> searchFilter vstate.searchField
@@ -2208,6 +2176,40 @@ openCardMsg model cardId =
 
 
 -- HELPERS
+
+
+{-| The columns, with only the cards whose content matches the search term.
+
+The term is a regex, and it is compiled once here instead of once per card: the
+whole document used to be run through `Regex.fromStringWith` on every keystroke
+in the search field, twice over, because this lived once in the update that
+picks the first matching card to activate and once again, verbatim, in the view
+that renders the columns (CODE_REVIEW.md P3). A term that is not a valid regex
+matches nothing, which is what `Regex.never` says.
+
+`Nothing` is no search running: the columns come back untouched. Which columns
+those are stays the caller's business -- the view drops the root column, the
+update does not.
+
+-}
+searchFilter : Maybe String -> List Column -> List Column
+searchFilter term_ cols =
+    case term_ of
+        Just term ->
+            let
+                termRegex =
+                    term
+                        |> Regex.fromStringWith { caseInsensitive = True, multiline = False }
+                        |> Maybe.withDefault Regex.never
+
+                hasTerm tree =
+                    Regex.contains termRegex tree.content
+            in
+            cols
+                |> List.map (\c -> List.map (\g -> List.filter hasTerm g) c)
+
+        Nothing ->
+            cols
 
 
 hasChildren : Tree -> Bool
