@@ -175,6 +175,23 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   assert on the rows left behind. 8 new tests (7 at seam 4, 1 at seam 1), and
   `treeId` is now a required field of every save payload the seam-1 tests
   decode. Details in `issues/08-import-race.md`.
+- Ticket 29 resolved — the follow-up ticket 11 filed on itself: a save is now
+  built from the newest *state* of a card, not from the newest row of the log,
+  so `CTUpd`/`CTMov`/`CTRmv`/`CTMrg` stopped writing back what the previous
+  save had just changed (edit-after-move reverting the move, move-after-edit
+  reverting the edit, a subtree delete missing a child moved in and taking one
+  moved out, a merge dropping an edit and orphaning a child moved into the card
+  it deletes). Two lookups do it — `stagedOrNewestRow` for one card,
+  ticket 11's `visibleWithStaged` for the subtree walk and the merge's children
+  — and `mergeCards` takes the visible cards rather than deriving them.
+  Ticket 11's clear-on-any-echo is now clear-on-*known*-echo: the echo carries
+  the open document's whole card set, so an id it has no row for cannot have
+  been written and its staged row survives (a pull landing between two inserts
+  used to forget it); for an id it does know, ours cannot be told from a
+  superseding row without a stamp, and a phantom that outlives the DB's answer
+  is worse than the fraction of a save the clear costs. Restore staging stays
+  unstaged (modal, per 11). 9 new tests at seam 1, 8 red first. Details in
+  `issues/29-stale-row-save-reverts.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
