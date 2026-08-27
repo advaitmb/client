@@ -1,4 +1,4 @@
-port module Page.App exposing (Model, Msg, SidebarState(..), getTitle, init, isDirty, navKey, notFound, sidebarIsOpen, subscriptions, toGlobalData, toSession, update, view)
+port module Page.App exposing (HistoryExit(..), Model, Msg, SidebarState(..), closeHistoryView, getTitle, init, isDirty, navKey, notFound, sidebarIsOpen, subscriptions, toGlobalData, toSession, update, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -676,12 +676,12 @@ update msg model =
 
                                 "mod+z" ->
                                     normalMode docModel
-                                        (toggleHistory True -1 model)
+                                        (openHistory -1 model)
                                         (passThroughTo docState)
 
                                 "mod+shift+z" ->
                                     normalMode docModel
-                                        (toggleHistory True 1 model)
+                                        (openHistory 1 model)
                                         (passThroughTo docState)
 
                                 _ ->
@@ -920,7 +920,11 @@ update msg model =
                     ( model, Cmd.none )
 
         HistoryToggled shouldOpen ->
-            model |> toggleHistory shouldOpen 0
+            if shouldOpen then
+                model |> openHistory 0
+
+            else
+                model |> closeHistory HistoryIcon
 
         CheckoutVersion versionId ->
             case ( model.headerMenu, model.documentState ) of
@@ -962,51 +966,16 @@ update msg model =
                             History.getCurrentVersionId history
                                 |> Maybe.map (Data.restore docState.docId docState.data)
                                 |> Maybe.withDefault []
-
                     in
-                    if List.length outMsgs > 0 then
-                        model
-                            |> toggleHistory False 0
-                            |> (\( m, c ) -> ( m, Cmd.batch <| c :: List.map send outMsgs ))
-
-                    else
-                        model
-                            |> toggleHistory False 0
+                    model
+                        |> closeHistory RestoreButton
+                        |> (\( m, c ) -> ( m, Cmd.batch <| c :: List.map send outMsgs ))
 
                 _ ->
                     ( model, Cmd.none )
 
         CancelHistory ->
-            case ( model.headerMenu, model.documentState ) of
-                ( HistoryView historyState, Doc docState ) ->
-                    let
-                        revertTree_ =
-                            History.revert historyState
-                    in
-                    case revertTree_ of
-                        Just revertTree ->
-                            let
-                                ( newDocModel, docCmds, _ ) =
-                                    Page.Doc.setTree revertTree docState.docModel
-                            in
-                            ( { model
-                                | documentState = Doc { docState | docModel = newDocModel }
-                                , headerMenu = NoHeaderMenu
-                              }
-                            , Cmd.map GotDocMsg docCmds
-                            )
-                                |> setBlock Nothing
-
-                        Nothing ->
-                            ( { model | headerMenu = NoHeaderMenu }
-                            , Cmd.none
-                            )
-                                |> setBlock Nothing
-
-                _ ->
-                    ( model
-                    , Cmd.none
-                    )
+            model |> closeHistory CancelButton
 
         Export ->
             case model.documentState of
@@ -1526,21 +1495,24 @@ closeSwitcher model =
     ( { model | modalState = NoModal }, Cmd.none )
 
 
-toggleHistory : Bool -> Int -> Model -> ( Model, Cmd Msg )
-toggleHistory shouldOpen delta model =
-    case ( shouldOpen, model.documentState ) of
-        ( True, Doc ({ data, docModel } as docState) ) ->
-            let
-                ( newDocModel, newDocCmds ) =
-                    Page.Doc.maybeActivate docModel
-            in
+{-| Open the history view, or move the slider by `delta` if it is already open.
+The document is activated on the way in, and editing is blocked for as long as
+a version other than the current one may be on screen.
+-}
+openHistory : Int -> Model -> ( Model, Cmd Msg )
+openHistory delta model =
+    case model.documentState of
+        Doc ({ data, docModel } as docState) ->
             case model.headerMenu of
-                HistoryView currentHistory ->
-                    -- If we're already viewing history, just update the history
+                HistoryView _ ->
+                    -- Already viewing history: only the slider moves.
                     ( model, send <| HistorySlider False delta )
 
                 _ ->
-                    -- Otherwise, open the history
+                    let
+                        ( newDocModel, newDocCmds ) =
+                            Page.Doc.maybeActivate docModel
+                    in
                     ( { model
                         | headerMenu = HistoryView (History.init (Page.Doc.getWorkingTree docModel).tree data)
                         , documentState = Doc { docState | docModel = newDocModel }
@@ -1552,11 +1524,100 @@ toggleHistory shouldOpen delta model =
                     )
                         |> setBlock (Just "Cannot edit while viewing history.")
 
-        ( False, _ ) ->
-            ( { model | headerMenu = NoHeaderMenu }, Cmd.none ) |> setBlock Nothing
+        _ ->
+            -- No document, so no history to view.
+            ( { model | headerMenu = NoHeaderMenu }, Cmd.none )
+
+
+{-| Which control the user left the history view with.
+
+The exit is named after the control rather than after what it does to the tree
+because that is the question this type exists to answer, in one place:
+`CancelHistory` reverted the checkout and `HistoryToggled False` did not, the
+decision lived at the two call sites, and nothing could see that they disagreed
+(ticket 34, from ticket 33's finding).
+
+-}
+type HistoryExit
+    = HistoryIcon
+    | CancelButton
+    | RestoreButton
+
+
+{-| Close the history view: what it leaves in the document.
+
+Moving the slider is a checkout — the version you picked goes into the working
+tree so you can read it. Leaving the view without committing anything puts the
+tree back to the version the view opened at, which is what leaving a preview
+means, and it is what the ✕ and the header's history icon both do. A restore
+keeps the version on screen: that is the one being committed, so putting the
+original back would undo it.
+
+Either way the editing block goes with the view (`setBlock Nothing` always
+clears — ADR-0002 left the history view as the only block).
+
+Takes the history and the document rather than the page: `Model` carries a
+`Nav.Key` no test can make (ADR-0001 seam 5), and both of these are plain data,
+so the decision is testable here and `update` is left with putting the answer
+back and dropping the menu. `setTree`'s messages to the parent are dropped as
+`CancelHistory` always dropped them: putting a tree back is not a document
+change to save or push.
+
+-}
+closeHistoryView : HistoryExit -> History.History -> Page.Doc.Model -> ( Page.Doc.Model, Cmd Page.Doc.Msg )
+closeHistoryView exit history docModel =
+    let
+        keepsTheCheckout =
+            case exit of
+                RestoreButton ->
+                    True
+
+                CancelButton ->
+                    False
+
+                HistoryIcon ->
+                    -- Ticket 34. This branch used to answer `True`: closing the
+                    -- view from the icon dropped the menu and left the old
+                    -- version in the working tree with editing unblocked, one
+                    -- keystroke from being saved over the document. Reachable by
+                    -- mouse all along, and ticket 33 made the icon the obvious
+                    -- exit for a keyboard user too.
+                    False
+
+        ( withOriginalTree, treeCmd ) =
+            case ( keepsTheCheckout, History.revert history ) of
+                ( False, Just originalTree ) ->
+                    Page.Doc.setTree originalTree docModel
+                        |> (\( m, c, _ ) -> ( m, c ))
+
+                _ ->
+                    ( docModel, Cmd.none )
+    in
+    ( Page.Doc.setBlock Nothing withOriginalTree, treeCmd )
+
+
+{-| The page half of `closeHistoryView`: hand the document its answer, and drop
+the menu.
+-}
+closeHistory : HistoryExit -> Model -> ( Model, Cmd Msg )
+closeHistory exit model =
+    case ( model.headerMenu, model.documentState ) of
+        ( HistoryView history, Doc docState ) ->
+            let
+                ( newDocModel, docCmd ) =
+                    closeHistoryView exit history docState.docModel
+            in
+            ( { model
+                | headerMenu = NoHeaderMenu
+                , documentState = Doc { docState | docModel = newDocModel }
+              }
+            , Cmd.map GotDocMsg docCmd
+            )
 
         _ ->
-            ( { model | headerMenu = NoHeaderMenu }, Cmd.none )
+            -- Nothing checked out, so nothing to put back; whatever menu is
+            -- open still closes, and the block still clears.
+            ( { model | headerMenu = NoHeaderMenu }, Cmd.none ) |> setBlock Nothing
 
 
 {-| Block or unblock editing. The only blocks are functional ones (history

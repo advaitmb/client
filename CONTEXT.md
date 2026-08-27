@@ -148,7 +148,10 @@ Vocabulary used in code, issues, and tests. Full system description:
     an event leaves behind, read through `getWorkingTree` — which makes a
     guard's ordering over a model change visible here. A transition only a DOM
     event names is reached by simulating that event on `Page.Doc.view`. The
-    `Cmd` is still out of reach, as at seam 10.
+    `Cmd` is still out of reach, as at seam 10. Ticket 34 adds the history
+    view's exit — `Page.App.closeHistoryView`, from (which control closed the
+    view, the history, the document) to the document it leaves: whether the
+    checked-out version stays, and that the editing block goes with the view.
 12. What a failure is worth telling the user (JS, pure):
     `src/shared/ws-errors.js`'s `wsMessageFailure` and
     `src/shared/clipboard.js`'s `clipboardErrorMessage` — what a thrown value

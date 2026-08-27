@@ -542,9 +542,9 @@ test("the history menu's controls are keyboard-operable", () => {
   press(control(el, "history-restore"), "Enter");
   press(control(el, "history-close-button"), " ");
 
-  // Cancel is not the icon's toggle: closing the menu from the icon leaves the
-  // checked-out version in place, while this one reverts it (Page.App's
-  // CancelHistory), so it has to be operable in its own right.
+  // Both exits are the ✕'s behaviour since ticket 34 (Page.App's
+  // CancelHistory: the working tree goes back to the version the view opened
+  // at), and the menu still has to offer its own, where a mouse expects it.
   expect(reported).toEqual(["gw-history-restore", "gw-history-cancel"]);
 });
 

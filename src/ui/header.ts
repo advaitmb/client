@@ -391,13 +391,13 @@ class Header extends HTMLElement {
    * the rest (ticket 33): the icon that opens this menu is keyboard-reachable
    * now, so these are the first controls a keyboard user meets in it.
    *
-   * Cancel is not the same thing as toggling the icon shut — `CancelHistory`
-   * reverts the checked-out version, while `HistoryToggled False` only closes
-   * the menu — so it has to be operable in its own right, not merely
-   * duplicated by the icon.
+   * Cancel and toggling the icon shut are the same thing since ticket 34 — both
+   * put the working tree back to the version the view opened at — so this is
+   * the ✕ a mouse expects to find, not a second behaviour.
    *
-   * The slider needs neither: an <input> is keyboard-operable already, and
-   * Mousetrap ignores form fields.
+   * The slider needs no keydown guard: an <input> is keyboard-operable already,
+   * and Mousetrap ignores form fields. It does need a name — a bare range input
+   * announces itself as "slider" and nothing else.
    */
   private historyMenu() {
     const hist = jsonAttr<{ index: number; max: number }>(this, "history");

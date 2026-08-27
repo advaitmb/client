@@ -192,7 +192,11 @@ own `name`/`fromName`, because the same spelling is what the setting is saved
 under.
 
 History viewing builds `Doc.History` from the data model, blocks editing via
-`Page.Doc.setBlock`, and checkout/restore go through `Data.restore`. Export
+`Page.Doc.setBlock`, and checkout/restore go through `Data.restore`. Moving the
+slider is a *checkout* — the version goes into the working tree to be read;
+leaving the view is `closeHistoryView`, which puts the tree back to the version
+the view opened at unless the exit was a restore (ticket 34: the ✕ and the
+history icon used to disagree about that). Export
 state is `(ExportSelection, ExportFormat)`; DOCX goes through
 `Api.exportDocx` (POST `/export-docx`), other formats are built client-side
 (§4.5).

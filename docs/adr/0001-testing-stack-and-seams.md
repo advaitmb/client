@@ -175,6 +175,21 @@
     the mutation in the model, and the model is plain data. Only the ordering of
     guards over model changes, though — over a `Cmd` it is still invisible.
 
+    Ticket 34 adds **the history view's exit**: `Page.App.closeHistoryView`, a
+    total function from (which control closed the view, the history, the
+    document) to the document the exit leaves. It is a `Page.App` export for the
+    reason seam 5 gives for `sidebarIsOpen` — `Page.App.update` needs a
+    `Nav.Key` no test can make — and it is at this seam because what it answers
+    is read the same two ways: the cards it leaves (`getWorkingTree`), and the
+    mode a following keystroke leaves, which is how "the editing block went with
+    the view" is observed. The exit is a value naming the control (the header's
+    history icon, the menu's ✕, Restore) rather than a `Bool` about the tree,
+    so the decision the ticket exists to settle — which of the three keeps the
+    version on screen — is inside the tested function and not at its call sites,
+    where the two closes had silently disagreed. Which control sends which
+    exit is one line each and out of reach here, as the `Cmd` is: verified by
+    inspection.
+
 12. What a failure is worth telling the user (JS, pure) — the two decisions the
     port layer used to make inline and inconsistently, extracted by ticket 18
     for CODE_REVIEW.md E16: `src/shared/ws-errors.js`'s `wsMessageFailure`, from
