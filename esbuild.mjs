@@ -11,7 +11,9 @@ const myAliasPlugin = {
 };
 
 const result = await esbuild.build({
-  entryPoints: ['./src/shared/doc.js'],
+  // named outputs: web/doc.js (Elm's port layer) and web/ui.js (the
+  // interface layer -- custom elements Elm renders by tag)
+  entryPoints: { doc: './src/shared/doc.js', ui: './src/ui/index.ts' },
   outdir: './web',
   plugins: [myAliasPlugin],
   minify: true,

@@ -6,7 +6,6 @@ import Browser.Navigation as Nav
 import Bytes exposing (Bytes)
 import Coders exposing (sortByEncoder)
 import Doc.Data as Data
-import Doc.HelpScreen as HelpScreen
 import Doc.History as History
 import Doc.List as DocList exposing (Model(..))
 import Doc.Metadata as Metadata exposing (Metadata)
@@ -19,9 +18,9 @@ import File exposing (File)
 import File.Download as Download
 import File.Select as Select
 import GlobalData exposing (GlobalData)
-import Html exposing (Html, br, button, div, fieldset, h2, h3, input, label, li, p, small, strong, ul)
-import Html.Attributes exposing (checked, class, classList, height, id, style, type_, width)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Html, br, button, div, fieldset, h2, h3, input, label, li, node, p, small, strong, ul)
+import Html.Attributes exposing (attribute, checked, class, classList, height, id, style, type_, width)
+import Html.Events exposing (on, onClick, onInput)
 import Html.Extra exposing (viewIf)
 import Html.Lazy exposing (lazy5)
 import Http
@@ -48,7 +47,7 @@ import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortB
 import UI.Header exposing (HeaderMenuState(..), viewHeader)
 import UI.Sidebar exposing (SidebarMenuState(..), SidebarState(..), viewSidebar)
 import Upgrade exposing (Msg(..))
-import Utils exposing (delay)
+import Utils exposing (delay, ternary)
 
 
 
@@ -1794,10 +1793,15 @@ viewModal globalData session modalState =
                 }
 
         HelpScreen ->
-            HelpScreen.view
-                (GlobalData.isMac globalData)
-                { closeModal = ModalClosed
-                }
+            -- Rendered by src/ui/help-modal.ts. Elm decides when it is on
+            -- screen and passes the platform down; the element owns the rest
+            -- and reports back with a bubbling "gw-close".
+            [ node "gw-help-modal"
+                [ attribute "platform" (ternary (GlobalData.isMac globalData) "mac" "other")
+                , on "gw-close" (Json.succeed ModalClosed)
+                ]
+                []
+            ]
 
         Wordcount docModel ->
             UI.viewWordCount
