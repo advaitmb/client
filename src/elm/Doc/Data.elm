@@ -1,9 +1,7 @@
-module Doc.Data exposing (CardOp_tests_only(..), Card_tests_only, Delta_tests_only, Model, SaveError_tests_only(..), cardDataReceived, cardOpConvert, conflictList, conflictToTree, emptyCardBased, getHistoryList, hasConflicts, historyReceived, importTree, lastSavedTime, lastSyncedTime, localSave, model_tests_only, publicDataDecoder, pushOkHandler, resolve, resolveConflicts, restore, saveErrors_tests_only, toDelta_tests_only, toSave_tests_only, triggeredPush)
+module Doc.Data exposing (Card_tests_only, Model, cardDataReceived, conflictToTree, emptyCardBased, getHistoryList, hasConflicts, historyReceived, importTree, lastSavedTime, lastSyncedTime, localSave, model_tests_only, publicDataDecoder, pushOkHandler, resolveConflicts, restore, triggeredPush)
 
 import Coders exposing (treeToValue, tupleDecoder)
 import Dict exposing (Dict)
-import Doc.Data.Conflict as Conf exposing (Conflict, Op(..), Selection(..), conflictWithSha, opString)
-import Doc.TreeStructure exposing (apply, opToMsg)
 import Http exposing (Error(..))
 import Json.Decode as Dec
 import Json.Encode as Enc
@@ -85,13 +83,6 @@ hasConflicts model =
 
         _ ->
             False
-
-
-conflictList : Model -> List Conflict
-conflictList model =
-    case model of
-        CardBased _ _ _ _ ->
-            []
 
 
 restore : String -> Model -> String -> List Outgoing.Msg
@@ -485,12 +476,6 @@ conflictToTree data selection =
         _ ->
             Nothing
 
-
-resolve : String -> Model -> Model
-resolve cid model =
-    case model of
-        CardBased _ _ _ _ ->
-            model
 
 decodeCards : Dec.Decoder (List (Card UpdatedAt))
 decodeCards =
@@ -1864,68 +1849,6 @@ type alias Card_tests_only t =
     }
 
 
-type SaveError_tests_only
-    = CardDoesNotExist_tests_only { id : String, src : String }
-
-
 model_tests_only : CardData -> Maybe CardDataConflicts -> Model
 model_tests_only cards conflicts_ =
     CardBased cards [] [] conflicts_
-
-
-toSave_tests_only : String -> DBChangeLists -> Enc.Value
-toSave_tests_only =
-    toSave
-
-
-saveErrors_tests_only : List SaveError_tests_only -> Enc.Value
-saveErrors_tests_only errs =
-    List.map saveErrorConvert errs
-        |> saveErrors
-
-
-saveErrorConvert : SaveError_tests_only -> SaveError
-saveErrorConvert err =
-    case err of
-        CardDoesNotExist_tests_only errInfo ->
-            CardDoesNotExist errInfo
-
-
-
--- delta tests
-
-
-type CardOp_tests_only
-    = InsOp_t { id : String, content : String, parentId : Maybe String, position : Float }
-    | UpdOp_t { content : String, expectedVersion : UpdatedAt }
-    | MovOp_t { parentId : Maybe String, position : Float }
-    | DelOp_t { expectedVersion : UpdatedAt }
-    | UndelOp_t
-
-
-type alias Delta_tests_only =
-    { id : String, treeId : String, ts : UpdatedAt, ops : List CardOp }
-
-
-cardOpConvert : CardOp_tests_only -> CardOp
-cardOpConvert cOp =
-    case cOp of
-        InsOp_t insOp ->
-            InsOp insOp
-
-        UpdOp_t updOp ->
-            UpdOp updOp
-
-        MovOp_t movOp ->
-            MovOp movOp
-
-        DelOp_t delOp ->
-            DelOp delOp
-
-        UndelOp_t ->
-            UndelOp
-
-
-toDelta_tests_only : String -> List (Card UpdatedAt) -> List Delta
-toDelta_tests_only treeId db =
-    toDelta treeId db
