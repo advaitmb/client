@@ -1,4 +1,4 @@
-module UpdatedAt exposing (UpdatedAt, areEqual, decoder, encode, fromParts, fromString, getHash, getTimestamp, isLTE, maximum, sortNewestFirst, sortOldestFirst, unique, uniqueBy, zero)
+module UpdatedAt exposing (UpdatedAt, areEqual, decoder, encode, fromParts, fromString, getHash, getTimestamp, isLTE, maximum, sortNewestFirst, sortOldestFirst, unique, zero)
 
 import Json.Decode as Dec exposing (Decoder)
 import Json.Encode as Enc
@@ -89,12 +89,6 @@ unique : List UpdatedAt -> List UpdatedAt
 unique l =
     l
         |> ListExtra.uniqueBy toString
-
-
-uniqueBy : (a -> UpdatedAt) -> List a -> List a
-uniqueBy f l =
-    l
-        |> ListExtra.uniqueBy (toString << f)
 
 
 maximum : List UpdatedAt -> Maybe UpdatedAt

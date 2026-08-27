@@ -1,4 +1,4 @@
-port module Doc.List exposing (Model(..), current, encodeSidebarDocs, documentListChanged, filter, fromList, getLastUpdated, init, isLoading, subscribe, switchListSort, toList, update, viewSwitcher)
+port module Doc.List exposing (Model(..), encodeSidebarDocs, filter, fromList, getLastUpdated, init, subscribe, switchListSort, toList, update)
 
 import Ant.Icons.Svg as AntIcons
 import Doc.Metadata as Metadata exposing (Metadata)
@@ -29,15 +29,6 @@ type Model
 init : Model
 init =
     Loading
-
-
-isLoading : Model -> Bool
-isLoading model =
-    if model == Loading then
-        True
-
-    else
-        False
 
 
 getLastUpdated : Model -> Maybe String
@@ -106,18 +97,6 @@ switchListSort currentDoc model =
             model
 
 
-current : Metadata -> Model -> Maybe Metadata
-current metadata model =
-    case model of
-        Success list ->
-            list
-                |> List.filter (\m -> Metadata.isSameDocId metadata m)
-                |> List.head
-
-        _ ->
-            Nothing
-
-
 toList : Model -> Maybe (List Metadata)
 toList model =
     case model of
@@ -171,39 +150,6 @@ encodeSidebarDocs sortCriteria filterField model =
                       )
                     ]
             )
-
-
-type alias SwitcherModel =
-    { docList : Model
-    , selected : String
-    }
-
-
-viewSwitcher : Metadata -> SwitcherModel -> Html msg
-viewSwitcher currentDocument model =
-    let
-        viewDocItem d =
-            div
-                [ classList
-                    [ ( "switcher-document-item", True )
-                    , ( "current", Metadata.getDocId d == Metadata.getDocId currentDocument )
-                    , ( "selected", Metadata.getDocId d == model.selected )
-                    ]
-                ]
-                [ a [ href <| Route.toString (Route.DocUntitled (Metadata.getDocId d)), attribute "data-private" "lipsum" ]
-                    [ Metadata.getDocName d |> Maybe.withDefault "Untitled" |> text ]
-                ]
-    in
-    case model.docList of
-        Loading ->
-            text "Loading..."
-
-        Success docs ->
-            div [ class "switcher-document-list" ] (List.map viewDocItem docs)
-
-        Failure _ ->
-            text "Failed to load documents list."
-
 
 
 -- DECODERS

@@ -1,11 +1,9 @@
-module Doc.Metadata exposing (Metadata, decoder, decoderImport, encode, getCollaborators, getCreatedAt, getDocId, getDocName, getUpdatedAt, isSameDocId, listDecoder, new, renameAndEncode, responseDecoder)
+module Doc.Metadata exposing (Metadata, decoder, encode, getCollaborators, getCreatedAt, getDocId, getDocName, getUpdatedAt, isSameDocId, listDecoder, new, responseDecoder)
 
 import Coders exposing (maybeToValue)
 import Json.Decode as Dec exposing (Decoder)
-import Json.Decode.Extra exposing (datetime)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Enc
-import RandomId exposing (fromObjectId)
 import Time
 
 
@@ -103,25 +101,6 @@ responseDecoder =
         |> Dec.list
 
 
-decoderImport : Int -> Decoder (Maybe Metadata)
-decoderImport seed =
-    let
-        builder id n c u d =
-            if d then
-                Nothing
-
-            else
-                Just <|
-                    Metadata (fromObjectId seed id) (MetadataRecord n [] c u Nothing)
-    in
-    Dec.succeed builder
-        |> required "_id" Dec.string
-        |> required "name" (Dec.maybe Dec.string)
-        |> required "createdAt" datetime
-        |> required "updatedAt" datetime
-        |> optional "deleted" Dec.bool False
-
-
 {-| Everything `decoder` reads, so that what this writes decodes back to the
 same metadata (S10). `collaborators` was missing, which cost a document its
 collaborators on every re-decode; `_rev` is the one field that may be absent,
@@ -145,12 +124,3 @@ encode (Metadata docId { docName, collaborators, createdAt, updatedAt, rev }) =
                         []
                )
         )
-
-
-renameAndEncode : String -> Metadata -> Enc.Value
-renameAndEncode newDocName (Metadata docId record) =
-    Metadata docId
-        { record
-            | docName = Just newDocName
-        }
-        |> encode

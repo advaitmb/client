@@ -1,4 +1,4 @@
-port module Page.App exposing (Model, Msg, SidebarState(..), getTitle, init, isDirty, navKey, notFound, sidebarIsOpen, subscriptions, toGlobalData, toSession, update, updateSession, view)
+port module Page.App exposing (Model, Msg, SidebarState(..), getTitle, init, isDirty, navKey, notFound, sidebarIsOpen, subscriptions, toGlobalData, toSession, update, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)

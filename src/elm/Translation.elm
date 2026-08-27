@@ -1,8 +1,5 @@
-module Translation exposing (TranslationId(..), timeDistInWords, tr)
+module Translation exposing (TranslationId(..), tr)
 
-import Time
-import Time.Distance as TimeDistance
-import Time.Distance.I18n as I18n
 
 
 type TranslationId
@@ -1033,8 +1030,3 @@ tr trans =
     -- Self-host: English only. The other 25 languages were ~5,400 lines of
     -- string literals compiled into elm.js and reachable from nothing.
     .en translationSet
-
-
-timeDistInWords : Time.Posix -> Time.Posix -> String
-timeDistInWords t1 t2 =
-    TimeDistance.inWordsWithConfig { withAffix = True } I18n.en t1 t2

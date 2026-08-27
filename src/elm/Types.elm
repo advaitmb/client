@@ -1,4 +1,4 @@
-module Types exposing (CardTreeOp(..), Children(..), CollabStateMode(..), Collaborator, Column, ConflictSelection(..), CursorPosition(..), DragExternalModel, DropId(..), Group, OutsideData, SortBy(..), TextCursorInfo, Toast, ToastPersistence(..), ToastRole(..), TooltipPosition(..), Tree, ViewMode(..), ViewState, VisibleViewMode(..), VisibleViewState, dropIdToValue)
+module Types exposing (CardTreeOp(..), Children(..), CollabStateMode(..), Collaborator, Column, ConflictSelection(..), CursorPosition(..), DragExternalModel, DropId(..), Group, OutsideData, SortBy(..), TextCursorInfo, Toast, ToastPersistence(..), ToastRole(..), TooltipPosition(..), Tree, ViewMode(..), ViewState)
 
 import Html5.DragDrop as DragDrop
 import Json.Encode as Enc
@@ -68,20 +68,6 @@ type alias DragExternalModel =
     { dropId : Maybe DropId, isDragging : Bool }
 
 
-dropIdToValue : DropId -> Enc.Value
-dropIdToValue dropId =
-    case dropId of
-        Above str ->
-            Enc.object [ ( "dropPosition", Enc.string "above" ), ( "dropId", Enc.string str ) ]
-
-        Below str ->
-            Enc.object [ ( "dropPosition", Enc.string "below" ), ( "dropId", Enc.string str ) ]
-
-        Into str ->
-            Enc.object [ ( "dropPosition", Enc.string "into" ), ( "dropId", Enc.string str ) ]
-
-
-
 -- Toasts
 
 
@@ -111,12 +97,6 @@ type ViewMode
     = Normal String
     | Editing { cardId : String, field : String }
     | FullscreenEditing { cardId : String, field : String }
-
-
-type VisibleViewMode
-    = VisibleNormal
-    | VisibleEditing
-    | VisibleFullscreenEditing
 
 
 type SortBy
@@ -154,20 +134,7 @@ type alias ViewState =
     , searchField : Maybe String
     , dragModel : ( DragDrop.Model String DropId, DragExternalModel )
     , draggedTree : Maybe ( Tree, String, Int )
-    , copiedTree : Maybe Tree
-    , clipboardTree : Maybe Tree
     , collaborators : List Collaborator
-    }
-
-
-type alias VisibleViewState =
-    { active : String
-    , viewMode : VisibleViewMode
-    , descendants : List String
-    , ancestors : List String
-    , dragModel : ( DragDrop.Model String DropId, DragExternalModel )
-    , collaborators : List Collaborator
-    , isMac : Bool
     }
 
 

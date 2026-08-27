@@ -24,13 +24,6 @@ import Url exposing (Url)
 -- MODEL
 
 
-type alias WebSessionData =
-    { globalData : GlobalData
-    , session : LoggedIn
-    , navKey : Nav.Key
-    }
-
-
 type Model
     = -- Logged Out Pages:
       Signup Page.Signup.Model

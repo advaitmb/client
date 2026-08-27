@@ -1,4 +1,4 @@
-module RandomId exposing (fromObjectId, generate, stringGenerator)
+module RandomId exposing (generate, stringGenerator)
 
 import Hex
 import Random

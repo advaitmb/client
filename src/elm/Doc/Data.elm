@@ -257,13 +257,6 @@ lastSyncedTime model =
                 |> List.head
                 |> Maybe.map UpdatedAt.getTimestamp
 
-parseUpdatedAt : String -> Maybe Int
-parseUpdatedAt str =
-    String.split ":" str
-        |> List.head
-        |> Maybe.andThen String.toInt
-
-
 {-| The `cards` rows of the open document, as the Dexie liveQuery hands them
 over.
 
@@ -1067,11 +1060,6 @@ fromTree treeId depth parId ts idx tree =
                )
 
 
-prefixIds : String -> List (Card a) -> List (Card a)
-prefixIds prefix cards =
-    List.map (\card -> { card | id = prefix ++ ":" ++ card.id, parentId = card.parentId |> Maybe.map (\pid -> prefix ++ ":" ++ pid) }) cards
-
-
 toTree : List (Card UpdatedAt) -> Tree
 toTree allCards =
     Tree "0" "" (Children (toTrees allCards))
@@ -1163,14 +1151,6 @@ type SyncState
     | CanFastForward (List UpdatedAt)
     | Conflicted Versions
     | Errored
-
-
-getCardById : List (Card UpdatedAt) -> String -> Maybe (Card UpdatedAt)
-getCardById db id =
-    db
-        |> List.filter (\card -> card.id == id)
-        |> UpdatedAt.sortNewestFirst .updatedAt
-        |> List.head
 
 
 getSyncState : List (Card UpdatedAt) -> SyncState

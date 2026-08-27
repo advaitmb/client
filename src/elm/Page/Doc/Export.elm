@@ -1,4 +1,4 @@
-module Page.Doc.Export exposing (ExportFormat(..), ExportSelection(..), command, exportView, exportViewError, toExtension, toMimeType, toString)
+module Page.Doc.Export exposing (ExportFormat(..), ExportSelection(..), command, exportView, exportViewError, toMimeType, toString)
 
 import Ant.Icons.Svg as AntIcons
 import Api
@@ -97,9 +97,8 @@ toString docName ( exportSelection, exportFormat ) activeTree fullTree =
             stringFn False (flatTree currentColumnCards)
 
 
-{-| The one MIME type a downloaded export is saved as. Kept beside
-`toExtension` because they are two halves of the same answer, and in one place
-because OPML was once handed to the browser as the list
+{-| The one MIME type a downloaded export is saved as. In one place because
+OPML was once handed to the browser as the list
 "application/xml, text/xml, text/x-opml" -- which is a set of candidates a
 client might accept, not a type a file can have (E13).
 -}

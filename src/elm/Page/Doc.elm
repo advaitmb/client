@@ -1,4 +1,4 @@
-module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTree, getCollaborators, getGlobalData, getStartingWordcount, getTextCursorInfo, getViewMode, getWorkingTree, init, isDirty, isFullscreen, isNormalMode, lastActives, maybeActivate, opaqueIncoming, opaqueUpdate, publicTreeLoaded, setBlock, setDirty, setGlobalData, setLoading, setTree, setWorkingTree, subscriptions, toggleEditing, view)
+module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTree, getCollaborators, getGlobalData, getStartingWordcount, getTextCursorInfo, getViewMode, getWorkingTree, init, isDirty, isFullscreen, isNormalMode, lastActives, maybeActivate, opaqueIncoming, opaqueUpdate, publicTreeLoaded, setBlock, setDirty, setGlobalData, setLoading, setTree, setWorkingTree, subscriptions, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -47,7 +47,6 @@ type alias ModelData =
     , viewState : ViewState
     , dirty : Bool
     , textCursorInfo : TextCursorInfo
-    , fileSearchField : String
 
     -- The word count this writing session started from: what the document held
     -- when it was opened, so the word-count modal's "Session" row can be the
@@ -84,13 +83,10 @@ init isNew globalData =
             , searchField = Nothing
             , dragModel = ( DragDrop.init, DragExternalModel Nothing False )
             , draggedTree = Nothing
-            , copiedTree = Nothing
-            , clipboardTree = Nothing
             , collaborators = []
             }
         , dirty = False
         , textCursorInfo = { selected = False, position = End, text = ( "", "" ) }
-        , fileSearchField = ""
         , startingWordcount =
             if isNew then
                 -- Nothing was written before this session: every word in a
@@ -1980,21 +1976,17 @@ cut id ( model, prevCmd, prevMsgsToParent ) =
             |> deleteCard id
 
 
+{-| Hand the card's subtree to the port layer's clipboard. The model used to
+keep a copy of it in `ViewState.clipboardTree` as well, which nothing ever read
+back: a paste always comes from the system clipboard, through
+`Page.Doc.Incoming`'s `paste` message.
+-}
 copy : String -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
 copy id ( model, prevCmd, prevMsgsToParent ) =
-    let
-        vs =
-            model.viewState
-
-        copiedTree_ =
-            getTree id model.workingTree.tree
-    in
-    ( { model
-        | viewState = { vs | clipboardTree = copiedTree_ }
-      }
+    ( model
     , Cmd.batch
         [ prevCmd
-        , case copiedTree_ of
+        , case getTree id model.workingTree.tree of
             Just tree ->
                 send <| CopyCurrentSubtree <| treeToValue tree
 
@@ -2323,64 +2315,6 @@ hasChildren { children } =
                 /= 0
 
 
-dropRegions : String -> Bool -> Bool -> ( DragDrop.Model String DropId, DragExternalModel ) -> List (Html Msg)
-dropRegions cardId isEditing isLast ( dragModel, dragExternalModel ) =
-    let
-        dragId_ =
-            DragDrop.getDragId dragModel
-
-        dropId_ =
-            DragDrop.getDropId dragModel
-
-        dropDiv str dId =
-            div
-                ([ classList
-                    [ ( "drop-region-" ++ str, True )
-                    , ( "drop-hover", dropId_ == Just dId )
-                    ]
-                 ]
-                    ++ DragDrop.droppable DragDropMsg dId
-                )
-                []
-
-        dropDivExternal str dId =
-            div
-                [ classList
-                    [ ( "drop-region-" ++ str, True )
-                    , ( "drop-hover", .dropId dragExternalModel == Just dId )
-                    ]
-                , onWithOptions "dragenter" { stopPropagation = True, preventDefault = True } <| Json.succeed <| DragExternal <| DragEnter dId
-                , onWithOptions "dragleave" { stopPropagation = True, preventDefault = True } <| Json.succeed <| DragExternal <| DragLeave dId
-                ]
-                []
-    in
-    case ( dragId_, dragExternalModel.isDragging, isEditing ) of
-        ( Just _, _, False ) ->
-            [ dropDiv "above" (Above cardId)
-            , dropDiv "into" (Into cardId)
-            ]
-                ++ (if isLast then
-                        [ dropDiv "below" (Below cardId) ]
-
-                    else
-                        []
-                   )
-
-        ( Nothing, True, False ) ->
-            [ dropDivExternal "above" (Above cardId)
-            , dropDivExternal "into" (Into cardId)
-            ]
-                ++ (if isLast then
-                        [ dropDivExternal "below" (Below cardId) ]
-
-                    else
-                        []
-                   )
-
-        _ ->
-            []
-
-
 preventIfBlocked : ModelData -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
 preventIfBlocked originalModel ( newModel, cmd, parentMsgs ) =
     case originalModel.block of
@@ -2389,17 +2323,6 @@ preventIfBlocked originalModel ( newModel, cmd, parentMsgs ) =
 
         Just blockReason ->
             ( originalModel, send <| Alert blockReason, [] )
-
-
-viewContent : String -> String -> Html Msg
-viewContent cardId content =
-    -- Rendered by src/ui/markdown.ts. The CriticMarkup and checkbox
-    -- preprocessing moved with it.
-    node "gw-markdown"
-        [ attribute "src" content
-        , attribute "card-id" cardId
-        ]
-        []
 
 
 subscriptions : Model -> Sub Msg
