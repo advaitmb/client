@@ -36,7 +36,7 @@ dexie.version(4).stores({
 });
 
 const helpers = require("./doc-helpers");
-const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession, readSessionData } = require("./session");
+const { logoutUser, mergeUserIntoSession, readSessionData, writeSessionData } = require("./session");
 // The local half of a save, extracted for the same reason as session.js:
 // nothing in this file is importable by a test (ADR-0001 seam 4).
 const { applyCardBasedSave } = require("./save");
@@ -136,7 +136,7 @@ async function initElmAndPorts() {
       const res = await fetch("/me");
       if (res.ok) {
         const me = await res.json();
-        setSessionData(mergeUserIntoSession(getSessionData(), me), "AutoLogin");
+        writeSessionData(mergeUserIntoSession(readSessionData(), me), "AutoLogin");
         if (Array.isArray(me.documents) && me.documents.length > 0) {
           await dexie.trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
         }
@@ -169,7 +169,7 @@ async function initElmAndPorts() {
 
 
 function getFlags() {
-  let sessionMaybe = getSessionData();
+  let sessionMaybe = readSessionData();
   let sessionData = sessionMaybe == null ? {} : sessionMaybe;
   console.log("sessionData found", JSON.stringify(sessionData));
   if (sessionData.email) {
@@ -342,12 +342,12 @@ function initWebSocket () {
       switch (data.t) {
         case 'user':
           console.log('user', JSON.stringify(data.d))
-          let currentSessionData = getSessionData()
+          let currentSessionData = readSessionData()
           if (currentSessionData && currentSessionData.email === data.d.id) {
             // Merge properties
             let newSessionData = Object.assign({}, currentSessionData, _.omit(data.d, ['id', 'createdAt']))
             if (!_.isEqual(currentSessionData, newSessionData)) {
-              setSessionData(newSessionData, 'user ws msg')
+              writeSessionData(newSessionData, 'user ws msg')
               setTimeout(() => gingko.ports.userSettingsChange.send(newSessionData), 0)
             }
           }
@@ -551,7 +551,7 @@ const fromElm = (msg, elmData) => {
     // === SPA ===
 
     StoreUser: async () => {
-      setSessionData(elmData, "StoreUser");
+      writeSessionData(elmData, "StoreUser");
       await setUserDbs(elmData.email);
       const timestamp = Date.now();
       elmData.seed = timestamp;
@@ -758,7 +758,11 @@ const fromElm = (msg, elmData) => {
     SetFullscreen: () => {
       if(screenfull.isEnabled) {
         if(elmData) {
-          screenfull.request().catch((e)=> console.log(e));
+          // A refused request (no user gesture, or the browser's own policy)
+          // stays in the console: the user asked for fullscreen and can see
+          // they did not get it. Reported as an error rather than logged,
+          // because that is what it is (ticket 18's leftover list).
+          screenfull.request().catch((e)=> console.error("fullscreen request refused", e));
         } else {
           screenfull.exit();
         }
@@ -795,15 +799,15 @@ const fromElm = (msg, elmData) => {
     SaveUserSetting: () => {
       let key = elmData[0];
       let value = elmData[1];
-      let currSessionData = getSessionData() || {};
+      let currSessionData = readSessionData() || {};
       currSessionData[key] = value;
-      setSessionData(currSessionData, "SaveUserSetting");
+      writeSessionData(currSessionData, "SaveUserSetting");
     },
 
     SetSidebarState: () => {
-      let currSessionData = getSessionData() || {};
+      let currSessionData = readSessionData() || {};
       currSessionData.sidebarOpen = elmData;
-      setSessionData(currSessionData, "SetSidebarState");
+      writeSessionData(currSessionData, "SetSidebarState");
       window.requestAnimationFrame(()=>{
         const sidebar = document.getElementById('sidebar');
         if (sidebar) { sidebarWidth = sidebar.clientWidth; }
@@ -1048,27 +1052,6 @@ function my_uuid(length) {
   }
   return result;
 }
-
-// The stored session, or null. What "or null" covers -- absent, unparseable,
-// or parsed to something that is not a blob -- is session.js's to say: boot's
-// very first step used to be an unguarded `JSON.parse` here, so one corrupted
-// value was a blank page (S8).
-function getSessionData() {
-  return readSessionData();
-}
-
-function setSessionData(data, source) {
-  console.log("Setting session data:",source, JSON.stringify(data))
-  try {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
-  } catch (err) {
-    // A denied or full localStorage costs this session its preferences on the
-    // next reload, and nothing else: everything that matters is in Dexie. Not
-    // worth failing the message that asked for it.
-    console.error("session: could not store the session", source, err);
-  }
-}
-
 
 function pushSuccessHandler (info) {
   toElm(Date.parse(info.end_time), "appMsgs", "SavedRemotely")

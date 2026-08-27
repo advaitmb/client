@@ -73,6 +73,25 @@ function readSessionData() {
 }
 
 /**
+ * Store the session blob.
+ *
+ * Best-effort, like the read: localStorage can be denied outright or full, and
+ * what that costs is this session's preferences on the next reload — everything
+ * that matters is in Dexie. Not worth failing the message that asked for it.
+ *
+ * @param {Object} data    the blob to store.
+ * @param {string} source  which message asked, for the console line.
+ */
+function writeSessionData(data, source) {
+  console.log("Setting session data:", source, JSON.stringify(data));
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+  } catch (err) {
+    console.error("session: could not store the session", source, err);
+  }
+}
+
+/**
  * The keys in the session blob that belong to this client and no one else.
  * Elm writes them through the `SaveUserSetting` and `SetSidebarState` ports,
  * which reach localStorage and stop there — nothing pushes them to the
@@ -167,6 +186,7 @@ async function logoutUser({ teardown, onLoggedOut } = {}) {
 module.exports = {
   SESSION_STORAGE_KEY: SESSION_STORAGE_KEY,
   readSessionData: readSessionData,
+  writeSessionData: writeSessionData,
   logoutUser: logoutUser,
   mergeUserIntoSession: mergeUserIntoSession,
 };

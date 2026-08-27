@@ -112,6 +112,13 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       this._boundInput = this._onInput.bind(this);
       this._boundSelection = this._selectionHandler.bind(this);
       this._boundFocus = this._focusHandler.bind(this);
+      // Per instance, like the three above, even though the behavior is shared:
+      // as one module-level function object, every instance that wanted the
+      // document click handler was asking for the *same* registration -- the DOM
+      // keeps one copy of a (type, listener, capture) triple -- so the first
+      // instance to leave took click-outside away from the ones still editing
+      // (ticket 07's leftover, CODE_REVIEW.md S13).
+      this._boundDocClick = this._documentClickHandler.bind(this);
       this._listenersBound = false;
       this._docListenerBound = false;
       this._startValueApplied = false;
@@ -169,13 +176,13 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       this.textarea_.addEventListener('click', this._boundSelection);
       this.textarea_.addEventListener('focus', this._boundFocus);
       // Document-level, so it outlives this element and must come off again.
-      // Whether it went on is recorded per instance rather than re-read from
-      // isFullscreen on the way out: the fullscreen view has one gw-textarea
-      // per card, and any of them removing a handler it never added would
-      // strip click-outside from whichever card is actually being edited.
+      // This instance's own handler, and whether it went on is recorded here
+      // rather than re-read from isFullscreen on the way out: the fullscreen
+      // view has one gw-textarea per card, and this element is where the
+      // symmetry has to hold.
       this._docListenerBound = !this.isFullscreen;
       if (this._docListenerBound) {
-        document.addEventListener('click', editBlurHandler);
+        document.addEventListener('click', this._boundDocClick);
       }
     }
 
@@ -190,7 +197,7 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       this.textarea_.removeEventListener('focus', this._boundFocus);
       if (this._docListenerBound) {
         this._docListenerBound = false;
-        document.removeEventListener('click', editBlurHandler);
+        document.removeEventListener('click', this._boundDocClick);
       }
     }
 
@@ -249,6 +256,10 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
 
     _selectionHandler() {
       selectionHandler()
+    }
+
+    _documentClickHandler(ev) {
+      editBlurHandler(ev)
     }
 
     _focusHandler(e) {

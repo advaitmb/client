@@ -13,7 +13,7 @@
  */
 import { afterEach, beforeEach, expect, test } from "bun:test";
 
-import { readSessionData } from "../src/shared/session";
+import { readSessionData, writeSessionData } from "../src/shared/session";
 import { localStore } from "../src/web/container-web";
 
 /** The session blob's key, per docs/ARCHITECTURE.md §6.2. */
@@ -60,6 +60,29 @@ test("valid JSON that is not a session blob boots as a guest", () => {
   for (const stored of ["42", '"hello"', "null", "[1,2,3]"]) {
     localStorage.setItem(SESSION_KEY, stored);
     expect(readSessionData()).toBeNull();
+  }
+});
+
+test("a corrupted session is replaced by the next write", () => {
+  localStorage.setItem(SESSION_KEY, "{not json at all");
+
+  writeSessionData({ email: "user@example.com" }, "test");
+
+  expect(readSessionData()).toEqual({ email: "user@example.com" });
+});
+
+test("a storage that refuses the write does not fail the message that asked", () => {
+  // Private modes and blocked site data. What it costs is this session's
+  // preferences on the next reload; everything that matters is in Dexie.
+  const setItem = Storage.prototype.setItem;
+  Storage.prototype.setItem = () => {
+    throw new Error("QuotaExceededError");
+  };
+
+  try {
+    expect(() => writeSessionData({ email: "user@example.com" }, "test")).not.toThrow();
+  } finally {
+    Storage.prototype.setItem = setItem;
   }
 });
 

@@ -382,6 +382,28 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   seams 10 and 11 widened (chrome views that need no `Nav.Key`; the cards an event
   leaves, which makes a guard's ordering over a model change test-visible). 199
   elm-test + 201 bun test. Details in `issues/24-elm-consistency.md`.
+- Ticket 23 resolved — S5–S8 and S13: the port layer waits for events instead of
+  clocks. Every catalogued `setTimeout` is now the signal it was guessing at —
+  `SocketConnected` when the socket is open *and* Elm has its cards,
+  `pullHistoryMeta` with the ordered `pull` it trailed by 500 ms, the slider and
+  the first-load activation through a new `whenReady` (MutationObserver, then one
+  animation frame, never synchronously — both callers are inside Elm's update
+  cycle), the rename idempotent **by value** in one transaction rather than
+  guarded by a flag that dropped whichever message lost the race, and the
+  permanent 800 ms header-geometry poll replaced by a `ResizeObserver` plus
+  `<gw-header>`'s new `gw-header-rendered`. The fillet scroll listener is one
+  shared function object, so re-registering it per navigation keystroke is a
+  no-op. The dispatch table separates "no such tag" from "that handler failed",
+  and catches the `async` rejections that were every Dexie write in it, with
+  `src/shared/port-errors.js` deciding what the user hears (allowlist of the
+  benign, `alert` not toast — toasts are the sync channel). Boot survives its own
+  storage: a session blob that is missing, unparseable or not an object is a
+  guest session, a `localStore` read before any write is the fallback, a
+  root-cardless document opens, and an empty card log skips its snapshot instead
+  of throwing inside the save's `try`. New seam-4 modules `cards.js`
+  (newest-per-id then drop-deleted, which the backup was half-applying) and
+  `documents.js`; `session.js` gains the blob's writer. 205 bun test + 199
+  elm-test. Details in `issues/23-js-robustness.md`.
 
 ## Owner decisions (answered 2026-08-27)
 

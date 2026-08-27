@@ -218,6 +218,27 @@ test("text typed before a re-parent is not reverted to start-value", () => {
   expect(textareaOf(el).value).toBe("saved text, still being written");
 });
 
+/**
+ * Two editing textareas on the page at once is not the normal state -- Elm
+ * edits one card at a time -- but nothing about this element's lifecycle
+ * guarantees it: a rebuild that connects the new editor before disconnecting
+ * the old one, or a second surface, is all it takes. The click-outside handler
+ * used to be one module-level function object shared by every instance, so the
+ * DOM held exactly one registration however many instances wanted it, and the
+ * first instance to leave took it away from the others (ticket 07's leftover,
+ * handed to ticket 23 as an S13-style fix).
+ */
+test("one editor leaving does not take click-outside from the other", () => {
+  mountEditingCard("1", "the card that left");
+  const second = mountEditingCard("2", "the card still being edited");
+
+  document.getElementById("card-1")!.remove();
+  sent = [];
+  clickOutsideCard(second.column);
+
+  expect(sent).toEqual([[null, "docMsgs", "ClickedOutsideCard"]]);
+});
+
 test("a card that leaves the DOM stops reporting to Elm", () => {
   const { doc, card, el } = mountEditingCard("1", "saved text");
   const column = doc.querySelector(".column") as HTMLElement;

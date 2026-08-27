@@ -35,6 +35,11 @@
  *   gw-wordcount
  *   gw-history-checkout  detail: slider index (Elm maps it to a version)
  *   gw-history-restore | gw-history-cancel
+ *   gw-header-rendered   this element just rendered. Not for Elm: the port
+ *                        layer positions the GitHub sync button against
+ *                        #history-icon, and this is how it hears that the
+ *                        icons have moved or arrived instead of polling for it
+ *                        (CODE_REVIEW.md S5).
  */
 
 import { h, icon, emit } from "./dom";
