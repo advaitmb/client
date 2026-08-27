@@ -120,7 +120,7 @@ type Msg
     | InsertBelow String
     | InsertChild String
       -- === Dragging ===
-    | CardDropped String String String
+    | CardDropped String DropId
     | DragDropMsg (DragDrop.Msg String DropId)
     | DragExternal DragExternalMsg
       -- === Fullscreen ===
@@ -283,37 +283,32 @@ update msg ({ workingTree } as model) =
                 |> insertChild id ""
 
         -- === Card Moving  ===
-        CardDropped draggedId targetId where_ ->
-            -- Native HTML5 drag/drop from <gw-tree>. Same move the elm-dnd
-            -- drop-success branch performed, expressed as one message.
-            case getTree draggedId model.workingTree.tree of
-                Just draggedTree ->
-                    let
-                        parentId =
-                            getParent targetId model.workingTree.tree
-                                |> Maybe.map .id
-                                |> Maybe.withDefault "0"
-
-                        targetIdx =
-                            getIndex targetId model.workingTree.tree |> Maybe.withDefault 0
-
-                        moveOperation =
-                            case where_ of
-                                "into" ->
-                                    move draggedTree targetId 999999
-
-                                "below" ->
-                                    move draggedTree parentId (targetIdx + 1)
-
-                                _ ->
-                                    move draggedTree parentId (Basics.max 0 targetIdx)
-                    in
-                    ( { model | dirty = True }, send <| SetDirty True, [] )
-                        |> moveOperation
+        CardDropped draggedId dropId ->
+            -- Native HTML5 drag/drop from <gw-tree>. Where the card lands is
+            -- TreeStructure.dropPlacement's to say (it reads the tree the card
+            -- has been pruned out of, which is the one `Mov` inserts into);
+            -- this carries it out and tells the port layer the drag is over.
+            --
+            -- `DragDone` matters even though <gw-tree> reports `gw-drag-end`
+            -- too: the port layer keeps a flag to tell a card being dragged
+            -- inside the app from text arriving from outside it, and a flag
+            -- left set makes every later external drag invisible
+            -- (CODE_REVIEW.md E8).
+            case
+                ( getTree draggedId model.workingTree.tree
+                , TreeStructure.dropPlacement draggedId dropId model.workingTree.tree
+                )
+            of
+                ( Just draggedTree, Just placement ) ->
+                    ( { model | dirty = True }, Cmd.batch [ send <| SetDirty True, send <| DragDone ], [] )
+                        |> move draggedTree placement.parentId placement.index
                         |> andThen (changeMode { to = Normal draggedId, instant = False, save = True })
 
-                Nothing ->
-                    ( model, Cmd.none, [] )
+                _ ->
+                    -- No place to move to: the card was dropped inside its own
+                    -- subtree, or onto one that is no longer in the tree. The
+                    -- drag is over all the same.
+                    ( model, send <| DragDone, [] )
 
         DragDropMsg dragDropMsg ->
             let
@@ -2228,10 +2223,9 @@ treeView _ vstate model =
         , on "gw-external-enter" (Json.map (DragExternal << DragEnter) dropIdDecoder)
         , on "gw-external-leave" (Json.map (DragExternal << DragLeave) dropIdDecoder)
         , on "gw-drop"
-            (Json.map3 CardDropped
+            (Json.map2 CardDropped
                 (Json.at [ "detail", "dragged" ] Json.string)
-                (Json.at [ "detail", "target" ] Json.string)
-                (Json.at [ "detail", "where" ] Json.string)
+                dropIdDecoder
             )
         ]
         []
@@ -2242,7 +2236,9 @@ detailStr =
     Json.at [ "detail" ] Json.string
 
 
-{-| { id, where } from <gw-tree> back into a DropId.
+{-| Which of a card's three drop regions an event names: `{ id, where }` from
+<gw-tree> back into a DropId. Every drag event the element reports names its
+card the same way, `gw-drop` included.
 -}
 dropIdDecoder : Json.Decoder DropId
 dropIdDecoder =

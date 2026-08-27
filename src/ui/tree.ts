@@ -33,8 +33,15 @@
  *   gw-insert-above | gw-insert-below | gw-insert-child | gw-delete
  *                                    detail: card id
  *   gw-edit-fullscreen | gw-save-close
- *   gw-drop     detail: { dragged, target, where: "above"|"below"|"into" }
+ *   gw-drop     detail: { dragged, id, where: "above"|"below"|"into" } — the
+ *               card that was dragged, and which drop region of which card it
+ *               was dropped on.
  *   gw-drag-start | gw-drag-end
+ *               a card drag beginning and ending, whatever it ends in. The
+ *               port layer listens for these to tell a card being dragged
+ *               inside the app from text arriving from outside it: an internal
+ *               drop is stopPropagation()ed here, so a document-level drop
+ *               handler never sees one (CODE_REVIEW.md E8).
  *   gw-external-enter | gw-external-leave
  *               detail: { id, where } — where to drop text dragged in from
  *               outside. Elm records it and its own document-level drop
@@ -380,7 +387,7 @@ class Tree extends HTMLElement {
         if (!dragged || dragged === id) return; // external: doc.js handles it
         e.preventDefault();
         e.stopPropagation();
-        emit(this, "gw-drop", { dragged, target: id, where });
+        emit(this, "gw-drop", { dragged, id, where });
       });
       return r;
     };

@@ -75,6 +75,16 @@
    the same file, by round trip: the URLs the app builds must parse back to the
    pages they were built for.
 
+9. Drop placement (Elm, pure) — where a dragged card lands:
+   `Doc.TreeStructure.dropPlacement`, a total function from (dragged card, drop
+   region, tree) to the `Mov` arguments for the drop, or to nothing when the
+   drop names no place the card can go. Recorded by ticket 16. Same reason as
+   seams 5, 7 and 8 for not testing the caller: `Page.Doc.Msg` is opaque and
+   its `update` answers in `Cmd`s no test can inspect, so the decision is
+   extracted and `Page.Doc` is left with only the mechanical part. It lives in
+   `Doc.TreeStructure` because the index it computes is an index into the tree
+   `Mov` prunes and re-inserts, which is that module's own rule.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context

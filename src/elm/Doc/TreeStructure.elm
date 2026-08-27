@@ -1,12 +1,12 @@
-module Doc.TreeStructure exposing (Model, Msg(..), apply, conflictToMsg, defaultModel, defaultTree, labelTree, opToMsg, renameNodes, setTree, setTreeWithConflicts, update)
+module Doc.TreeStructure exposing (Model, Msg(..), Placement, apply, conflictToMsg, defaultModel, defaultTree, dropPlacement, labelTree, opToMsg, renameNodes, setTree, setTreeWithConflicts, update)
 
 import Diff exposing (..)
 import Diff3 exposing (diff3Merge)
 import Doc.Data.Conflict as Conflict exposing (Conflict, Op(..), Selection(..))
-import Doc.TreeUtils exposing (getChildren, getColumns, getParent, getTree, sha1)
+import Doc.TreeUtils exposing (getChildren, getColumns, getIndex, getParent, getTree, sha1)
 import List.Extra as ListExtra
 import Regex
-import Types exposing (Children(..), Column, Tree)
+import Types exposing (Children(..), Column, DropId(..), Tree)
 
 
 
@@ -268,6 +268,67 @@ opToMsg origTree op =
 
                 _ ->
                     Nope
+
+
+{-| The parent a dragged card lands under, and its index among that parent's
+children.
+-}
+type alias Placement =
+    { parentId : String, index : Int }
+
+
+{-| The index that means "past the last child", i.e. append.
+
+`Doc.Data.placeCard` clamps an out-of-range index to an append, so this survives
+the trip through the port even though the row it lands among may be a save
+ahead of the tree it was read from.
+
+-}
+appendIndex : Int
+appendIndex =
+    999999
+
+
+{-| Where a card dropped on `dropId` lands: the `Mov` arguments for the drop, or
+`Nothing` if the drop names no place the card can go.
+
+Read on the tree the dragged card has already been pruned out of, because that
+is what `Mov` inserts into (`updateTree` above prunes first) and what
+`Doc.Data.placeCard` positions among (its sibling list excludes the card being
+moved). On the tree as it appears on screen the dragged card still counts, so a
+drop below the next sibling landed one slot too far -- past it and past the one
+after (CODE_REVIEW.md E7).
+
+Pruning also answers the drops that cannot happen: a card cannot land inside its
+own subtree, and on the pruned tree that subtree is simply not there, so the
+target has no parent and no index and there is no move to make. The card stays
+where it is. Left to go through, `insertSubtree` would look for a parent that
+had just been pruned away, find nothing, and drop the dragged card and every
+card under it on the floor.
+
+-}
+dropPlacement : String -> DropId -> Tree -> Maybe Placement
+dropPlacement draggedId dropId tree =
+    let
+        pruned =
+            pruneSubtree draggedId tree
+
+        siblingPlacement targetId offset =
+            Maybe.map2
+                (\parent index -> { parentId = parent.id, index = index + offset })
+                (getParent targetId pruned)
+                (getIndex targetId pruned)
+    in
+    case dropId of
+        Above targetId ->
+            siblingPlacement targetId 0
+
+        Below targetId ->
+            siblingPlacement targetId 1
+
+        Into targetId ->
+            getTree targetId pruned
+                |> Maybe.map (\target -> { parentId = target.id, index = appendIndex })
 
 
 
