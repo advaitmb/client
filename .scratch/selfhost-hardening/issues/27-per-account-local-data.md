@@ -190,6 +190,14 @@ shipped bundle (`web/doc.js`), not orphaned.
 
 ## Comments
 
+- **The commits, and their CI runs.** `c03db48` (implementation, run 135),
+  `fa1fe41` (the two pins, run 137), `85e9174` (§6.2 and this ticket, run 138)
+  — all green on `selfhost`. Locally on the final tree: 236 bun tests, 206
+  elm-test, `bun run newbuild` clean, `bun run config-check` exit 0,
+  `package-lock.json` in sync with `package.json` (ADR-0004). `local-db.js` is
+  confirmed present in the shipped `web/doc.js`, so the module is wired in and
+  not merely importable by tests.
+
 - **Where the switch actually happens.** Ticket 04's logout hands control back
   to Elm rather than reloading, so an A→B switch happens *in one page load*:
   `openUserDb` sees a different name, stops the departing account's sync,
