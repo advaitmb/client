@@ -1,6 +1,6 @@
 # 03: Remove the 14-day trial lockout and payments machinery
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
