@@ -815,6 +815,11 @@ newestRowOf cardId data =
 kept, a deletion for the card merged in, and a re-parenting for each of its
 children.
 
+`isUp` says which side the merged card sat on, which decides the order its text
+and its children are joined in -- never *whether* its children are carried over.
+They always are: a merge down that left them behind gave a childless surviving
+card no children at all, while the same save deleted their parent (ticket 30).
+
 `visibleCards` is the tree as the user sees it -- newest row per id, staged rows
 in place, deleted cards gone. Both the position offsets and the rows this emits
 depend on it: a stale row would pull a child that has since moved (or been
@@ -859,50 +864,30 @@ mergeCards isUp visibleCards currCard otherCard =
         ( firstPosOfCurrent, lastPosOfCurrent ) =
             ( List.minimum positionsCurrent, List.maximum positionsCurrent )
 
-        modifiedChildren =
+        -- Where the children of the merged card land among the surviving
+        -- card's own: past its last child when the merged card sat below it (a
+        -- merge down), back before its first when it sat above (a merge up) --
+        -- the order the two cards' text is joined in.  One offset for all of
+        -- them, so the gaps they had between them survive the move (ticket
+        -- 11).  Either card being childless leaves nothing to sit clear of, so
+        -- the positions stand.
+        offset =
             if isUp then
-                case ( lastPosOfOther, firstPosOfCurrent ) of
-                    ( Just lastPos, Just firstPos ) ->
-                        let
-                            offset =
-                                firstPos - lastPos - 1
-                        in
-                        childrenOfOther
-                            |> List.map
-                                (\card -> { card | parentId = Just currCard.id, position = card.position + offset })
-
-                    ( Just _, Nothing ) ->
-                        childrenOfOther
-                            |> List.map
-                                (\card -> { card | parentId = Just currCard.id })
-
-                    ( Nothing, Just _ ) ->
-                        []
-
-                    ( Nothing, Nothing ) ->
-                        []
+                Maybe.map2 (\lastPos firstPos -> firstPos - lastPos - 1) lastPosOfOther firstPosOfCurrent
+                    |> Maybe.withDefault 0
 
             else
-                case ( lastPosOfCurrent, firstPosOfOther ) of
-                    ( Just lastPos, Just firstPos ) ->
-                        let
-                            offset =
-                                lastPos - firstPos + 1
-                        in
-                        childrenOfOther
-                            |> List.map
-                                (\card -> { card | parentId = Just currCard.id, position = card.position + offset })
+                Maybe.map2 (\lastPos firstPos -> lastPos - firstPos + 1) lastPosOfCurrent firstPosOfOther
+                    |> Maybe.withDefault 0
 
-                    ( Just _, Nothing ) ->
-                        childrenOfOther
-                            |> List.map
-                                (\card -> { card | parentId = Just currCard.id })
-
-                    ( Nothing, Just _ ) ->
-                        []
-
-                    ( Nothing, Nothing ) ->
-                        []
+        -- Every child of the merged card, and only those: the same save
+        -- deletes their parent, so each of them needs a row naming the
+        -- surviving card as its parent, in both directions.  The surviving
+        -- card's own children stay where they are.
+        modifiedChildren =
+            childrenOfOther
+                |> List.map
+                    (\card -> { card | parentId = Just currCard.id, position = card.position + offset })
 
         toDelete =
             { otherCard | deleted = True }
