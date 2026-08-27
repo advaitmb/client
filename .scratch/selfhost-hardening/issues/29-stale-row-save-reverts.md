@@ -178,9 +178,10 @@ across 9 files, `bun run newbuild` succeeds, `node config-check.js` exit 0.
 `elm-format` could not be run in this session (the proxy blocks the npx
 download and it is not a repo dependency or a CI gate); the new code follows
 the file's existing formatting, checked hunk by hunk against it. CI green on
-`selfhost`: run
+`selfhost`: runs
 <https://github.com/advaitmb/client/actions/runs/33072207719> (`5319ac4`, the
-code).
+code) and <https://github.com/advaitmb/client/actions/runs/33072413491>
+(`7acb7c0`, the tracker).
 
 ## Comments
 
