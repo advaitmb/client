@@ -7,6 +7,9 @@ import uuid from '@tpp/simple-uuid'
 // cdn.lr-ingest.io on *import*, so gating its .init() never stopped the
 // request. PouchDB only backed legacy CouchDB documents.
 import { ImmortalStorage, IndexedDbStore, LocalStorageStore, SessionStorageStore } from 'immortal-db'
+// Stamp ordering lives in its own module so it can be unit-tested without
+// Dexie or a WebSocket (ADR-0001 seam 2). Stamps are never string-ordered.
+import { computeCheckpoint, maxStamp, newestVersionPerId } from './stamps.js'
 
 
 const _ = require("lodash");
@@ -258,7 +261,7 @@ function initWebSocket () {
 
         case 'pushOk':
           pushErrorCount = 0;
-          hlc.recv(_.max(data.d))
+          hlc.recv(maxStamp(data.d))
           toElm(data, 'appMsgs', 'PushOk')
           break
 
@@ -277,7 +280,7 @@ function initWebSocket () {
           // Server says this tree has changes
           if (data.d === TREE_ID) {
             let cards = await dexie.cards.where('treeId').equals(TREE_ID).toArray()
-            pull(TREE_ID, getChk(TREE_ID, cards))
+            pull(TREE_ID, computeCheckpoint(cards))
           }
           break
 
@@ -745,7 +748,7 @@ async function loadCardBasedDocument (treeId) {
 
   // Load local document data.
   let loadedCards = await dexie.cards.where("treeId").equals(treeId).toArray();
-  const chk = getChk(treeId, loadedCards);
+  const chk = computeCheckpoint(loadedCards);
   if (loadedCards.length > 0) {
     loadedCards.localStore = store;
     toElm(loadedCards, "appMsgs", "CardDataReceived");
@@ -804,14 +807,6 @@ async function loadCardBasedDocument (treeId) {
   pull(treeId, chk);
 }
 
-function getChk(treeId, cards) {
-  if (cards.length > 0) {
-    return cards.filter(c => c.synced).map(c => c.updatedAt).sort().reverse()[0];
-  } else {
-    return '0';
-  }
-}
-
 function pull(treeId, chk) {
   wsSend("pull", [treeId, chk], true);
   setTimeout(() => {
@@ -820,7 +815,7 @@ function pull(treeId, chk) {
 }
 
 function saveBackupToImmortalDB (treeId, cards) {
-  const snapshot = _.chain(cards).sortBy('updatedAt').reverse().uniqBy('id').value();
+  const snapshot = newestVersionPerId(cards);
   const trees = treeHelper(snapshot, null);
   const treeString = trees.map(treeToGkw).join('\n');
   if (ImmortalDB) {
