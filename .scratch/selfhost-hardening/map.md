@@ -426,6 +426,37 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   delete the theme write ring" warning is discharged. 16 tests (9 at seam 3,
   7 at seam 10), 7 red first plus a mutation red for the Elm pair. Details in
   `issues/32-restore-theme-picker.md`.
+- Ticket 27 resolved — the leak ticket 04 opened: one global Dexie `"db"` meant
+  the next account to log in read the departing account's documents as its own.
+  The name is derived per account instead (`src/shared/local-db.js`:
+  `db-<cyrb64 of the lower-cased address>`, hashed because the name is readable
+  through devtools, `indexedDB.databases()` and the *filename*
+  `database-download.js` hands the user; `crypto.subtle` is unusable — undefined
+  outside a secure context, which a plain-HTTP self-host is, and async before
+  the first Dexie call). Nothing is cleared on a switch, so unsynced offline
+  rows survive A→B→A. The migration is **adoption, not a copy or a re-pull**:
+  the first account to log in takes `"db"` and records its hash under
+  `gingko-local-db-owner`; everyone else opens their own. Its whole crash-safety
+  argument is that the only write is one `setItem` and *no row is touched on the
+  strength of it* — it cannot be half-done, cannot run twice, and a claim that
+  will not land simply means no adoption (copying could finish, fail to delete,
+  and be re-copied on a later boot, putting older rows over newer via `bulkPut`;
+  re-pulling would discard the unsynced rows 04 and 27 both exist to keep).
+  `writeDbClaim` reads back rather than trusting `setItem`, because a storage
+  that drops the value would let the *next* account adopt too. The two
+  treeId-keyed stores stay per document, and the usual premise for that is
+  **false** — verified: treeIds are client-minted (`RandomId.generate`, 7 base62
+  chars), not server-issued — so the case rests on consequence instead:
+  `backup-snapshot:<treeId>` has no read path anywhere in the client, and
+  `gingko-local-store/<treeId>/settings` is `last-actives` + `theme`, so a clash
+  costs a wrong theme and namespacing would cost two migrations. Audit of the
+  implementation added the two pins it depended on silently: known-good hash
+  literals (the pre-existing stability test compares the hash to itself — a
+  changed multiplier left all 20 tests green, while a moved name finds *no*
+  database and strands the unpushed rows) and "logout keeps the claim" (an
+  unclaimed `"db"` is adoptable, so tidying `gingko-*` away restores the leak).
+  22 tests at seam 4, ADR-0001 gains local-db.js there. Details in
+  `issues/27-per-account-local-data.md`.
 
 ## Owner decisions (answered 2026-08-27)
 

@@ -411,10 +411,25 @@ migration is **adoption**: the first account to log in takes `"db"` as its own
 and records its hash under `gingko-local-db-owner`; that account keeps opening
 `"db"`, every other account opens `db-<hash>`. No rows are copied, so no upgrade
 can be half-done, and an account that cannot record the claim (denied storage)
-opens its own database rather than adopting on faith. The two treeId-keyed
-stores above are *not* per account, deliberately: they hold per-document view
-state and a backup nothing reads back, and a document id is legitimately shared
-between accounts when a document is (ticket 27's Comments has the reasoning).
+opens its own database rather than adopting on faith. The name derivation is
+frozen by known-good literals in `tests/local-db.test.ts`: changing it is a
+silent migration, because an account whose name moves finds no database
+rather than a renamed one. The claim survives logout for the same reason —
+an unclaimed `"db"` is adoptable (`tests/logout.test.ts`).
+
+The two treeId-keyed stores above are *not* per account, deliberately. Note
+that a treeId is **client**-minted, not server-issued: `RandomId.generate`
+draws 7 base62 characters (`src/elm/RandomId.elm`), so two accounts sharing a
+browser have no *guarantee* of distinct ids — the argument is that a clash
+costs nothing. `backup-snapshot:<treeId>` has no read path anywhere in the
+client (write-only, for a bug report), and
+`gingko-local-store/<treeId>/settings` holds `last-actives` and `theme` — view
+state, not content, and an unusable one already reads as "no settings yet".
+Neither can surface another account's cards, and neither holds unsynced work:
+that is all in Dexie, which *is* per account. Namespacing them would buy a
+wrong theme and cost a migration of every per-document key ever written, plus
+one for a store nothing reads. A document id is also legitimately shared
+between accounts when the document is (ticket 27's Comments).
 
 ### 6.3 WebSocket protocol
 
