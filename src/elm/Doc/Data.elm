@@ -1121,6 +1121,38 @@ childrenOf parentId index =
             index.byParentId |> Dict.get id |> Maybe.withDefault []
 
 
+{-| The version log split into one list of rows per card id.
+
+Both callers -- classifying the document's sync state and generating its
+deltas -- used to walk the rows once per card id, comparing every row against
+every other (`gatherWith`) or filtering the whole log per id: O(n^2) on every
+card-rows echo and every push (CODE_REVIEW.md P1).
+
+The order is `gatherWith`'s, because output order rides on it: the groups come
+in the order their ids first appear in the log, and each group holds its rows in
+log order. Conflict versions, fast-forward stamps and deltas are all emitted
+group by group.
+
+-}
+groupedByCardId : List (Card a) -> List (List (Card a))
+groupedByCardId cards =
+    let
+        addCard card ( idsSeen, rowsById ) =
+            case Dict.get card.id rowsById of
+                Just rows ->
+                    ( idsSeen, Dict.insert card.id (card :: rows) rowsById )
+
+                Nothing ->
+                    ( card.id :: idsSeen, Dict.insert card.id [ card ] rowsById )
+
+        ( idsNewestSeenFirst, groups ) =
+            List.foldl addCard ( [], Dict.empty ) cards
+    in
+    idsNewestSeenFirst
+        |> List.reverse
+        |> List.filterMap (\id -> Dict.get id groups |> Maybe.map List.reverse)
+
+
 {-| The newest version row of each card id.
 
 The version log is append-mostly (Dexie's `cards` primary key is `updatedAt`),
@@ -1215,8 +1247,7 @@ getSyncState db =
 
         cardSyncStates =
             db
-                |> ListExtra.gatherWith (\a b -> a.id == b.id)
-                |> List.map (\( a, rest ) -> a :: rest)
+                |> groupedByCardId
                 |> List.map
                     (\c ->
                         let
