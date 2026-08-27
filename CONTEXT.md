@@ -111,3 +111,9 @@ Vocabulary used in code, issues, and tests. Full system description:
     `Page.Doc.getStartingWordcount` (the word-count modal's session row), and
     `Translation.tr` for the shortcut tray. Whether a port command is sent at
     all is out of reach here.
+11. The document's mode machine (Elm): `Page.Doc.getViewMode` after
+    `opaqueIncoming`/`opaqueUpdate` on a document built from the exported
+    setters — which mode an event leaves the document in, including the
+    transitions a blocked document must refuse. A transition only a DOM event
+    names is reached by simulating that event on `Page.Doc.view`. The `Cmd` is
+    still out of reach, as at seam 10.

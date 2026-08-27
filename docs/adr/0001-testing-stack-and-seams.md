@@ -108,6 +108,22 @@
     command is sent at all. `preventIfBlocked`'s ordering (E5) and the one-line
     view wiring that hands the modal its starting count are both of that kind.
 
+11. The document's mode machine (Elm) — which mode a document is left in after
+    an event: `Page.Doc.getViewMode` after `opaqueIncoming` (or `opaqueUpdate`),
+    on a document built from the exported setters (`init`, `setTree`,
+    `setBlock`, `setLoading`). Recorded by ticket 31, whose subject is a
+    transition that must *not* happen: no editor of any kind, fullscreen
+    included, opens on a blocked document. The `Cmd` half stays out of reach as
+    at seam 10 — but the mode is plain data, and "the fullscreen editor did not
+    open" is the whole of the behavior.
+
+    Where a transition is reachable only from a DOM event whose `Page.Doc.Msg`
+    constructor is not exported (the card editor's fullscreen button,
+    `gw-edit-fullscreen`), the event is simulated on `Page.Doc.view` with
+    `Test.Html.Event` and the `Msg` it yields is handed to `opaqueUpdate`. That
+    is the app's own route into the transition, not a side channel: the view
+    stays the only thing that names the message.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context

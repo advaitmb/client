@@ -1230,27 +1230,39 @@ changeMode { to, instant, save } model =
                             )
 
                 ( Normal _, FullscreenEditing newEditData ) ->
+                    -- `shift+enter` lands here. Guarded last, like the
+                    -- `Editing` targets above: a blocked document opens no
+                    -- editor, fullscreen included (ticket 31).
                     ( newModel to, focus newEditData.cardId, [] )
                         |> andThen
                             (updateCollabState True
                                 (CollabEditing newEditData.cardId)
                             )
+                        |> preventIfBlocked model
 
                 ( Editing oldEditData, FullscreenEditing newEditData ) ->
+                    -- The card editor's fullscreen button
+                    -- (`EditToFullscreenMode`), refused the same way for a
+                    -- document blocked while its editor is open (ticket 31).
                     ( newModel to, focus newEditData.cardId, [] )
                         |> saveIfAsked oldEditData
                         |> andThen
                             (updateCollabState (oldEditData.cardId /= newEditData.cardId)
                                 (CollabEditing newEditData.cardId)
                             )
+                        |> preventIfBlocked model
 
                 ( FullscreenEditing oldEditData, FullscreenEditing newEditData ) ->
+                    -- Another card's fullscreen editor -- and `saveIfAsked`
+                    -- writing the card being left, which is what the block is
+                    -- there to stop (ticket 31).
                     ( newModel to, focus newEditData.cardId, [] )
                         |> saveIfAsked oldEditData
                         |> andThen
                             (updateCollabState (oldEditData.cardId /= newEditData.cardId)
                                 (CollabEditing newEditData.cardId)
                             )
+                        |> preventIfBlocked model
 
         Nothing ->
             case getFirstCard model.workingTree.tree of
