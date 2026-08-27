@@ -1,6 +1,6 @@
 # 29: Saves built from stale rows can revert a concurrent move/edit
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 11 (resolved — its `StagedRows` memory is the foundation)
 
