@@ -74,6 +74,18 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   document list) is a schema property to fix at login, not at logout. 12 tests
   (4 at seam 3, 8 at a new **seam 4** the ADR now records for session
   sequences extracted from `doc.js`). Details in `issues/04-logout.md`.
+- Ticket 06 resolved — D3 closed per ADR-0005 §2: `resolveConflicts` now sees
+  the card rows (not just the conflict versions) and removes **every** unsynced
+  row of the conflicted ids for Theirs and Original, all but the winning
+  `versions.ours` row for Ours. Before, only the newest was removed, so the
+  older offline saves re-classified the card as `Unsynced` and the next push
+  sent content the user had just discarded ("Edit 2", in the red test).
+  Removals stay confined to the conflicted ids, so another card's unsynced work
+  still pushes. `cardDataReceived`'s auto-resolve gate **still gates
+  correctly** (only `toRemove` can be non-empty since ticket 05, and it is
+  non-empty exactly for auto-resolved delete conflicts); it is now one named
+  check over all four staged lists so a future limb can't fall through it.
+  3 new tests at seam 1. Details in `issues/06-conflict-resolution-discard.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
