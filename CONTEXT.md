@@ -25,6 +25,13 @@ Vocabulary used in code, issues, and tests. Full system description:
   table is an append-mostly log, so stale rows for the same id persist until
   fast-forward. Any scan that ignores newest-per-id is a bug (see
   CODE_REVIEW.md D1/D2).
+- **Staged row** — a version row handed to the port layer whose stamp the DB
+  has not issued yet. `Doc.Data` keeps one per card id until the Dexie
+  liveQuery echoes that card back, because its view of the log is a round trip
+  behind the save: every save built from a card that already exists (placement,
+  update, move, delete, merge) reads the staged row first, or it writes back
+  the state the previous save had just changed. Staged rows are not part of the
+  version log — no stamp, never pushed.
 - **Stamp (`UpdatedAt`)** — a hybrid logical clock value
   `"timestamp:counter:hash"`, totally ordered by numeric timestamp, then
   numeric counter, then hash. Never compare stamps as strings.

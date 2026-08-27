@@ -49,10 +49,16 @@ type alias CardData =
 {-| Rows handed to the port layer whose stamps the DB has not issued yet.
 
 They are the model's only knowledge of the saves it has made since the last
-Dexie liveQuery emission, and they exist for one job: placing the next card
-(`placeCard`). Nothing else looks at them -- they carry no version stamp, so
-they are not part of the version log, must not be pushed, and cannot classify a
-card as synced or unsynced.
+Dexie liveQuery emission, and every save built from a card that already exists
+reads them first: where the next card goes (`placeCard`), and what state an
+update, a move, a deletion or a merge carries over (`stagedOrNewestRow`,
+`visibleWithStaged`). Read the version log alone and the second save inside one
+round trip writes back the state the first one had just changed -- reverting a
+move, an edit or a re-parenting (CODE_REVIEW.md D8, ticket 29).
+
+They are not themselves part of the version log: they carry no version stamp,
+so they must not be pushed, and they cannot classify a card as synced or
+unsynced.
 
 -}
 type alias StagedRows =
@@ -275,11 +281,12 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                 newModelWithoutConflicts =
                     case oldModel of
                         CardBased oldData oldStaged oldHistory oldConflicts_ ->
-                            -- The DB has spoken: the rows staged for it are
-                            -- either in `cards` or superseded, so the staging
-                            -- memory `localSave` keeps is spent (D8).
-                            if cards /= oldData || not (List.isEmpty oldStaged) then
-                                CardBased cards [] oldHistory oldConflicts_
+                            let
+                                stillStaged =
+                                    unwrittenStaged cards oldStaged
+                            in
+                            if cards /= oldData || stillStaged /= oldStaged then
+                                CardBased cards stillStaged oldHistory oldConflicts_
 
                             else
                                 oldModel
@@ -655,14 +662,14 @@ localChanges : String -> CardTreeOp -> List (Card ()) -> CardData -> Result (Lis
 localChanges treeId op staged data =
     case op of
         CTUpd id newContent ->
-            -- The newest row of the card, with new content: an update carries
+            -- The newest state of the card, with new content: an update carries
             -- the parent and position the card has now.
-            case newestRowOf id data of
+            case stagedOrNewestRow id staged data of
                 Nothing ->
                     Err [ CardDoesNotExist { id = id, src = "CTUpd toAdd_ Nothing" } ]
 
                 Just card ->
-                    Ok (changesAdding [ { card | content = newContent } |> asUnsynced ])
+                    Ok (changesAdding [ { card | content = newContent } ])
 
         CTIns id content parId_ idx ->
             let
@@ -678,15 +685,16 @@ localChanges treeId op staged data =
 
         CTRmv id ->
             let
+                visibleCards =
+                    visibleWithStaged staged data
+
                 idsToMarkAsDeleted =
-                    getDescendants id data
+                    descendantsOf id visibleCards
 
                 cardsToMarkAsDeleted =
-                    data
+                    visibleCards
                         |> List.filter (\card -> List.member card.id idsToMarkAsDeleted)
-                        |> UpdatedAt.sortNewestFirst .updatedAt
-                        |> ListExtra.uniqueBy .id
-                        |> List.map (\card -> { card | deleted = True } |> asUnsynced)
+                        |> List.map (\card -> { card | deleted = True })
             in
             Ok { toAdd = [], toMarkSynced = [], toMarkDeleted = cardsToMarkAsDeleted, toRemove = [] }
 
@@ -697,10 +705,10 @@ localChanges treeId op staged data =
             in
             Ok
                 (changesAdding
-                    (newestRowOf id data
+                    (stagedOrNewestRow id staged data
                         |> Maybe.map
                             (\card ->
-                                ({ card | position = placement.position, parentId = parId_ } |> asUnsynced)
+                                { card | position = placement.position, parentId = parId_ }
                                     :: placement.movedSiblings
                             )
                         |> Maybe.withDefault []
@@ -708,9 +716,9 @@ localChanges treeId op staged data =
                 )
 
         CTMrg currTreeId otherTreeId isMergeUp ->
-            case ( newestRowOf currTreeId data, newestRowOf otherTreeId data ) of
+            case ( stagedOrNewestRow currTreeId staged data, stagedOrNewestRow otherTreeId staged data ) of
                 ( Just currCard, Just otherCard ) ->
-                    Ok (mergeCards isMergeUp data currCard otherCard)
+                    Ok (mergeCards isMergeUp (visibleWithStaged staged data) currCard otherCard)
 
                 ( Nothing, Just _ ) ->
                     Err [ CardDoesNotExist { id = currTreeId, src = "CTMrg currCard_ Nothing" } ]
@@ -749,6 +757,50 @@ changesAdding rows =
     { toAdd = rows, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
 
 
+{-| The newest state of one card, as a save must see it: the row already staged
+for it if there is one, else its newest row in the version log.
+
+A staged row is the newer of the two by construction -- it is a save the port
+layer has not stamped yet -- so reading the log alone builds the new row from
+the state the last save had just changed: move a card and edit it before the
+echo and the update row carries the old parent and position, silently undoing
+the move (ticket 29).
+
+-}
+stagedOrNewestRow : String -> StagedRows -> CardData -> Maybe (Card ())
+stagedOrNewestRow cardId staged data =
+    case staged |> ListExtra.find (\card -> card.id == cardId) of
+        Just stagedRow ->
+            Just stagedRow
+
+        Nothing ->
+            newestRowOf cardId data |> Maybe.map asUnsynced
+
+
+{-| The staged rows a card-rows echo leaves standing.
+
+Dexie has spoken, so the rows it echoed -- or superseded -- are spent. But the
+echo is fired by *any* write to the open document's cards, and it carries that
+document's whole card set, so the one thing it settles about a staged row is
+negative: an id it has no row for at all cannot have been written yet, and the
+staged row is still the model's only knowledge of that card. A websocket pull
+landing between a save and its commit used to clear it.
+
+For an id the echo *does* have rows for, whether ours is among them cannot be
+told from state alone. A staged row carries no stamp, so a newest row that says
+something else is either our write still in flight or our write already
+superseded -- by a collaborator's version, or by a fast-forward. Keeping it on
+that guess would leave a phantom row overriding the DB's own answer for as long
+as the document stays open; dropping it costs a fraction of one save, which is
+the lesser of the two.
+
+-}
+unwrittenStaged : CardData -> StagedRows -> StagedRows
+unwrittenStaged cards staged =
+    staged
+        |> List.filter (\row -> not (List.any (\card -> card.id == row.id) cards))
+
+
 {-| The newest version row of one card id (ADR-0005 §1).
 -}
 newestRowOf : String -> CardData -> Maybe (Card UpdatedAt)
@@ -759,8 +811,20 @@ newestRowOf cardId data =
         |> List.head
 
 
-mergeCards : Bool -> CardData -> Card UpdatedAt -> Card UpdatedAt -> DBChangeLists
-mergeCards isUp data currCard otherCard =
+{-| The rows that merge one card into another: the joined content for the card
+kept, a deletion for the card merged in, and a re-parenting for each of its
+children.
+
+`visibleCards` is the tree as the user sees it -- newest row per id, staged rows
+in place, deleted cards gone. Both the position offsets and the rows this emits
+depend on it: a stale row would pull a child that has since moved (or been
+deleted) back under the merged card (CODE_REVIEW.md D2), and would leave a child
+just moved *into* the card being merged behind, parented to a card this save
+deletes (ticket 29).
+
+-}
+mergeCards : Bool -> List (Card ()) -> Card () -> Card () -> DBChangeLists
+mergeCards isUp visibleCards currCard otherCard =
     let
         modifiedCard =
             { currCard
@@ -774,14 +838,6 @@ mergeCards isUp data currCard otherCard =
                            )
                         |> String.join "\n\n"
             }
-                |> asUnsynced
-
-        -- Both the position offsets below and the rows this emits must see
-        -- the tree as the user does: newest row per id, deleted cards gone.
-        -- A stale row would otherwise pull a child that has since moved (or
-        -- been deleted) back under the merged card (CODE_REVIEW.md D2).
-        visibleCards =
-            newestVisible data
 
         childrenOfCurrent =
             visibleCards
@@ -814,13 +870,11 @@ mergeCards isUp data currCard otherCard =
                         childrenOfOther
                             |> List.map
                                 (\card -> { card | parentId = Just currCard.id, position = card.position + offset })
-                            |> List.map asUnsynced
 
                     ( Just _, Nothing ) ->
                         childrenOfOther
                             |> List.map
                                 (\card -> { card | parentId = Just currCard.id })
-                            |> List.map asUnsynced
 
                     ( Nothing, Just _ ) ->
                         []
@@ -838,13 +892,11 @@ mergeCards isUp data currCard otherCard =
                         childrenOfOther
                             |> List.map
                                 (\card -> { card | parentId = Just currCard.id, position = card.position + offset })
-                            |> List.map asUnsynced
 
                     ( Just _, Nothing ) ->
                         childrenOfOther
                             |> List.map
                                 (\card -> { card | parentId = Just currCard.id })
-                            |> List.map asUnsynced
 
                     ( Nothing, Just _ ) ->
                         []
@@ -853,7 +905,7 @@ mergeCards isUp data currCard otherCard =
                         []
 
         toDelete =
-            { otherCard | deleted = True } |> asUnsynced
+            { otherCard | deleted = True }
     in
     { toAdd = [ modifiedCard ] ++ modifiedChildren, toMarkSynced = [], toMarkDeleted = [ toDelete ], toRemove = [] }
 
@@ -988,10 +1040,11 @@ with the deleted dropped (ADR-0005 §1), overridden by any row already staged fo
 that card.
 
 `Doc.Data`'s card rows are refreshed only by the Dexie liveQuery, one round trip
-*after* the save that changed them. Two saves inside that window both see the
-pre-save siblings, so both place their card against them and mint the same
-position -- the second half of CODE_REVIEW.md D8. The staged rows are what
-closes that window: the second save places its card after the first one's.
+*after* the save that changed them, so two saves inside that window both see the
+document as it was before the first of them. Both place their new card against
+the same siblings and mint the same position (the second half of CODE_REVIEW.md
+D8); a subtree walk misses a card just moved in and collects one just moved out
+(ticket 29). The staged rows are what closes that window.
 
 -}
 visibleWithStaged : StagedRows -> CardData -> List (Card ())
@@ -1090,19 +1143,15 @@ treeHelper allCards parentId =
 
 {-| The card and every card below it, as the user sees the tree.
 
-Walking the raw rows would collect a card whose *stale* row still names `id`
-as its parent -- so deleting a card would delete a card that had been moved
-out of it (CODE_REVIEW.md D1). Cards already deleted are left out too: they
-are not in the subtree on screen, and re-marking them adds a redundant
-unsynced deletion row per pass.
+The caller passes the cards as the user sees them (`visibleWithStaged`): walking
+the raw rows would collect a card whose *stale* row still names `id` as its
+parent, so deleting a card would delete a card that had been moved out of it
+(CODE_REVIEW.md D1) and miss one just moved into it (ticket 29). Cards already
+deleted are left out too: they are not in the subtree on screen, and re-marking
+them adds a redundant unsynced deletion row per pass.
 
 -}
-getDescendants : String -> List (Card UpdatedAt) -> List String
-getDescendants id allCards =
-    descendantsOf id (newestVisible allCards)
-
-
-descendantsOf : String -> List (Card UpdatedAt) -> List String
+descendantsOf : String -> List (Card a) -> List String
 descendantsOf id visibleCards =
     case visibleCards |> ListExtra.find (\card -> card.id == id) of
         Nothing ->

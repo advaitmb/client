@@ -672,6 +672,40 @@ crowdedRows =
     ]
 
 
+{-| A document with somewhere to move a card to: `x` at the root, `p` with a
+child of its own, and `y` a root card that no operation below touches.
+-}
+moveTargetRows : List (Data.Card_tests_only UpdatedAt)
+moveTargetRows =
+    [ syncedRow { id = "p", parentId = Nothing, position = 1, content = "New parent", ts = 1000 }
+    , syncedRow { id = "c", parentId = Just "p", position = 0, content = "Child of p", ts = 1000 }
+    , syncedRow { id = "x", parentId = Nothing, position = 3, content = "Wanderer", ts = 1000 }
+    , syncedRow { id = "y", parentId = Nothing, position = 5, content = "Bystander", ts = 1000 }
+    ]
+
+
+{-| Two editing operations inside one Dexie round trip: the second save is built
+on the model the first one returned, with no `cardDataReceived` in between.
+
+That is the window every test using this is about. `Doc.Data`'s card rows are
+refreshed only by the Dexie liveQuery, so inside it the version log still
+describes the document as it was before the first save -- and a save that reads
+the log alone writes back the state the first one had just changed.
+
+-}
+savedAfter : CardTreeOp -> CardTreeOp -> List (Data.Card_tests_only UpdatedAt) -> Result String ChangeLists
+savedAfter firstOp secondOp rows =
+    let
+        ( afterFirst, _ ) =
+            Data.localSave "tree1" firstOp (Data.model_tests_only rows Nothing)
+
+        ( _, secondSave ) =
+            Data.localSave "tree1" secondOp afterFirst
+    in
+    Dec.decodeValue changeListsDecoder secondSave
+        |> Result.mapError Dec.errorToString
+
+
 suite : Test
 suite =
     describe "Doc.Data public API (ADR-0001 seam 1)"
@@ -1321,4 +1355,190 @@ suite =
                                 ]
                             }
                         )
+
+        -- Saves built inside one Dexie round trip (ticket 29)
+        --
+        -- Every operation on an existing card writes a row carrying that
+        -- card's whole state, built from the version log -- which the Dexie
+        -- liveQuery refreshes one round trip *after* the save that changed it.
+        -- So a second operation inside that window writes back the state the
+        -- first one had just changed, reverting it.
+        , test "an edit made before the DB echoes a move keeps the new parent and position" <|
+            \_ ->
+                -- The move is already with the port layer, so the version log
+                -- still has `x` at the root: an update built from the log alone
+                -- carries the old parentId/position and undoes the move.
+                moveTargetRows
+                    |> savedAfter (CTMov "x" (Just "p") 1) (CTUpd "x" "Edited")
+                    |> Result.map .toAdd
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "x"
+                              , treeId = "tree1"
+                              , content = "Edited"
+                              , parentId = Just "p"
+                              , position = 1
+                              , deleted = 0
+                              , synced = False
+                              }
+                            ]
+                        )
+        , test "a move made before the DB echoes an edit keeps the new content" <|
+            \_ ->
+                -- The same window, the other way round: a move row carries the
+                -- card's whole state, so one built from the log reverts the
+                -- edit the user just made.
+                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 }
+                , syncedRow { id = "x", parentId = Nothing, position = 1, content = "Original", ts = 1000 }
+                ]
+                    |> savedAfter (CTUpd "x" "Edited") (CTMov "x" Nothing 0)
+                    |> Result.map .toAdd
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "x"
+                              , treeId = "tree1"
+                              , content = "Edited"
+                              , parentId = Nothing
+                              , position = -1
+                              , deleted = 0
+                              , synced = False
+                              }
+                            ]
+                        )
+        , test "removing a card after moving a child out of it leaves the child alone" <|
+            \_ ->
+                -- CODE_REVIEW.md D1 through the staging window: the log still
+                -- has `x` under `a`, but the user has just moved it to `b`.
+                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "Old parent", ts = 1000 }
+                , syncedRow { id = "b", parentId = Nothing, position = 1, content = "New parent", ts = 1000 }
+                , syncedRow { id = "x", parentId = Just "a", position = 0, content = "Moved out", ts = 1000 }
+                ]
+                    |> savedAfter (CTMov "x" (Just "b") 0) (CTRmv "a")
+                    |> Result.map (.toMarkDeleted >> List.map .id >> List.sort)
+                    |> Expect.equal (Ok [ "a" ])
+        , test "removing a card after moving a child into it marks the child deleted too" <|
+            \_ ->
+                -- And the other direction: a card moved into the subtree being
+                -- deleted goes with it, or it survives as a child of a deleted
+                -- parent.
+                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "Doomed parent", ts = 1000 }
+                , syncedRow { id = "b", parentId = Nothing, position = 1, content = "Old parent", ts = 1000 }
+                , syncedRow { id = "x", parentId = Just "b", position = 0, content = "Moved in", ts = 1000 }
+                ]
+                    |> savedAfter (CTMov "x" (Just "a") 0) (CTRmv "a")
+                    |> Result.map (.toMarkDeleted >> List.map .id >> List.sort)
+                    |> Expect.equal (Ok [ "a", "x" ])
+        , test "merging a card after editing it keeps the edit" <|
+            \_ ->
+                -- A merge writes the joined content as one new row for the
+                -- card kept, so a merge built from the log drops the edit that
+                -- has not been echoed back yet.
+                [ syncedRow { id = "c", parentId = Nothing, position = 0, content = "Current", ts = 1000 }
+                , syncedRow { id = "o", parentId = Nothing, position = 1, content = "Other", ts = 1000 }
+                ]
+                    |> savedAfter (CTUpd "c" "Current, edited") (CTMrg "c" "o" False)
+                    |> Result.map .toAdd
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "c"
+                              , treeId = "tree1"
+                              , content = "Current, edited\n\nOther"
+                              , parentId = Nothing
+                              , position = 0
+                              , deleted = 0
+                              , synced = False
+                              }
+                            ]
+                        )
+        , test "merging carries along a child moved into the other card before the echo" <|
+            \_ ->
+                -- The merge deletes `o`, so every child the user has just moved
+                -- into it has to be re-parented in the same save -- otherwise
+                -- it is left under a deleted card.
+                [ syncedRow { id = "c", parentId = Nothing, position = 0, content = "Current", ts = 1000 }
+                , syncedRow { id = "o", parentId = Nothing, position = 1, content = "Other", ts = 1000 }
+                , syncedRow { id = "cc", parentId = Just "c", position = 0, content = "Child of current", ts = 1000 }
+                , syncedRow { id = "x", parentId = Just "c", position = 1, content = "Moved into other", ts = 1000 }
+                ]
+                    |> savedAfter (CTMov "x" (Just "o") 0) (CTMrg "c" "o" False)
+                    |> Result.map (.toAdd >> List.map (\row -> ( row.id, row.parentId, row.position )))
+                    |> Expect.equal (Ok [ ( "c", Nothing, 0 ), ( "x", Just "c", 1 ) ])
+        , test "a save for one card is not built from another card's staged row" <|
+            \_ ->
+                -- The staged rows answer for the cards they name and no
+                -- others: `y` is untouched by the move, so its update is built
+                -- from its own newest row in the log.
+                moveTargetRows
+                    |> savedAfter (CTMov "x" (Just "p") 1) (CTUpd "y" "Edited bystander")
+                    |> Result.map .toAdd
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "y"
+                              , treeId = "tree1"
+                              , content = "Edited bystander"
+                              , parentId = Nothing
+                              , position = 5
+                              , deleted = 0
+                              , synced = False
+                              }
+                            ]
+                        )
+        , test "an edit of a card deleted before the echo does not resurrect it" <|
+            \_ ->
+                -- The staged row of a card just deleted says so, and an
+                -- update built on it stays a deleted row.  Reading the log
+                -- alone wrote back an undeleted row instead, resurrecting the
+                -- card the delete had just removed.
+                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "Root", ts = 1000 }
+                , syncedRow { id = "x", parentId = Just "a", position = 0, content = "Doomed", ts = 1000 }
+                ]
+                    |> savedAfter (CTRmv "x") (CTUpd "x" "Edited")
+                    |> Result.map .toAdd
+                    |> Expect.equal
+                        (Ok
+                            [ { id = "x"
+                              , treeId = "tree1"
+                              , content = "Edited"
+                              , parentId = Just "a"
+                              , position = 0
+                              , deleted = 1
+                              , synced = False
+                              }
+                            ]
+                        )
+        , test "an echo with no row for a staged card does not forget it" <|
+            \_ ->
+                let
+                    -- `b`'s insert is with the port layer when a collaborator's
+                    -- edit of `a` arrives, and any write to the table fires the
+                    -- liveQuery.  The echo is the whole card set of the open
+                    -- document, so having no row for `b` at all proves `b`'s
+                    -- write has not landed -- and the staged row is still the
+                    -- only knowledge of it there is.
+                    ( afterInsert, _ ) =
+                        Data.localSave "tree1"
+                            (CTIns "b" "Second" Nothing 1)
+                            (Data.model_tests_only
+                                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 } ]
+                                Nothing
+                            )
+
+                    echoed =
+                        Data.cardDataReceived
+                            (encodeRows
+                                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 }
+                                , syncedRow { id = "a", parentId = Nothing, position = 0, content = "Edited elsewhere", ts = 2000 }
+                                ]
+                            )
+                            ( afterInsert, Tree "0" "" (Children []), "tree1" )
+                in
+                case echoed of
+                    Nothing ->
+                        Expect.fail "expected cardDataReceived to report the received rows"
+
+                    Just { newData } ->
+                        Data.localSave "tree1" (CTIns "c" "Third" Nothing 1) newData
+                            |> Tuple.second
+                            |> stagedPositions
+                            |> Expect.equal (Ok [ ( "c", 0.5 ) ])
         ]
