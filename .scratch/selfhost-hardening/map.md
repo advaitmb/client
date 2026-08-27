@@ -211,6 +211,7 @@ ticket carries `needs-info` any more.
 | 26 | deploy-workflow | (new) | resolved: wontfix |
 | 27 | per-account-local-data | new (from 04) | 04 |
 | 28 | local-snapshot-newest-per-id | new (from 12) | 12 |
+| 29 | stale-row-save-reverts | new (from 11) | 11 |
 
 ## Not yet specified
 
