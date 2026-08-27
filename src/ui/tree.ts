@@ -338,7 +338,12 @@ class Tree extends HTMLElement {
 
   private onDragStart(e: DragEvent, id: string) {
     this.dragged = id;
-    e.dataTransfer?.setData("text/plain", id);
+    // Deliberately empty: a drag needs a payload to start in some browsers,
+    // but the payload is what the browser inserts wherever the drag lands, and
+    // a card is not text. Which card is being dragged travels in `gw-drop`
+    // instead. The id used to be the payload, and dropping a card on the one
+    // being edited pasted 24 characters of hex into it (CODE_REVIEW.md E9).
+    e.dataTransfer?.setData("text/plain", "");
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     this.setAttribute("dragging", "");
     emit(this, "gw-drag-start", id);

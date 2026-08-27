@@ -544,7 +544,16 @@ incoming incomingMsg model =
                         |> closeCard
 
                 Nothing ->
-                    ( model, Cmd.none, [] )
+                    -- Dropped somewhere that is no card's drop region: nothing
+                    -- to insert, but the drag is over all the same, so the
+                    -- regions stop offering themselves (CODE_REVIEW.md E8).
+                    ( { model
+                        | viewState =
+                            { vs | dragModel = ( Tuple.first vs.dragModel, { dropId = Nothing, isDragging = False } ) }
+                      }
+                    , Cmd.none
+                    , []
+                    )
 
         Paste tree ->
             normalMode model (pasteBelow activeId tree)

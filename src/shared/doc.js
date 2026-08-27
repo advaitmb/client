@@ -40,6 +40,8 @@ const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession } = require("./ses
 // The local half of a save, extracted for the same reason as session.js:
 // nothing in this file is importable by a test (ADR-0001 seam 4).
 const { applyCardBasedSave } = require("./save");
+// Same reason: which drag is in progress, and everything that follows from it.
+const { installDragHandlers } = require("./drag");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -62,7 +64,6 @@ let wsQueue = [];
 let PULL_LOCK = false;
 let pushErrorCount = 0;
 let loadingDocs = false;
-let draggingInternal = false;
 let viewportWidth = document.documentElement.clientWidth;
 let viewportHeight = document.documentElement.clientHeight;
 
@@ -71,11 +72,7 @@ const updateViewportSize = _.debounce(() => {
   viewportWidth = document.documentElement.clientWidth;
   viewportHeight = document.documentElement.clientHeight;
 }, 150);
-let horizontalScrollInterval;
-let verticalScrollInterval;
-let docElement;
 let sidebarWidth;
-let externalDrag = false;
 let savedObjectIds = new Set();
 let treeListSubscription = null;
 let cardDataSubscription = null;
@@ -475,7 +472,7 @@ const fromElm = (msg, elmData) => {
     },
 
     DragDone: () => {
-      draggingInternal = false;
+      drag.dragDone();
     },
 
     // === Database ===
@@ -601,8 +598,11 @@ const fromElm = (msg, elmData) => {
       helpers.scrollFullscreen(elmData);
     },
 
+    // Dead on both sides: the elm-dnd view attributes that sent this are never
+    // rendered (CODE_REVIEW.md §6, removed by ticket 22). A card drag is
+    // <gw-tree>'s to report now -- see drag.js -- so this no longer claims one
+    // is in progress.
     DragStart: () => {
-      draggingInternal = true;
       let cardElement = elmData.target.parentElement;
       let cardId = cardElement.id.replace(/^card-/, "");
       elmData.dataTransfer.setDragImage(cardElement, 0 , 0);
@@ -896,101 +896,17 @@ function pushSuccessHandler (info) {
 
 /* === DOM Events and Handlers === */
 
-document.ondragenter = () => {
-  if (!draggingInternal && !externalDrag) {
-    externalDrag = true;
-    toElm(null, "docMsgs", "DragExternalStarted");
-  }
-};
-let scrollHorizontalAmount = 20;
-let scrollHorizontalInterval = 15;
-let scrollVerticalAmount = 20;
-let scrollVerticalInterval = 15;
-
-document.ondragleave = (ev) => {
-  if(ev.relatedTarget === null) {
-    // Dragged outside of window
-    clearInterval(horizontalScrollInterval);
-    clearInterval(verticalScrollInterval);
-  }
-}
-// Prevent default events, for file dragging.
-document.ondragover = document.ondrop = (ev) => {
-  // Clear autoscroll
-  if (ev.type === "dragend" || ev.type === "drop") {
-    clearInterval(horizontalScrollInterval);
-    clearInterval(verticalScrollInterval);
-    horizontalScrollInterval = null;
-    verticalScrollInterval = null;
-  }
-
-  // Don't modify anything if dragging/dropping in textareas
-  if (ev.target.className === "edit mousetrap") {
-    return;
-  }
-
-  // Autoscroll
-  if (ev.type === "dragover") {
-    let path = ev.path || (ev.composedPath && ev.composedPath());
-
-    let relX = (ev.clientX - sidebarWidth )/ (viewportWidth - sidebarWidth);
-    let relY = (ev.clientY - 40) / (viewportHeight - 40); // 40 for header height
-
-    if (relY <= 0.1) {
-      //scroll column up
-      let colToScroll = path.filter(x => x.classList && x.classList.contains('column'))[0];
-      if(!verticalScrollInterval) {
-        verticalScrollInterval = setInterval(()=>{
-          colToScroll.scrollBy(0, -1*scrollVerticalAmount);
-        }, scrollVerticalInterval);
-      }
-    } else if (relY >= 0.9) {
-      let colToScroll = path.filter(x => x.classList && x.classList.contains('column'))[0];
-      if(!verticalScrollInterval) {
-        verticalScrollInterval = setInterval(()=>{
-          colToScroll.scrollBy(0, scrollVerticalAmount);
-        }, scrollVerticalInterval);
-      }
-    } else {
-      clearInterval(verticalScrollInterval);
-      verticalScrollInterval = null;
-    }
-
-    if (relX <= 0.1) {
-      docElement = document.getElementById('document');
-      if(!horizontalScrollInterval) {
-        horizontalScrollInterval = setInterval(()=>{
-          docElement.scrollBy(-1*scrollHorizontalAmount, 0);
-        }, scrollHorizontalInterval);
-      }
-    } else if (relX >= 0.9) {
-      docElement = document.getElementById('document');
-      if(!horizontalScrollInterval) {
-        horizontalScrollInterval = setInterval(()=>{
-          docElement.scrollBy(scrollHorizontalAmount, 0);
-        }, scrollHorizontalInterval);
-      }
-    } else {
-      //stop horizontal scrolling
-      clearInterval(horizontalScrollInterval);
-      horizontalScrollInterval = null;
-    }
-  }
-  if (externalDrag && ev.type === "drop") {
-    externalDrag = false;
-    let dropText = ev.dataTransfer.getData("text");
-    if (dropText.startsWith("obsidian://open?")) {
-      let url = new URL(dropText);
-      let title = "# " + url.searchParams.get("file");
-      toElm(title, "docMsgs", "DropExternal");
-    } else {
-      toElm(dropText, "docMsgs", "DropExternal");
-    }
-  } else if (draggingInternal && ev.type === "drop") {
-    draggingInternal = false;
-  }
-  ev.preventDefault();
-};
+// Both kinds of drag -- a card moved inside the tree, and text dragged in from
+// outside the app -- live in their own module, for the reason session.js and
+// save.js do: nothing in this file can be imported by a test (ADR-0001 seam
+// 4). What it needs from here is the viewport doc.js measures on resize and
+// the element the columns scroll inside.
+const drag = installDragHandlers({
+  root: document,
+  toElm,
+  viewport: () => ({ width: viewportWidth, height: viewportHeight, sidebarWidth }),
+  scrollRoot: () => document.getElementById("document"),
+});
 
 
 
