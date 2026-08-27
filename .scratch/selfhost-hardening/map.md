@@ -595,6 +595,7 @@ ticket carries `needs-info` any more.
 | 31 | fullscreen-bypasses-block | new (from 15) | 15 |
 | 32 | restore-theme-picker | owner decision | 17, 24 |
 | 33 | header-icons-keyboard | new (from 32) | 32 |
+| 34 | header-follow-ups | new (from 33) | 33 |
 
 ## Not yet specified
 
