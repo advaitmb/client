@@ -32,6 +32,8 @@ gets removed (the link currently points at a route that doesn't exist)._
 > `requestForgotPassword`/`requestResetPassword` plumbing); it can come back
 > when the server supports it.
 
+**Answered 2026-08-27:** No / not sure — remove the link.
+
 ## Deployment / CI
 
 ### How do you deploy the built `web/` directory (static host, Docker, rsync to a VPS, something else) — and do you want a deploy workflow in CI?
@@ -41,6 +43,8 @@ workflow needs your target's details._
 
 > Recommended default: test-only CI now; add deployment later when you can
 > describe the target.
+
+**Answered 2026-08-27:** Test-only CI for now (ticket 26 → wontfix).
 
 ## Scope
 
@@ -54,6 +58,8 @@ other fixes._
 > Recommended: full purge — every item was verified zero-caller against this
 > branch, and CI will exist before the purge lands.
 
+**Answered 2026-08-27:** Full purge.
+
 ### Performance refactor: in scope or deferred?
 
 _Why this matters: the data layer has O(n²) hot paths on every save
@@ -63,6 +69,8 @@ documents._
 
 > Recommended: keep the ticket, schedule it last, after all correctness fixes
 > are green under tests.
+
+**Answered 2026-08-27:** In scope, scheduled last.
 
 ## Anything else?
 

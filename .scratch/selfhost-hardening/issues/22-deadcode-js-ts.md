@@ -1,9 +1,8 @@
 # 22: Dead code purge — JS/TS and port contract
 
-Part of `../map.md`. **Type:** task · **Status:** needs-info
+Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
 
-**Blocked by:** 03 · **Owner decision:** questionnaire Q "dead-code purge
-scope". Default if unanswered: full purge.
+**Blocked by:** 03 · **Owner decided (2026-08-27):** full purge.
 
 **Covers:** CODE_REVIEW.md §6 (JS/TS side): JS handlers with no Elm sender
 (`InitBeamer`, `SocketSend`, `SaveCardBasedMigration`, `UpdateCommits`), dead

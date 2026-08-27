@@ -1,10 +1,9 @@
 # 19: Auth pages cleanup
 
-Part of `../map.md`. **Type:** task · **Status:** needs-info
+Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
 
-**Blocked by:** 01 · **Owner decision:** questionnaire Q "password-reset
-emails" (docs/to-questionnaire-selfhost-scope.md). Default if unanswered:
-remove the forgot-password link and its dead plumbing.
+**Blocked by:** 01 (resolved) · **Owner decided (2026-08-27):** no
+password-reset emails — remove the forgot-password link and its dead plumbing.
 
 **Covers:** CODE_REVIEW.md A1, A2, A3, A4.
 

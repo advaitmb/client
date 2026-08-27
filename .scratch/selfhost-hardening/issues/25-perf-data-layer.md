@@ -1,9 +1,9 @@
 # 25: Data-layer performance (Dict-keyed hot paths)
 
-Part of `../map.md`. **Type:** task · **Status:** needs-info
+Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
 
-**Blocked by:** 05, 06, 12 · **Owner decision:** questionnaire Q "perf scope".
-Default if unanswered: do it last, after all correctness tickets are green.
+**Blocked by:** 05, 06, 12 · **Owner decided (2026-08-27):** in scope,
+scheduled last — after all correctness tickets are green.
 
 **Covers:** CODE_REVIEW.md P1, P2, P3, P4, P5.
 

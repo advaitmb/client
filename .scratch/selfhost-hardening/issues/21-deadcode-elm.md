@@ -1,10 +1,8 @@
 # 21: Dead code purge — Elm
 
-Part of `../map.md`. **Type:** task · **Status:** needs-info
+Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
 
-**Blocked by:** 03 · **Owner decision:** questionnaire Q "dead-code purge
-scope". Default if unanswered: full purge (every item was verified
-zero-caller).
+**Blocked by:** 03 · **Owner decided (2026-08-27):** full purge.
 
 **Covers:** CODE_REVIEW.md §6 (Elm side): dead outgoing tags, dead Msgs,
 dead modules (`UI.Collaborators`, `Feature`, the whole legacy conflict

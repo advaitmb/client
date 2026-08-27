@@ -1,10 +1,9 @@
 # 26: Deployment workflow
 
-Part of `../map.md`. **Type:** task · **Status:** needs-info
+Part of `../map.md`. **Type:** task · **Status:** resolved
 
-**Blocked by:** 01 · **Owner decision:** questionnaire Q "deploy target" —
-this ticket cannot be specified without it. If the owner answers "test-only CI
-is enough", resolve this ticket as wontfix.
+**Blocked by:** 01 · **Owner decided (2026-08-27):** test-only CI is enough
+for now — resolved as **wontfix**. Reopen when a deploy target exists.
 
 **What to build:** (Pending) A CI job that builds `web/` and delivers it to
 the owner's hosting target on push to `selfhost` (or on tag), using whatever

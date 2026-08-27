@@ -21,11 +21,13 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   on `selfhost`; `build.yml`/`web-deploy.yml` deleted. Details in
   `issues/01-test-infrastructure.md`.
 
-## Owner decisions pending
+## Owner decisions (answered 2026-08-27)
 
-`docs/to-questionnaire-selfhost-scope.md` — auth/password-reset (gates 19),
-deploy target (gates 26), dead-code purge scope (gates 21, 22), perf scope
-(gates 25). Tickets gated on these carry `Status: needs-info`.
+All four questionnaire answers in
+(`docs/to-questionnaire-selfhost-scope.md`): no password-reset emails —
+remove the dead link (19); test-only CI — 26 resolved wontfix; full
+dead-code purge (21, 22); perf refactor in scope, scheduled last (25). No
+ticket carries `needs-info` any more.
 
 ## Notes
 
@@ -57,15 +59,15 @@ deploy target (gates 26), dead-code purge scope (gates 21, 22), perf scope
 | 16 | drag-drop | E7 E8 E9 E15 | 01 |
 | 17 | theme-and-title | E10 E12 | 01 |
 | 18 | error-surfacing | E16 | 01 |
-| 19 | auth-pages | A1 A2 A3 A4 | 01 + owner Q1 |
+| 19 | auth-pages | A1 A2 A3 A4 | 01 |
 | 20 | build-and-docs-cleanup | B4 B5 B7–B13 | 01 |
-| 21 | deadcode-elm | §6 (Elm) | 03 + owner Q3 |
-| 22 | deadcode-js-ts | §6 (JS/TS, translations) | 03 + owner Q3 |
+| 21 | deadcode-elm | §6 (Elm) | 03 |
+| 22 | deadcode-js-ts | §6 (JS/TS, translations) | 03 |
 | 23 | js-robustness | S5 S6 S7 S8 S13 | 01 |
 | 24 | elm-consistency | S1 S2 S3 S4 S10 S12 | 01 |
-| 25 | perf-data-layer | P1–P5 | 05 06 12 + owner Q4 |
-| 26 | deploy-workflow | (new) | 01 + owner Q2 |
+| 25 | perf-data-layer | P1–P5 | 05 06 12 |
+| 26 | deploy-workflow | (new) | resolved: wontfix |
 
 ## Not yet specified
 
-- Deployment workflow details (awaiting owner's deploy target).
+- Nothing — all fog cleared by the 2026-08-27 questionnaire answers.
