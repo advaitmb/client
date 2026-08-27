@@ -13,7 +13,6 @@ type Route
     | DocUntitled String
     | Doc String String
     | Import Template
-    | Upgrade Bool
     | NotFound String
 
 
@@ -41,15 +40,6 @@ toString route =
 
         Import template ->
             "/import/" ++ Template.toString template
-
-        Upgrade isOk ->
-            "/upgrade/"
-                ++ (if isOk then
-                        "success"
-
-                    else
-                        "cancelled"
-                   )
 
         NotFound dbName ->
             "/" ++ dbName ++ "/404-not-found"

@@ -209,13 +209,8 @@ type TranslationId
     | DownloadJSONFile
     | DownloadOPMLFile
     | PrintThis
-      -- Upgrade & Subscription
-    | Upgrade
-    | DaysLeft Int
-    | TrialExpired
     | WordOfMouthCTA1
     | WordOfMouthCTA2
-    | ManageSubscription
 
 
 tr : TranslationId -> String
@@ -1027,29 +1022,12 @@ tr trans =
                     { en = "Print this"
                     }
 
-                -- Upgrade & Subscription
-                Upgrade ->
-                    { en = "Upgrade"
-                    }
-
-                DaysLeft n ->
-                    { en = numberPlural n "%1 day left in trial" "%1 days left in trial"
-                    }
-
-                TrialExpired ->
-                    { en = "Trial Expired"
-                    }
-
                 WordOfMouthCTA1 ->
                     { en = "Love Gingko Writer?"
                     }
 
                 WordOfMouthCTA2 ->
                     { en = "Leave a Testimonial"
-                    }
-
-                ManageSubscription ->
-                    { en = "Manage Subscription"
                     }
     in
     -- Self-host: English only. The other 25 languages were ~5,400 lines of

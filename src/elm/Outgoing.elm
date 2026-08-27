@@ -43,7 +43,6 @@ type Msg
     | CopyCurrentSubtree Enc.Value
     | CopyToClipboard String String
     | SelectAll String
-    | FlashPrice
     | TextSurround String String
     | InsertMarkdownLink String
     | SetField String String
@@ -59,7 +58,6 @@ type Msg
     | Print
       -- === Misc ===
     | EmptyMessageShown
-    | CheckoutButtonClicked Enc.Value
     | ConsoleLogRequested String
 
 
@@ -172,9 +170,6 @@ send info =
         SelectAll what ->
             dataToSend "SelectAll" (string what)
 
-        FlashPrice ->
-            dataToSend "FlashPrice" null
-
         TextSurround id str ->
             dataToSend "TextSurround" (list string [ id, str ])
 
@@ -225,9 +220,6 @@ send info =
         -- === Misc ===
         EmptyMessageShown ->
             dataToSend "EmptyMessageShown" null
-
-        CheckoutButtonClicked checkoutData ->
-            dataToSend "CheckoutButtonClicked" checkoutData
 
         ConsoleLogRequested err ->
             dataToSend "ConsoleLogRequested" (string err)

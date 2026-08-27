@@ -36,7 +36,7 @@ import Page.Doc.Theme exposing (Theme(..), applyTheme)
 import Page.DocMessage
 import RandomId
 import Route
-import Session exposing (LoggedIn, PaymentStatus(..), Session(..))
+import Session exposing (LoggedIn, Session(..))
 import SharedUI exposing (ctrlOrCmdText)
 import Svg.Attributes
 import Task
@@ -44,7 +44,6 @@ import Time
 import Toast
 import Translation exposing (TranslationId(..), tr)
 import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
-import Upgrade exposing (Msg(..))
 import Utils exposing (delay, ternary)
 
 
@@ -126,7 +125,6 @@ type ModalState
     | TemplateSelector
     | HelpScreen
     | Wordcount Page.Doc.Model
-    | UpgradeModal
 
 
 defaultModel : Nav.Key -> LoggedIn -> DocumentState -> Model
@@ -175,7 +173,6 @@ init nKey globalData session dbData_ =
                     , Task.attempt (always NoOp) (Browser.Dom.focus "card-edit-1")
                     ]
                 )
-                    |> setBlock Nothing
 
             else
                 ( defaultModel nKey
@@ -192,7 +189,6 @@ init nKey globalData session dbData_ =
                     )
                 , send <| LoadDocument dbData.dbName
                 )
-                    |> setBlock Nothing
 
         Nothing ->
             case Session.lastDocId session of
@@ -380,8 +376,6 @@ type Msg
     | ToastMsg Toast.Msg
     | AddToast ToastPersistence Toast
     | CloseEmailConfirmBanner
-    | ToggledUpgradeModal Bool
-    | UpgradeModalMsg Upgrade.Msg
     | ToggledShortcutTray
     | WordcountModalOpened
     | FileSearchChanged String
@@ -428,8 +422,7 @@ update msg model =
             )
 
         SettingsChanged json ->
-            ( model |> updateSession (Session.sync json (GlobalData.currentTime globalData) session), Cmd.none )
-                |> setBlock Nothing
+            ( model |> updateSession (Session.sync json session), Cmd.none )
 
         LogoutRequested ->
             ( model, Session.logout )
@@ -1158,46 +1151,6 @@ update msg model =
         CloseEmailConfirmBanner ->
             ( model |> updateSession (Session.confirmEmail (GlobalData.currentTime globalData) session), Cmd.none )
 
-        ToggledUpgradeModal isOpen ->
-            ( { model
-                | modalState =
-                    if isOpen then
-                        UpgradeModal
-
-                    else
-                        NoModal
-                , sidebarMenuState = NoSidebarMenu
-              }
-            , Cmd.none
-            )
-
-        UpgradeModalMsg upgradeModalMsg ->
-            case upgradeModalMsg of
-                UpgradeModalClosed ->
-                    ( { model | modalState = NoModal }, Cmd.none )
-
-                CheckoutClicked checkoutData ->
-                    let
-                        data =
-                            Upgrade.toValue (Session.name session) checkoutData
-                    in
-                    ( model, send <| CheckoutButtonClicked data )
-
-                _ ->
-                    let
-                        newSession =
-                            Session.updateUpgrade upgradeModalMsg session
-
-                        maybeFlash =
-                            case upgradeModalMsg of
-                                PlanChanged _ ->
-                                    send <| FlashPrice
-
-                                _ ->
-                                    Cmd.none
-                    in
-                    ( model |> updateSession newSession, maybeFlash )
-
         ToggledShortcutTray ->
             let
                 newIsOpen =
@@ -1480,44 +1433,19 @@ toggleHistory shouldOpen delta model =
             ( { model | headerMenu = NoHeaderMenu }, Cmd.none )
 
 
+{-| Block or unblock editing. The only blocks are functional ones (history
+view); ADR-0002 removed the trial-expiry block, so `setBlock Nothing` always
+clears the block.
+-}
 setBlock : Maybe String -> ( Model, Cmd msg ) -> ( Model, Cmd msg )
 setBlock block ( model, cmd ) =
     case model.documentState of
         Doc ({ docModel } as docState) ->
-            case block of
-                Just _ ->
-                    ( { model
-                        | documentState = Doc { docState | docModel = Page.Doc.setBlock block docModel }
-                      }
-                    , cmd
-                    )
-
-                Nothing ->
-                    -- Reset to previous block state, depending on trial expiry
-                    let
-                        globalData =
-                            toGlobalData model
-
-                        currTime =
-                            GlobalData.currentTime globalData
-
-                        daysLeft =
-                            Session.daysLeft currTime (toLoggedInSession model)
-                                -- "Nothing" means "Customer", confusingly
-                                |> Maybe.withDefault 9999
-
-                        maybeBlock =
-                            if daysLeft <= 0 then
-                                Just (tr TrialExpired)
-
-                            else
-                                Nothing
-                    in
-                    ( { model
-                        | documentState = Doc { docState | docModel = Page.Doc.setBlock maybeBlock docModel }
-                      }
-                    , cmd
-                    )
+            ( { model
+                | documentState = Doc { docState | docModel = Page.Doc.setBlock block docModel }
+              }
+            , cmd
+            )
 
         Empty _ _ ->
             ( model, cmd )
@@ -1821,14 +1749,6 @@ viewModal globalData session modalState =
                 ]
                 []
             ]
-
-        UpgradeModal ->
-            let
-                daysLeft_ =
-                    Session.daysLeft (GlobalData.currentTime globalData) session
-            in
-            Upgrade.view daysLeft_ (Session.upgradeModel session)
-                |> List.map (Html.map UpgradeModalMsg)
 
 
 viewConflictSelector : ConflictViewerState -> Html Msg

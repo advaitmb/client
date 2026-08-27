@@ -1,0 +1,92 @@
+module SessionTest exposing (suite)
+
+{-| Tests at the ADR-0002 seam: `Session.decode` on the stored user data that
+`StoreUser` persists to localStorage.
+
+A self-hosted user is never blocked from editing by account age. ADR-0002
+removed the trial clock itself, so what is left to pin here is that stored data
+written by an older build — which still carries a `paymentStatus` string, and a
+trial expiry inside it — stays inert: the leftover field is ignored, and it is
+never fatal to the decode (a failed logged-in decode silently demotes the user
+to a guest session, i.e. logs them out).
+
+-}
+
+import Expect
+import Json.Encode as Enc
+import Session
+import Test exposing (Test, describe, test)
+
+
+bootTimeMillis : Int
+bootTimeMillis =
+    1700000000000
+
+
+{-| Stored user data as it reaches `Session.decode` on boot: what
+`StoreUser` wrote to localStorage, plus the `currentTime` the JS layer
+merges in.
+-}
+storedUser : List ( String, Enc.Value ) -> Enc.Value
+storedUser extraFields =
+    Enc.object
+        ([ ( "email", Enc.string "user@example.com" )
+         , ( "currentTime", Enc.int bootTimeMillis )
+         , ( "shortcutTrayOpen", Enc.bool True )
+         ]
+            ++ extraFields
+        )
+
+
+decodeLoggedIn : Enc.Value -> Result String Session.LoggedIn
+decodeLoggedIn json =
+    case Session.decode json of
+        Session.LoggedInSession loggedIn ->
+            Ok loggedIn
+
+        Session.GuestSession _ ->
+            Err "expected a logged-in session, got a guest session"
+
+
+{-| The observable state of a decoded logged-in session. Stale trial fields in
+the stored data must not change any of it.
+-}
+observable : Session.LoggedIn -> { email : String, shortcutTrayOpen : Bool }
+observable loggedIn =
+    { email = Session.name loggedIn
+    , shortcutTrayOpen = Session.shortcutTrayOpen loggedIn
+    }
+
+
+expectSameAsClean : Enc.Value -> Expect.Expectation
+expectSameAsClean json =
+    case ( decodeLoggedIn json, decodeLoggedIn (storedUser []) ) of
+        ( Ok withStale, Ok clean ) ->
+            observable withStale |> Expect.equal (observable clean)
+
+        ( Err err, _ ) ->
+            Expect.fail err
+
+        ( _, Err err ) ->
+            Expect.fail err
+
+
+suite : Test
+suite =
+    describe "Session, stored user data"
+        [ test "stored data with no payment status decodes a logged-in session" <|
+            \_ ->
+                decodeLoggedIn (storedUser [])
+                    |> Result.map observable
+                    |> Expect.equal
+                        (Ok { email = "user@example.com", shortcutTrayOpen = True })
+        , test "a stale persisted trial expiry is ignored" <|
+            \_ ->
+                expectSameAsClean (storedUser [ ( "paymentStatus", Enc.string "trial:1" ) ])
+        , test "a stale customer payment status is ignored" <|
+            \_ ->
+                expectSameAsClean (storedUser [ ( "paymentStatus", Enc.string "customer:cus_1" ) ])
+        , test "an unparseable stale payment status is ignored, not fatal" <|
+            \_ ->
+                expectSameAsClean (storedUser [ ( "paymentStatus", Enc.string "trial-expired-2019" ) ])
+        ]

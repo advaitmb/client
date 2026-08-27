@@ -619,19 +619,6 @@ const fromElm = (msg, elmData) => {
       document.getElementById(elmData).select();
     },
 
-    FlashPrice: () => {
-      let addFlashClass = function () {
-        document.getElementById('price-amount').classList.add("flash-2");
-      };
-
-      let removeFlashClass = function () {
-        document.getElementById('price-amount').classList.remove("flash-2");
-      };
-
-      addFlashClass();
-      setTimeout(removeFlashClass, 400);
-    },
-
     SetField: () => {
       let id = elmData[0];
       let field = elmData[1];

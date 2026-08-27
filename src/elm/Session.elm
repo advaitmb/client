@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, PaymentStatus(..), Session(..), UserSource(..), confirmEmail, copyNaming, daysLeft, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, logout, name, paymentStatus, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLogin, storeSignup, sync, toGuest, updateDocuments, updateUpgrade, upgradeModel, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -11,9 +11,8 @@ import Json.Encode as Enc
 import List.Extra as ListExtra
 import Outgoing exposing (Msg(..), send)
 import Regex
-import Time exposing (Posix)
+import Time
 import Types exposing (SortBy(..))
-import Upgrade
 
 
 
@@ -44,19 +43,12 @@ type alias SessionData =
 
 type alias UserData =
     { email : String
-    , upgradeModel : Upgrade.Model
-    , paymentStatus : PaymentStatus
     , confirmedAt : Maybe Time.Posix
     , shortcutTrayOpen : Bool
     , sortBy : SortBy
     , documents : DocList.Model
     , features : List Feature
     }
-
-
-type PaymentStatus
-    = Trial Time.Posix
-    | Customer String
 
 
 
@@ -103,38 +95,9 @@ fileMenuOpen session =
     getFromLoggedInSession .fileMenuOpen session
 
 
-upgradeModel : LoggedIn -> Upgrade.Model
-upgradeModel (LoggedIn _ data) =
-    data.upgradeModel
-
-
-paymentStatus : LoggedIn -> PaymentStatus
-paymentStatus (LoggedIn _ userData) =
-    userData.paymentStatus
-
-
 features : LoggedIn -> List Feature
 features (LoggedIn _ userData) =
     userData.features
-
-
-add14days : Posix -> Posix
-add14days time =
-    Time.posixToMillis time
-        |> (\ms -> 3600 * 24 * 1000 * 14 + ms |> Time.millisToPosix)
-
-
-daysLeft : Time.Posix -> LoggedIn -> Maybe Int
-daysLeft cTime session =
-    case paymentStatus session of
-        Trial expiry ->
-            ((Time.posixToMillis expiry - Time.posixToMillis cTime) |> toFloat)
-                / (1000 * 3600 * 24)
-                |> round
-                |> Just
-
-        Customer _ ->
-            Nothing
 
 
 isNotConfirmed : LoggedIn -> Bool
@@ -217,22 +180,17 @@ isOwner session docId =
 -- UPDATE
 
 
-sync : Dec.Value -> Time.Posix -> LoggedIn -> LoggedIn
-sync json currentTime session =
+sync : Dec.Value -> LoggedIn -> LoggedIn
+sync json session =
     let
-        settingsDecoder : Decoder { paymentStatus : PaymentStatus, confirmedAt : Maybe Time.Posix }
+        settingsDecoder : Decoder { confirmedAt : Maybe Time.Posix }
         settingsDecoder =
-            Dec.succeed (\payStat confAt -> { paymentStatus = payStat, confirmedAt = confAt })
-                |> optional "paymentStatus" decodePaymentStatus (Trial (currentTime |> add14days))
+            Dec.succeed (\confAt -> { confirmedAt = confAt })
                 |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
     in
     case ( Dec.decodeValue settingsDecoder json, session ) of
         ( Ok newSettings, LoggedIn sessData userData ) ->
-            LoggedIn sessData
-                { userData
-                    | paymentStatus = newSettings.paymentStatus
-                    , confirmedAt = newSettings.confirmedAt
-                }
+            LoggedIn sessData { userData | confirmedAt = newSettings.confirmedAt }
 
         ( Err _, _ ) ->
             session
@@ -261,11 +219,6 @@ setSortBy newSort (LoggedIn sessData userData) =
 updateDocuments : DocList.Model -> LoggedIn -> LoggedIn
 updateDocuments docList (LoggedIn sessData userData) =
     LoggedIn sessData { userData | documents = DocList.update userData.sortBy docList userData.documents }
-
-
-updateUpgrade : Upgrade.Msg -> LoggedIn -> LoggedIn
-updateUpgrade upgradeMsg (LoggedIn sessionData data) =
-    LoggedIn sessionData { data | upgradeModel = Upgrade.update upgradeMsg data.upgradeModel }
 
 
 
@@ -324,34 +277,19 @@ decoderGuestSession =
 decoderLoggedIn : Dec.Decoder LoggedIn
 decoderLoggedIn =
     Dec.succeed
-        (\email t legacy side confirmTime payStat trayOpen sortCriteria _ featList ->
-            let
-                newPayStat =
-                    case payStat of
-                        Trial trialTime ->
-                            if Time.posixToMillis trialTime == 0 then
-                                Trial (t |> add14days)
-
-                            else
-                                payStat
-
-                        _ ->
-                            payStat
-            in
+        (\email legacy side confirmTime trayOpen sortCriteria _ featList ->
             LoggedIn
                 { fileMenuOpen = side
                 , lastDocId = Nothing
                 , fromLegacy = legacy
                 , firstRun = False
                 }
-                (UserData email Upgrade.init newPayStat confirmTime trayOpen sortCriteria DocList.init featList)
+                (UserData email confirmTime trayOpen sortCriteria DocList.init featList)
         )
         |> required "email" Dec.string
-        |> required "currentTime" (Dec.int |> Dec.map Time.millisToPosix)
         |> optional "fromLegacy" Dec.bool False
         |> optional "sidebarOpen" Dec.bool False
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
-        |> optional "paymentStatus" decodePaymentStatus (Trial (Time.millisToPosix 0))
         |> optional "shortcutTrayOpen" Dec.bool False
         |> optional "sortBy" sortByDecoder ModifiedAt
         |> optional "lastDocId" (Dec.maybe Dec.string) Nothing
@@ -364,23 +302,6 @@ decodeConfirmedStatus =
         [ Dec.null Nothing
         , Dec.int |> Dec.map Time.millisToPosix |> Dec.maybe
         ]
-
-
-decodePaymentStatus : Dec.Decoder PaymentStatus
-decodePaymentStatus =
-    Dec.string
-        |> Dec.andThen
-            (\str ->
-                case str |> String.split ":" of
-                    "trial" :: valString :: [] ->
-                        Trial (String.toInt valString |> Maybe.withDefault 0 |> Time.millisToPosix) |> Dec.succeed
-
-                    "customer" :: custId :: [] ->
-                        Customer custId |> Dec.succeed
-
-                    other ->
-                        Dec.fail ("Invalid payment status:[" ++ String.join "," other ++ "]")
-            )
 
 
 type UserSource
@@ -402,15 +323,14 @@ responseDecoder usrSrc session =
                                 data
                    )
 
-        builder : String -> PaymentStatus -> Maybe Time.Posix -> List Metadata -> List Feature -> LoggedIn
-        builder email payStat confAt docs feats =
+        builder : String -> Maybe Time.Posix -> List Metadata -> List Feature -> LoggedIn
+        builder email confAt docs feats =
             LoggedIn
                 sessionData
-                (UserData email Upgrade.init payStat confAt True ModifiedAt (DocList.fromList docs) feats)
+                (UserData email confAt True ModifiedAt (DocList.fromList docs) feats)
     in
     Dec.succeed builder
         |> required "email" Dec.string
-        |> optional "paymentStatus" decodePaymentStatus (Trial (Time.millisToPosix 0))
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
         |> optional "documents" Metadata.responseDecoder []
         |> optional "features" Features.decoder []
@@ -420,21 +340,10 @@ encodeUserData : UserData -> Enc.Value
 encodeUserData userData =
     Enc.object
         [ ( "email", Enc.string userData.email )
-        , ( "paymentStatus", encodePaymentStatus userData.paymentStatus )
         , ( "confirmedAt", userData.confirmedAt |> Maybe.map Time.posixToMillis |> Coders.maybeToValue Enc.int )
         , ( "shortcutTrayOpen", Enc.bool userData.shortcutTrayOpen )
         , ( "sortBy", Coders.sortByEncoder userData.sortBy )
         ]
-
-
-encodePaymentStatus : PaymentStatus -> Enc.Value
-encodePaymentStatus payStat =
-    case payStat of
-        Trial trialTime ->
-            Enc.string ("trial:" ++ (trialTime |> Time.posixToMillis |> String.fromInt))
-
-        Customer custId ->
-            Enc.string ("customer:" ++ custId)
 
 
 encode : LoggedIn -> Enc.Value

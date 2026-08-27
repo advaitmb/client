@@ -125,9 +125,9 @@ initializes `Page.App` with the new session.
 ### 4.2 Session and global data
 
 `Session` (`Session.elm`) is `GuestSession Guest | LoggedInSession LoggedIn`.
-`UserData` carries `email`, `paymentStatus`, `confirmedAt`,
-`shortcutTrayOpen`, `sortBy`, the document list (`Doc.List.Model`), and
-`features`. Auth HTTP: POST `/signup`, POST `/login` (via `Http.riskyRequest`
+`UserData` carries `email`, `confirmedAt`, `shortcutTrayOpen`, `sortBy`, the
+document list (`Doc.List.Model`), and `features` (no payment status — ADR-0002;
+a `paymentStatus` left in stored session data by an older build is ignored). Auth HTTP: POST `/signup`, POST `/login` (via `Http.riskyRequest`
 for the session cookie). On success the session is persisted through the
 `StoreUser` port; JS writes it to `localStorage["gingko-session-storage"]` and
 echoes `userLoggedInMsg`.
