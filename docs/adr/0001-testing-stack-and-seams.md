@@ -94,7 +94,7 @@
    `Doc.TreeStructure` because the index it computes is an index into the tree
    `Mov` prunes and re-inserts, which is that module's own rule.
 
-10. What the document's chrome says and writes (Elm, pure) — four small
+10. What the document's chrome says and writes (Elm, pure) — five small
     decisions that only ever showed up on screen or in a saved file, so nothing
     could tell a placeholder from a real answer. Recorded by ticket 15:
     `Page.Doc.Incoming.fromOutside`, the total function from a `{ tag, data }`
@@ -103,11 +103,14 @@
     `Page.Doc.Export.toString` and `toMimeType`, what an export writes and what
     it is saved as; `Doc.UI.documentWordcount` with `Page.Doc`'s
     `getStartingWordcount`, the two halves of the word-count modal's "Session"
-    row; and `Translation.tr` for the shortcut tray's key names. Same reason as
-    seams 5, 7, 8 and 9 for not testing the callers — a page `Model` needs a
-    `Nav.Key`, and `Page.Doc.update` answers in `Cmd`s no test can inspect — but
-    here the *state* `Page.Doc` carries is plain data, so the session-start
-    count is tested through its own setters and getter.
+    row; and `Translation.tr` for the shortcut tray's key names. Ticket 17 adds
+    `Page.Doc.Theme.fromLocalStore`, the theme a card-data message restores or
+    leaves alone (`Page.App.cardDataReceived` is the caller, and out of reach
+    for the `Nav.Key` reason below). Same reason as seams 5, 7, 8 and 9 for not
+    testing the callers — a page `Model` needs a `Nav.Key`, and
+    `Page.Doc.update` answers in `Cmd`s no test can inspect — but here the
+    *state* `Page.Doc` carries is plain data, so the session-start count is
+    tested through its own setters and getter.
 
     Out of reach at this seam, and so verified by inspection: whether a port
     command is sent at all. `preventIfBlocked`'s ordering (E5) and the one-line

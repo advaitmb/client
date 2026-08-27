@@ -118,7 +118,8 @@ Vocabulary used in code, issues, and tests. Full system description:
 10. Document chrome (Elm, pure): `Page.Doc.Incoming.fromOutside` (a port
     message's tag → `Msg`), `Page.Doc.Export.toString`/`toMimeType` (what an
     export writes and is saved as), `Doc.UI.documentWordcount` with
-    `Page.Doc.getStartingWordcount` (the word-count modal's session row), and
+    `Page.Doc.getStartingWordcount` (the word-count modal's session row),
+    `Page.Doc.Theme.fromLocalStore` (the theme a document load restores), and
     `Translation.tr` for the shortcut tray. Whether a port command is sent at
     all is out of reach here.
 11. The document's mode machine (Elm): `Page.Doc.getViewMode` after

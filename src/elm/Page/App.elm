@@ -32,7 +32,7 @@ import Outgoing exposing (Msg(..), send)
 import Page.Doc exposing (Msg(..), MsgToParent(..))
 import Page.Doc.Export as Export exposing (ExportFormat(..), ExportSelection(..), exportView, exportViewError)
 import Page.Doc.Incoming as Incoming exposing (Msg(..))
-import Page.Doc.Theme exposing (Theme(..), applyTheme)
+import Page.Doc.Theme as Theme exposing (Theme(..), applyTheme)
 import Page.DocMessage
 import RandomId
 import Route
@@ -1306,6 +1306,12 @@ cardDataReceived dataIn model =
 
                 lastActives =
                     Json.decodeValue (Json.at [ "localStore", "last-actives" ] (Json.list Json.string)) dataIn
+
+                -- The document's own settings ride along with its rows, so
+                -- this is where a saved theme comes back (E10). Whether the
+                -- rows changed anything is a separate question.
+                themedModel =
+                    { model | theme = Theme.fromLocalStore model.theme dataIn }
             in
             case Data.cardDataReceived dataIn ( docState.data, tree, docId ) of
                 Just { newData, newTree, outMsg } ->
@@ -1320,7 +1326,7 @@ cardDataReceived dataIn model =
                                 |> Page.Doc.setDirty False
                                 |> Page.Doc.lastActives lastActives
                     in
-                    ( { model
+                    ( { themedModel
                         | documentState =
                             Doc
                                 { docState
@@ -1342,7 +1348,7 @@ cardDataReceived dataIn model =
                     )
 
                 Nothing ->
-                    ( model, Cmd.none )
+                    ( themedModel, Cmd.none )
 
         Empty _ _ ->
             ( model, Cmd.none )
