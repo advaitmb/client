@@ -26,6 +26,13 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   `Chadtech/elm-money`); stale stored `paymentStatus` is ignored and dropped on
   next store; `setBlock` is history-view only. Unblocks 21 and 22. Details in
   `issues/03-remove-trial-lockout.md`.
+- Ticket 07 resolved — `gw-textarea`'s listener lifecycle is symmetric and
+  idempotent (`_bindListeners`/`_unbindListeners` driven by
+  connected/disconnected), the document click handler is tracked per instance,
+  and `start-value` seeds the textarea on first connect only, so a mid-edit
+  re-parent by `tree.ts` no longer drops keystrokes or reverts in-flight text.
+  7 tests at seam 3 in `tests/textarea.test.ts`. Details in
+  `issues/07-editor-reconnect.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
