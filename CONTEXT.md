@@ -7,6 +7,9 @@ Vocabulary used in code, issues, and tests. Full system description:
 
 - **Card** — the unit of writing: a block of markdown with an id, a parent,
   and a fractional **position** among its siblings. Not "node" or "bullet".
+- **Rebalance** — renumbering a card's siblings onto whole numbers when the
+  gap at the insertion point is too small to split (below `1.0e-6`). The
+  renumbered rows are ordinary version rows and sync as `mov` ops.
 - **Tree / document** — one Gingko document, a tree of cards identified by
   `treeId` (aka `dbName` in routes). Rendered as **columns**: depth 1 in
   column 1, children of the active card in the next column, siblings grouped

@@ -15,11 +15,13 @@ around, in an order a raw-row scan would trip over.
 
 -}
 
+import Dict
 import Doc.Data as Data
 import Expect
 import Json.Decode as Dec
 import Json.Encode as Enc
 import Outgoing
+import Set
 import Test exposing (Test, describe, test)
 import Types exposing (CardTreeOp(..), Children(..), ConflictSelection(..), Tree)
 import UpdatedAt exposing (UpdatedAt)
@@ -471,6 +473,189 @@ restoredDoc =
             )
 
 
+-- Card positions (CODE_REVIEW.md D8)
+
+
+{-| Every `mov` op in a push, as ( card id, position ).
+
+A rebalance says what it did in `mov` ops like any other move, so this is how
+the tests read it off the wire. `toDelta` drops op-less deltas (D9), so an op
+that shows up here is one the server will act on.
+
+-}
+pushedMoves : List Outgoing.Msg -> Result String (List ( String, Float ))
+pushedMoves msgs =
+    let
+        movePosition : Dec.Decoder (Maybe Float)
+        movePosition =
+            Dec.map2
+                (\t pos_ ->
+                    if t == "m" then
+                        pos_
+
+                    else
+                        Nothing
+                )
+                (Dec.field "t" Dec.string)
+                (Dec.maybe (Dec.field "pos" Dec.float))
+
+        deltaMoves : Dec.Decoder (List ( String, Float ))
+        deltaMoves =
+            Dec.map2
+                (\id positions -> positions |> List.filterMap (Maybe.map (Tuple.pair id)))
+                (Dec.field "id" Dec.string)
+                (Dec.field "ops" (Dec.list movePosition))
+    in
+    msgs
+        |> List.filterMap
+            (\msg ->
+                case msg of
+                    Outgoing.PushDeltas value ->
+                        Just value
+
+                    _ ->
+                        Nothing
+            )
+        |> List.head
+        |> Maybe.map
+            (Dec.decodeValue (Dec.field "dlts" (Dec.list deltaMoves))
+                >> Result.map (List.concat >> List.sort)
+                >> Result.mapError Dec.errorToString
+            )
+        |> Maybe.withDefault (Ok [])
+
+
+{-| The ( id, position ) of every row a save stages to add.
+-}
+stagedPositions : Enc.Value -> Result String (List ( String, Float ))
+stagedPositions saved =
+    Dec.decodeValue changeListsDecoder saved
+        |> Result.mapError Dec.errorToString
+        |> Result.map (.toAdd >> List.map (\row -> ( row.id, row.position )))
+
+
+{-| A document driven the way the app drives it: `localSave` for each editing
+operation, the staged changes written the way the port layer writes them
+(`applySave`), and the result handed back the way the Dexie liveQuery does.
+-}
+type alias Doc =
+    { model : Data.Model
+    , rows : List (Data.Card_tests_only UpdatedAt)
+    , tree : Tree
+    , outMsg : List Outgoing.Msg
+    }
+
+
+docFrom : List (Data.Card_tests_only UpdatedAt) -> Result String Doc
+docFrom rows =
+    Ok
+        { model = Data.model_tests_only rows Nothing
+        , rows = rows
+        , tree = Tree "0" "" (Children [])
+        , outMsg = []
+        }
+
+
+{-| One editing operation, all the way round: save, write, read back.
+-}
+step : Int -> CardTreeOp -> Result String Doc -> Result String Doc
+step ts op =
+    Result.andThen
+        (\doc ->
+            let
+                ( savedModel, saved ) =
+                    Data.localSave "tree1" op doc.model
+            in
+            case Dec.decodeValue changeListsDecoder saved of
+                Err err ->
+                    Err (Dec.errorToString err)
+
+                Ok changes ->
+                    let
+                        rowsAfter =
+                            applySave ts changes doc.rows
+                    in
+                    case Data.cardDataReceived (encodeRows rowsAfter) ( savedModel, doc.tree, "tree1" ) of
+                        Nothing ->
+                            Err "expected cardDataReceived to report the saved rows"
+
+                        Just received ->
+                            Ok
+                                { model = received.newData
+                                , rows = rowsAfter
+                                , tree = received.newTree
+                                , outMsg = received.outMsg
+                                }
+        )
+
+
+{-| `count` cards inserted at the same spot -- always immediately after the one
+card the document started with -- each insert a full round trip, so every one of
+them sees the positions the one before it wrote.
+-}
+insertedAtSameSpot : Int -> Result String Doc
+insertedAtSameSpot count =
+    List.range 1 count
+        |> List.foldl
+            (\i acc ->
+                step (1000 + i * 10)
+                    (CTIns ("c" ++ String.fromInt i) ("Card " ++ String.fromInt i) Nothing 1)
+                    acc
+            )
+            -- Position 1, not 0: `(0 + gap) / 2` halves exactly all the way
+            -- down to Float's denormals, while a non-zero left neighbour runs
+            -- out of mantissa after ~50 halvings -- and every card in a real
+            -- document has a non-zero neighbour somewhere.
+            (docFrom [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "First", ts = 1000 } ])
+
+
+{-| The ids of the root cards, in the order the user sees them.
+-}
+rootOrder : Doc -> List String
+rootOrder doc =
+    case doc.tree.children of
+        Children children ->
+            children |> List.map .id
+
+
+{-| The position of every living root card, read straight off the version log:
+the highest-timestamped row of each id. Computed here rather than asked of
+`Doc.Data` so the assertion has its own account of what the document says.
+-}
+rootPositions : Doc -> List Float
+rootPositions doc =
+    doc.rows
+        |> List.foldl
+            (\row acc ->
+                case Dict.get row.id acc of
+                    Just existing ->
+                        if UpdatedAt.getTimestamp row.updatedAt > UpdatedAt.getTimestamp existing.updatedAt then
+                            Dict.insert row.id row acc
+
+                        else
+                            acc
+
+                    Nothing ->
+                        Dict.insert row.id row acc
+            )
+            Dict.empty
+        |> Dict.values
+        |> List.filter (\row -> row.parentId == Nothing && not row.deleted)
+        |> List.map .position
+
+
+{-| Three root cards with no room left between the first two: the state ~50
+same-spot inserts leave behind, one insert before the midpoint stops being a
+new number at all.
+-}
+crowdedRows : List (Data.Card_tests_only UpdatedAt)
+crowdedRows =
+    [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 }
+    , syncedRow { id = "b", parentId = Nothing, position = 1.0e-9, content = "Second", ts = 1000 }
+    , syncedRow { id = "z", parentId = Nothing, position = 1, content = "Third", ts = 1000 }
+    ]
+
+
 suite : Test
 suite =
     describe "Doc.Data public API (ADR-0001 seam 1)"
@@ -484,6 +669,7 @@ suite =
 
                     saved =
                         Data.localSave "tree1" (CTIns "b" "Second card" Nothing 1) model
+                            |> Tuple.second
                 in
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
@@ -519,6 +705,7 @@ suite =
 
                     saved =
                         Data.localSave "tree1" (CTUpd "a" "Edited content") model
+                            |> Tuple.second
                 in
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
@@ -585,6 +772,7 @@ suite =
 
                     saved =
                         Data.localSave "tree1" (CTRmv "a") model
+                            |> Tuple.second
                 in
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
@@ -618,6 +806,7 @@ suite =
 
                     saved =
                         Data.localSave "tree1" (CTRmv "a") model
+                            |> Tuple.second
                 in
                 Dec.decodeValue changeListsDecoder saved
                     |> Result.map (.toMarkDeleted >> List.map .id >> List.sort)
@@ -643,6 +832,7 @@ suite =
 
                     saved =
                         Data.localSave "tree1" (CTMrg "c" "o" False) model
+                            |> Tuple.second
                 in
                 Dec.decodeValue changeListsDecoder saved
                     |> Expect.equal
@@ -978,4 +1168,105 @@ suite =
                     |> (\model -> Data.restore model snapshotId)
                     |> List.length
                     |> Expect.equal 0
+        , test "sixty-one inserts at the same spot keep the order they were made in" <|
+            \_ ->
+                -- Midpoint insertion halves the sibling gap every time, and
+                -- after ~50 halvings the midpoint of two Floats *is* one of
+                -- them: siblings tie, and `List.sortBy .position` then falls
+                -- back on the order the rows came out of Dexie
+                -- (CODE_REVIEW.md D8).  Each insert here goes immediately
+                -- after `a`, so the newest card is always second.
+                insertedAtSameSpot 61
+                    |> Result.map rootOrder
+                    |> Expect.equal
+                        (Ok
+                            ("a"
+                                :: (List.range 1 61
+                                        |> List.reverse
+                                        |> List.map (\i -> "c" ++ String.fromInt i)
+                                   )
+                            )
+                        )
+        , test "sixty-one inserts at the same spot leave no two siblings sharing a position" <|
+            \_ ->
+                -- The other half of the same statement, and the one the order
+                -- above rests on: a position two cards share is not an order
+                -- at all.
+                insertedAtSameSpot 61
+                    |> Result.map
+                        (\doc ->
+                            let
+                                positions =
+                                    rootPositions doc
+                            in
+                            ( List.length positions, positions |> Set.fromList |> Set.size )
+                        )
+                    |> Expect.equal (Ok ( 62, 62 ))
+        , test "an insert into a gap too small to split rebalances the siblings onto whole numbers" <|
+            \_ ->
+                -- No room between `a` (0) and `b` (1e-9), so the save renumbers
+                -- the siblings instead of splitting the gap: `a` is already
+                -- where it belongs and is left alone, the new card takes slot
+                -- 1, and `b` and `z` move up to 2 and 3.
+                Data.localSave "tree1" (CTIns "n" "New card" Nothing 1) (Data.model_tests_only crowdedRows Nothing)
+                    |> Tuple.second
+                    |> stagedPositions
+                    |> Expect.equal (Ok [ ( "n", 1 ), ( "b", 2 ), ( "z", 3 ) ])
+        , test "a rebalanced sibling syncs as an ordinary move" <|
+            \_ ->
+                -- Rebalanced rows go through the normal save path, so they
+                -- reach the server as `mov` ops on the cards that moved -- and
+                -- as nothing at all for the sibling that did not.
+                docFrom crowdedRows
+                    |> step 6000 (CTIns "n" "New card" Nothing 1)
+                    |> Result.andThen (.outMsg >> pushedMoves)
+                    |> Expect.equal (Ok [ ( "b", 2 ), ( "z", 3 ) ])
+        , test "a second insert made before the DB echoes the first lands after it" <|
+            \_ ->
+                let
+                    -- `localSave` reads positions off card rows that only the
+                    -- Dexie liveQuery refreshes, so both of these saves see a
+                    -- document containing nothing but `a`.  The second one is
+                    -- the user pressing Enter twice: it inserts below the card
+                    -- the first one created.
+                    ( afterFirst, firstSave ) =
+                        Data.localSave "tree1"
+                            (CTIns "b" "Second" Nothing 1)
+                            (Data.model_tests_only
+                                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 } ]
+                                Nothing
+                            )
+
+                    ( _, secondSave ) =
+                        Data.localSave "tree1" (CTIns "c" "Third" Nothing 2) afterFirst
+                in
+                ( stagedPositions firstSave, stagedPositions secondSave )
+                    |> Expect.equal ( Ok [ ( "b", 1 ) ], Ok [ ( "c", 2 ) ] )
+        , test "two inserts at the same index before the DB echoes get different positions" <|
+            \_ ->
+                let
+                    -- The same window, asked for the same slot twice: without
+                    -- the second save seeing the first one's row, both compute
+                    -- the same number.
+                    ( afterFirst, firstSave ) =
+                        Data.localSave "tree1"
+                            (CTIns "b" "Second" Nothing 1)
+                            (Data.model_tests_only
+                                [ syncedRow { id = "a", parentId = Nothing, position = 0, content = "First", ts = 1000 } ]
+                                Nothing
+                            )
+
+                    ( _, secondSave ) =
+                        Data.localSave "tree1" (CTIns "c" "Third" Nothing 1) afterFirst
+                in
+                ( stagedPositions firstSave, stagedPositions secondSave )
+                    |> Expect.equal ( Ok [ ( "b", 1 ) ], Ok [ ( "c", 0.5 ) ] )
+        , test "a move into a gap too small to split rebalances too" <|
+            \_ ->
+                -- The other caller of the placement: dragging `z` between `a`
+                -- and `b` has the same no-room problem as inserting there.
+                Data.localSave "tree1" (CTMov "z" Nothing 1) (Data.model_tests_only crowdedRows Nothing)
+                    |> Tuple.second
+                    |> stagedPositions
+                    |> Expect.equal (Ok [ ( "z", 1 ), ( "b", 2 ) ])
         ]

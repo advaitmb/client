@@ -1395,12 +1395,17 @@ applyParentMsg parentMsg ( prevModel, prevCmd ) =
 localSave : CardTreeOp -> Model -> ( Model, Cmd Msg )
 localSave op model =
     case model.documentState of
-        Doc { data, docId } ->
+        Doc ({ data, docId } as docState) ->
             let
-                dbChangeList =
+                -- The returned data model remembers the rows just staged, so a
+                -- second save in the same round trip places its card against
+                -- them instead of against the pre-save siblings (D8).
+                ( newData, dbChangeList ) =
                     Data.localSave docId op data
             in
-            ( model, send <| SaveCardBased dbChangeList )
+            ( { model | documentState = Doc { docState | data = newData } }
+            , send <| SaveCardBased dbChangeList
+            )
 
         Empty _ _ ->
             ( model, Cmd.none )

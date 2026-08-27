@@ -27,7 +27,7 @@ historyLimit =
 
 
 type Model
-    = CardBased CardData (List ( String, Time.Posix, WebData CardData )) (Maybe CardDataConflicts)
+    = CardBased CardData StagedRows (List ( String, Time.Posix, WebData CardData )) (Maybe CardDataConflicts)
 
 
 type alias Card t =
@@ -46,6 +46,19 @@ type alias CardData =
     List (Card UpdatedAt)
 
 
+{-| Rows handed to the port layer whose stamps the DB has not issued yet.
+
+They are the model's only knowledge of the saves it has made since the last
+Dexie liveQuery emission, and they exist for one job: placing the next card
+(`placeCard`). Nothing else looks at them -- they carry no version stamp, so
+they are not part of the version log, must not be pushed, and cannot classify a
+card as synced or unsynced.
+
+-}
+type alias StagedRows =
+    List (Card ())
+
+
 type alias CardDataConflicts =
     { ours : CardData
     , theirs : CardData
@@ -55,13 +68,13 @@ type alias CardDataConflicts =
 
 emptyCardBased : Model
 emptyCardBased =
-    CardBased [] [] Nothing
+    CardBased [] [] [] Nothing
 
 
 hasConflicts : Model -> Bool
 hasConflicts model =
     case model of
-        CardBased _ _ (Just _) ->
+        CardBased _ _ _ (Just _) ->
             True
 
         _ ->
@@ -71,14 +84,14 @@ hasConflicts model =
 conflictList : Model -> List Conflict
 conflictList model =
     case model of
-        CardBased _ _ _ ->
+        CardBased _ _ _ _ ->
             []
 
 
 restore : Model -> String -> List Outgoing.Msg
 restore model historyId =
     case model of
-        CardBased currentData history _ ->
+        CardBased currentData _ history _ ->
             let
                 dataAtRestorePoint_ =
                     history
@@ -219,7 +232,7 @@ sameCardState left right =
 lastSavedTime : Model -> Maybe Int
 lastSavedTime model =
     case model of
-        CardBased data _ _ ->
+        CardBased data _ _ _ ->
             let
                 shouldFilterEmpty =
                     List.length data /= 1
@@ -239,7 +252,7 @@ lastSavedTime model =
 lastSyncedTime : Model -> Maybe Int
 lastSyncedTime model =
     case model of
-        CardBased data _ _ ->
+        CardBased data _ _ _ ->
             data
                 |> List.filter .synced
                 |> List.map .updatedAt
@@ -261,9 +274,12 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
             let
                 newModelWithoutConflicts =
                     case oldModel of
-                        CardBased oldData oldHistory oldConflicts_ ->
-                            if cards /= oldData then
-                                CardBased cards oldHistory oldConflicts_
+                        CardBased oldData oldStaged oldHistory oldConflicts_ ->
+                            -- The DB has spoken: the rows staged for it are
+                            -- either in `cards` or superseded, so the staging
+                            -- memory `localSave` keeps is spent (D8).
+                            if cards /= oldData || not (List.isEmpty oldStaged) then
+                                CardBased cards [] oldHistory oldConflicts_
 
                             else
                                 oldModel
@@ -320,8 +336,8 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
 
                 newModel =
                     case newModelWithoutConflicts of
-                        CardBased data history _ ->
-                            CardBased data history conflicts_
+                        CardBased data staged history _ ->
+                            CardBased data staged history conflicts_
 
             in
             if (newModel /= oldModel) || (newTree /= oldTree) then
@@ -337,7 +353,7 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
 triggeredPush : Model -> String -> List Outgoing.Msg
 triggeredPush model treeId =
     case model of
-        CardBased cards _ _ ->
+        CardBased cards _ _ _ ->
             let
                 syncState =
                     getSyncState cards
@@ -366,7 +382,7 @@ card's synced count back under `historyLimit`, which is what takes it out of the
 resolveConflicts : ConflictSelection -> Model -> Maybe Outgoing.Msg
 resolveConflicts selectedVersion model =
     case model of
-        CardBased allCards _ (Just versions) ->
+        CardBased allCards _ _ (Just versions) ->
             let
                 conflictedIds =
                     (versions.original ++ versions.ours ++ versions.theirs)
@@ -421,7 +437,7 @@ resolveConflicts selectedVersion model =
 conflictToTree : Model -> ConflictSelection -> Maybe Tree
 conflictToTree data selection =
     case data of
-        CardBased allCards _ (Just cd) ->
+        CardBased allCards _ _ (Just cd) ->
             let
                 toDict : CardData -> Dict String (Card UpdatedAt)
                 toDict d =
@@ -452,7 +468,7 @@ conflictToTree data selection =
 resolve : String -> Model -> Model
 resolve cid model =
     case model of
-        CardBased _ _ _ ->
+        CardBased _ _ _ _ ->
             model
 
 decodeCards : Dec.Decoder (List (Card UpdatedAt))
@@ -589,117 +605,149 @@ type SaveError
     = CardDoesNotExist { id : String, src : String }
 
 
-localSave : String -> CardTreeOp -> Model -> Enc.Value
+{-| Stage the local changes an editing operation makes, and remember them.
+
+The returned model carries the rows just handed to the port layer until the DB
+echoes them back (`cardDataReceived`). `Doc.Data`'s view of the version log is
+refreshed only by the Dexie liveQuery -- one round trip *after* the save that
+changed it -- so two saves inside that window would both place their card
+against the pre-save siblings and mint the same position (CODE_REVIEW.md D8).
+
+-}
+localSave : String -> CardTreeOp -> Model -> ( Model, Enc.Value )
 localSave treeId op model =
     case model of
-        CardBased data _ _ ->
-            case op of
-                CTUpd id newContent ->
-                    let
-                        toAdd_ =
-                            data
-                                |> List.filter (\card -> card.id == id)
-                                |> UpdatedAt.sortNewestFirst .updatedAt
-                                |> List.head
-                                |> Maybe.map (\card -> [ { card | content = newContent } |> asUnsynced ])
-                    in
-                    case toAdd_ of
-                        Nothing ->
-                            saveErrors [ CardDoesNotExist { id = id, src = "CTUpd toAdd_ Nothing" } ]
+        CardBased data staged history conflicts_ ->
+            case localChanges treeId op staged data of
+                Ok changes ->
+                    ( CardBased data (stageRows (changes.toAdd ++ changes.toMarkDeleted) staged) history conflicts_
+                    , toSave changes
+                    )
 
-                        Just [] ->
-                            saveErrors [ CardDoesNotExist { id = id, src = "CTUpd toAdd_ []" } ]
+                Err errs ->
+                    ( model, saveErrors errs )
 
-                        Just toAdd ->
-                            toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
 
-                CTIns id content parId_ idx ->
-                    let
-                        toAdd =
-                            [ { id = id, treeId = treeId, content = content, parentId = parId_, position = getPosition id parId_ idx data, deleted = False, synced = False, updatedAt = () } ]
-                    in
-                    toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
+{-| The rows staged for the port layer but not echoed back yet, newest first: a
+staged row supersedes the row it was built from and any row staged for the same
+card before it.
+-}
+stageRows : List (Card ()) -> List (Card ()) -> List (Card ())
+stageRows newRows staged =
+    (newRows ++ staged) |> ListExtra.uniqueBy .id
 
-                CTRmv id ->
-                    let
-                        idsToMarkAsDeleted =
-                            getDescendants id data
 
-                        cardsToMarkAsDeleted =
-                            data
-                                |> List.filter (\card -> List.member card.id idsToMarkAsDeleted)
-                                |> UpdatedAt.sortNewestFirst .updatedAt
-                                |> ListExtra.uniqueBy .id
-                                |> List.map (\card -> { card | deleted = True } |> asUnsynced)
-                    in
-                    toSave { toAdd = [], toMarkSynced = [], toMarkDeleted = cardsToMarkAsDeleted, toRemove = [] }
+{-| What one editing operation changes in the `cards` table.
+-}
+localChanges : String -> CardTreeOp -> List (Card ()) -> CardData -> Result (List SaveError) DBChangeLists
+localChanges treeId op staged data =
+    case op of
+        CTUpd id newContent ->
+            -- The newest row of the card, with new content: an update carries
+            -- the parent and position the card has now.
+            case newestRowOf id data of
+                Nothing ->
+                    Err [ CardDoesNotExist { id = id, src = "CTUpd toAdd_ Nothing" } ]
 
-                CTMov id parId_ idx ->
-                    let
-                        toAdd =
-                            data
-                                |> List.filter (\card -> card.id == id)
-                                |> UpdatedAt.sortNewestFirst .updatedAt
-                                |> List.head
-                                |> Maybe.map (\card -> [ { card | position = getPosition id parId_ idx data, parentId = parId_ } |> asUnsynced ])
-                                |> Maybe.withDefault []
-                    in
-                    toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
+                Just card ->
+                    Ok (changesAdding [ { card | content = newContent } |> asUnsynced ])
 
-                CTMrg currTreeId otherTreeId isMergeUp ->
-                    let
-                        currCard_ =
-                            data
-                                |> List.filter (\card -> card.id == currTreeId)
-                                |> UpdatedAt.sortNewestFirst .updatedAt
-                                |> List.head
+        CTIns id content parId_ idx ->
+            let
+                placement =
+                    placeCard id parId_ idx staged data
+            in
+            Ok
+                (changesAdding
+                    ({ id = id, treeId = treeId, content = content, parentId = parId_, position = placement.position, deleted = False, synced = False, updatedAt = () }
+                        :: placement.movedSiblings
+                    )
+                )
 
-                        otherCard_ =
-                            data
-                                |> List.filter (\card -> card.id == otherTreeId)
-                                |> UpdatedAt.sortNewestFirst .updatedAt
-                                |> List.head
-                    in
-                    case ( currCard_, otherCard_ ) of
-                        ( Just currCard, Just otherCard ) ->
-                            if isMergeUp then
-                                mergeUp data currCard otherCard
+        CTRmv id ->
+            let
+                idsToMarkAsDeleted =
+                    getDescendants id data
 
-                            else
-                                mergeDown data currCard otherCard
+                cardsToMarkAsDeleted =
+                    data
+                        |> List.filter (\card -> List.member card.id idsToMarkAsDeleted)
+                        |> UpdatedAt.sortNewestFirst .updatedAt
+                        |> ListExtra.uniqueBy .id
+                        |> List.map (\card -> { card | deleted = True } |> asUnsynced)
+            in
+            Ok { toAdd = [], toMarkSynced = [], toMarkDeleted = cardsToMarkAsDeleted, toRemove = [] }
 
-                        ( Nothing, Just _ ) ->
-                            saveErrors [ CardDoesNotExist { id = currTreeId, src = "CTMrg currCard_ Nothing" } ]
+        CTMov id parId_ idx ->
+            let
+                placement =
+                    placeCard id parId_ idx staged data
+            in
+            Ok
+                (changesAdding
+                    (newestRowOf id data
+                        |> Maybe.map
+                            (\card ->
+                                ({ card | position = placement.position, parentId = parId_ } |> asUnsynced)
+                                    :: placement.movedSiblings
+                            )
+                        |> Maybe.withDefault []
+                    )
+                )
 
-                        ( Just _, Nothing ) ->
-                            saveErrors [ CardDoesNotExist { id = otherTreeId, src = "CTMrg otherCard_ Nothing" } ]
+        CTMrg currTreeId otherTreeId isMergeUp ->
+            case ( newestRowOf currTreeId data, newestRowOf otherTreeId data ) of
+                ( Just currCard, Just otherCard ) ->
+                    Ok (mergeCards isMergeUp data currCard otherCard)
 
-                        ( Nothing, Nothing ) ->
-                            saveErrors
-                                [ CardDoesNotExist { id = currTreeId, src = "CTMrg currCard_ Nothing" }
-                                , CardDoesNotExist { id = otherTreeId, src = "CTMrg otherCard_ Nothing" }
-                                ]
+                ( Nothing, Just _ ) ->
+                    Err [ CardDoesNotExist { id = currTreeId, src = "CTMrg currCard_ Nothing" } ]
 
-                CTBlk tree parId_ idx ->
-                    let
-                        newPos =
-                            getPosition tree.id parId_ idx data
+                ( Just _, Nothing ) ->
+                    Err [ CardDoesNotExist { id = otherTreeId, src = "CTMrg otherCard_ Nothing" } ]
 
-                        toAdd =
-                            fromTree treeId 0 parId_ (Time.millisToPosix 0) idx tree
-                                |> List.map asUnsynced
-                                |> List.map
-                                    (\card ->
-                                        if card.parentId == parId_ then
-                                            { card | position = newPos }
+                ( Nothing, Nothing ) ->
+                    Err
+                        [ CardDoesNotExist { id = currTreeId, src = "CTMrg currCard_ Nothing" }
+                        , CardDoesNotExist { id = otherTreeId, src = "CTMrg otherCard_ Nothing" }
+                        ]
 
-                                        else
-                                            card
-                                    )
-                    in
-                    toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
+        CTBlk tree parId_ idx ->
+            let
+                placement =
+                    placeCard tree.id parId_ idx staged data
 
-mergeCards : Bool -> CardData -> Card UpdatedAt -> Card UpdatedAt -> Enc.Value
+                toAdd =
+                    fromTree treeId 0 parId_ (Time.millisToPosix 0) idx tree
+                        |> List.map asUnsynced
+                        |> List.map
+                            (\card ->
+                                if card.parentId == parId_ then
+                                    { card | position = placement.position }
+
+                                else
+                                    card
+                            )
+            in
+            Ok (changesAdding (toAdd ++ placement.movedSiblings))
+
+
+changesAdding : List (Card ()) -> DBChangeLists
+changesAdding rows =
+    { toAdd = rows, toMarkSynced = [], toMarkDeleted = [], toRemove = [] }
+
+
+{-| The newest version row of one card id (ADR-0005 §1).
+-}
+newestRowOf : String -> CardData -> Maybe (Card UpdatedAt)
+newestRowOf cardId data =
+    data
+        |> List.filter (\card -> card.id == cardId)
+        |> UpdatedAt.sortNewestFirst .updatedAt
+        |> List.head
+
+
+mergeCards : Bool -> CardData -> Card UpdatedAt -> Card UpdatedAt -> DBChangeLists
 mergeCards isUp data currCard otherCard =
     let
         modifiedCard =
@@ -795,56 +843,156 @@ mergeCards isUp data currCard otherCard =
         toDelete =
             { otherCard | deleted = True } |> asUnsynced
     in
-    toSave { toAdd = [ modifiedCard ] ++ modifiedChildren, toMarkSynced = [], toMarkDeleted = [ toDelete ], toRemove = [] }
+    { toAdd = [ modifiedCard ] ++ modifiedChildren, toMarkSynced = [], toMarkDeleted = [ toDelete ], toRemove = [] }
 
 
-mergeUp : CardData -> Card UpdatedAt -> Card UpdatedAt -> Enc.Value
-mergeUp data currCard otherCard =
-    mergeCards True data currCard otherCard
+{-| The smallest neighbour gap a card will still be placed inside.
+
+Card order is a fraction between the neighbours: insert between two siblings and
+the new card takes the midpoint of their positions. That halves the gap every
+time, and a Float midpoint stops being a new number once the gap reaches the
+last bit of its neighbours' mantissa -- `ulp x`, which is `x * 2^-52`. Past that
+point the "midpoint" *is* one of the neighbours, siblings tie, and the order the
+user sees comes down to the order Dexie happened to return the rows in
+(CODE_REVIEW.md D8).
+
+`1.0e-6` is that cliff with room to spare: it is above `ulp x` for every
+position below 2^32, and positions here start life as sibling indices
+(`fromTree` uses `toFloat idx`) and grow only by whole-number merge offsets, so
+they stay many orders of magnitude below that. It is also small enough to be
+generous: at the unit spacing a rebalance lays down, ~20 inserts fit into one
+gap before the next rebalance.
+
+-}
+positionGapFloor : Float
+positionGapFloor =
+    1.0e-6
 
 
-mergeDown : CardData -> Card UpdatedAt -> Card UpdatedAt -> Enc.Value
-mergeDown data currCard otherCard =
-    mergeCards False data currCard otherCard
+{-| The gap a rebalance leaves between siblings.
+
+One, so rebalanced siblings land on `0, 1, 2, …` -- the same whole numbers a
+freshly imported tree gets, and 10^6 times the floor above. A wider grid would
+buy only `log2` more inserts per rebalance (10x the spacing is 3 more inserts),
+at the cost of positions that no longer read as the card's index.
+
+-}
+positionSpacing : Float
+positionSpacing =
+    1.0
 
 
-getPosition : String -> Maybe String -> Int -> List (Card UpdatedAt) -> Float
-getPosition cardId parId idx data =
+{-| Where a card goes, and which of its siblings have to move to make room.
+
+`movedSiblings` is empty in the ordinary case. It is non-empty when the slot the
+card was asked for has no room left: rather than mint a degenerate midpoint, the
+whole sibling list is renumbered onto the whole-number grid with the slot left
+free. Those rows are ordinary unsynced version rows -- they go out in the same
+save and reach the server as `mov` ops like any other move.
+
+-}
+type alias Placement =
+    { position : Float
+    , movedSiblings : List (Card ())
+    }
+
+
+placeCard : String -> Maybe String -> Int -> StagedRows -> CardData -> Placement
+placeCard cardId parId idx staged data =
     let
         siblings =
-            -- Newest row per id first, then drop deleted cards: filtering the
-            -- raw rows would keep a stale row of a card that has since been
-            -- deleted or moved out of `parId` (ADR-0005 §1).
-            data
-                |> newestVisible
+            visibleWithStaged staged data
                 |> List.filter (\card -> card.parentId == parId && card.id /= cardId)
-                |> List.sortBy .position
+                -- By position, then by id: a total order, so two siblings that
+                -- do tie (rows written by another client, say) still come out
+                -- in the same order every time.
+                |> List.sortBy (\card -> ( card.position, card.id ))
 
-        ( sibLeft_, sibRight_ ) =
-            case idx of
-                999999 ->
-                    ( ListExtra.last siblings |> Maybe.map .position, Nothing )
-
-                _ ->
-                    ( ListExtra.getAt (idx - 1) siblings |> Maybe.map .position
-                    , ListExtra.getAt idx siblings |> Maybe.map .position
-                    )
+        -- `idx` indexes the sibling list as the caller sees it -- the working
+        -- tree in `Page.Doc`, which is a save ahead of the rows here whenever
+        -- one is in flight.  Out of range means "past the end", i.e. append;
+        -- it used to fall through to the no-siblings case and mint position 0,
+        -- which is a straight collision with the first sibling.  `999999`, the
+        -- caller's "append" sentinel, clamps to the same place.
+        slot =
+            clamp 0 (List.length siblings) idx
     in
-    case ( sibLeft_, sibRight_ ) of
+    case ( ListExtra.getAt (slot - 1) siblings, ListExtra.getAt slot siblings ) of
         ( Just sibLeft, Just sibRight ) ->
-            (sibLeft + sibRight)
-                / 2
+            if sibRight.position - sibLeft.position >= positionGapFloor then
+                { position = (sibLeft.position + sibRight.position) / 2, movedSiblings = [] }
+
+            else
+                rebalance slot siblings
 
         ( Just sibLeft, Nothing ) ->
-            sibLeft
-                + 1
+            { position = sibLeft.position + positionSpacing, movedSiblings = [] }
 
         ( Nothing, Just sibRight ) ->
-            sibRight
-                - 1
+            { position = sibRight.position - positionSpacing, movedSiblings = [] }
 
         ( Nothing, Nothing ) ->
-            0
+            { position = 0, movedSiblings = [] }
+
+
+{-| Renumber `siblings` onto the whole-number grid, leaving `slot` free.
+
+Only the siblings that actually move get a row: a sibling already sitting on its
+new number has nothing to say, and staging it anyway would write an unsynced row
+whose delta carries no ops (CODE_REVIEW.md D9).
+
+-}
+rebalance : Int -> List (Card ()) -> Placement
+rebalance slot siblings =
+    let
+        gridPosition index =
+            if index < slot then
+                toFloat index * positionSpacing
+
+            else
+                toFloat (index + 1) * positionSpacing
+    in
+    { position = toFloat slot * positionSpacing
+    , movedSiblings =
+        siblings
+            |> List.indexedMap Tuple.pair
+            |> List.filterMap
+                (\( index, card ) ->
+                    let
+                        target =
+                            gridPosition index
+                    in
+                    if card.position == target then
+                        Nothing
+
+                    else
+                        Just { card | position = target }
+                )
+    }
+
+
+{-| The cards the user can see, as a save must see them: the newest row per id
+with the deleted dropped (ADR-0005 §1), overridden by any row already staged for
+that card.
+
+`Doc.Data`'s card rows are refreshed only by the Dexie liveQuery, one round trip
+*after* the save that changed them. Two saves inside that window both see the
+pre-save siblings, so both place their card against them and mint the same
+position -- the second half of CODE_REVIEW.md D8. The staged rows are what
+closes that window: the second save places its card after the first one's.
+
+-}
+visibleWithStaged : StagedRows -> CardData -> List (Card ())
+visibleWithStaged staged data =
+    let
+        stagedIds =
+            staged |> List.map .id
+
+        notStaged card =
+            not (List.member card.id stagedIds)
+    in
+    ((data |> newestPerId |> List.map asUnsynced |> List.filter notStaged) ++ staged)
+        |> List.filter (not << .deleted)
 
 
 fromTree : String -> Int -> Maybe String -> Time.Posix -> Int -> Tree -> List (Card UpdatedAt)
@@ -916,7 +1064,14 @@ treeHelper : List (Card UpdatedAt) -> Maybe String -> List Tree
 treeHelper allCards parentId =
     let
         cards =
-            allCards |> List.filter (\card -> card.parentId == parentId) |> List.sortBy .position
+            allCards
+                |> List.filter (\card -> card.parentId == parentId)
+                -- By position, then by id.  Local saves can no longer mint two
+                -- siblings with the same position (CODE_REVIEW.md D8), but rows
+                -- written by another client still can, and sorting on position
+                -- alone would then leave the order the user sees up to the
+                -- order Dexie returned the rows in.
+                |> List.sortBy (\card -> ( card.position, card.id ))
     in
     List.map (\card -> { id = card.id, content = card.content, children = Children (treeHelper allCards (Just card.id)) }) cards
 
@@ -1249,7 +1404,7 @@ resolveDeleteConflicts allCards versions =
 pushOkHandler : List String -> Model -> Maybe Outgoing.Msg
 pushOkHandler chkValStrings model =
     case model of
-        CardBased data _ _ ->
+        CardBased data _ _ _ ->
             let
                 chkValsAsUpdatedAt =
                     chkValStrings
@@ -1524,7 +1679,7 @@ opEncoder op =
 historyReceived : Dec.Value -> Model -> Model
 historyReceived json model =
     case model of
-        CardBased data oldHistory conflicts_ ->
+        CardBased data staged oldHistory conflicts_ ->
             case Dec.decodeValue decodeHistory json of
                 Ok history ->
                     let
@@ -1562,7 +1717,7 @@ historyReceived json model =
                                 newHistoryDict
                                 []
                     in
-                    CardBased data newHistory conflicts_
+                    CardBased data staged newHistory conflicts_
 
                 Err err ->
                     model
@@ -1579,7 +1734,7 @@ decodeHistory =
 getHistoryList : Model -> List ( String, Time.Posix, Maybe Tree )
 getHistoryList model =
     case model of
-        CardBased _ history _ ->
+        CardBased _ _ history _ ->
             history
                 |> List.map (\( id, ts, cardData_ ) -> ( id, ts, cardData_ |> RemoteData.toMaybe |> Maybe.map toTree ))
                 |> List.reverse
@@ -1635,7 +1790,7 @@ type SaveError_tests_only
 
 model_tests_only : CardData -> Maybe CardDataConflicts -> Model
 model_tests_only cards conflicts_ =
-    CardBased cards [] conflicts_
+    CardBased cards [] [] conflicts_
 
 
 toSave_tests_only : DBChangeLists -> Enc.Value
