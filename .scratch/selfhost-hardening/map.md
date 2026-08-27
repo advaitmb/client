@@ -400,6 +400,7 @@ ticket carries `needs-info` any more.
 | 29 | stale-row-save-reverts | new (from 11) | 11 |
 | 30 | merge-down-orphans-children | new (from 29) | 29 |
 | 31 | fullscreen-bypasses-block | new (from 15) | 15 |
+| 32 | restore-theme-picker | owner decision | 17, 24 |
 
 ## Not yet specified
 
