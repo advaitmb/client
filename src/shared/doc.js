@@ -767,9 +767,7 @@ const fromElm = (msg, elmData) => {
     },
 
 
-
     // === Collaboration ===
-
 
     SendCollabState: () => {
       COLLAB_STATE = elmData;

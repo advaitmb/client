@@ -1,10 +1,14 @@
 /**
  * A three-function DOM helper for the interface layer.
  *
- * Deliberately not a framework. These surfaces are rendered once when they
- * open and thrown away when they close, so there is nothing for a virtual DOM
- * to diff. Elm still owns when a surface appears; this owns what it looks
- * like. See src/ui/README.md for the boundary.
+ * Deliberately not a framework, and three functions is enough for both kinds
+ * of surface here -- the ones built once when they open, and the ones Elm keeps
+ * handing new attributes. Not because nothing changes, but because the state
+ * lives in Elm: an element is handed the answer, never the inputs to compute
+ * one, so there is nothing for a virtual DOM to diff on this side. What a
+ * re-render of a persistent surface has to *preserve* is that element's own
+ * business (`gw-tree` reconciles; `gw-header` keeps the title span), which is
+ * why it is not in here. See src/ui/README.md for the boundary and the rules.
  */
 
 type Child = Node | string | null | undefined | false;

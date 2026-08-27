@@ -41,19 +41,20 @@ jobs:
       - name: Config check
         run: bun run config-check
 
+      # `bun test` and esbuild both strip types without checking them, so this
+      # is the only step that reads a type annotation. src/ui/README.md claimed
+      # the gate for months without it existing (CODE_REVIEW.md S11); it catches
+      # what no test can, e.g. the field shadowing `HTMLElement.prototype.title`
+      # that ticket 17 found. Before the Elm setup: it needs neither, and a type
+      # error should not wait on a cache miss.
+      - name: TypeScript typecheck
+        run: bun run typecheck
+
       - name: Cache Elm packages
         uses: actions/cache@v4
         with:
           path: elm-home/elm-stuff
           key: elm-${{ runner.os }}-${{ hashFiles('elm.json') }}
-
-      # `bun test` and esbuild both strip types without checking them, so
-      # nothing before this step reads a type annotation. src/ui/README.md
-      # claimed this gate for months without it existing (CODE_REVIEW.md S11);
-      # it catches what no test can, e.g. a field shadowing
-      # `HTMLElement.prototype.title` (ticket 24).
-      - name: TypeScript typecheck
-        run: bun run typecheck
 
       - name: Build
         run: bun run newbuild

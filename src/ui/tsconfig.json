@@ -11,8 +11,13 @@
     // Resolution has to be the bundler's, because esbuild is what builds this
     // directory: `node`/`node10` reads neither a package's `exports` map nor
     // its ESM build, which is why `import DOMPurify from "dompurify"` was an
-    // error here and correct at runtime. It is also the value with a future --
-    // `node10` is on its way out of TypeScript.
+    // error here and correct at runtime.
+    //
+    // It is also the only value left. TypeScript 7 answers the committed
+    // `node` with `error TS5108: Option 'moduleResolution=node10' has been
+    // removed` and checks nothing at all -- verified against 7.0.2, which is
+    // why ticket 32 hit it as a hard error while 5.9.3 accepted it. `bundler`
+    // is clean on both.
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

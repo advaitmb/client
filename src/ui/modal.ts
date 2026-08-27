@@ -1,8 +1,11 @@
 /**
  * The chrome every modal shares — overlay, header, close button.
  *
- * Mirrors SharedUI.modalWrapper in Elm, including its class names, so the two
- * can coexist while surfaces move across one at a time.
+ * This began as a mirror of `SharedUI.modalWrapper`, so that the two could
+ * coexist while surfaces moved across one at a time. Every modal has moved and
+ * ticket 21 removed the Elm one, so this is now the only implementation -- but
+ * the class names are still `src/static/style.css`'s and cannot be renamed
+ * here alone.
  */
 
 import { h, icon, emit } from "./dom";
