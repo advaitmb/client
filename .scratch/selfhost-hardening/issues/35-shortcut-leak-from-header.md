@@ -1,6 +1,6 @@
 # 35: Single-letter shortcuts reach the document from focused header controls
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 34 (resolved)
 
