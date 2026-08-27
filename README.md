@@ -1,62 +1,83 @@
 ![](./docs/images/screenshot-alien-screenplay.png)
 
-# Gingko Writer [![CI](https://github.com/advaitmb/client/actions/workflows/ci.yml/badge.svg?branch=selfhost)](https://github.com/advaitmb/client/actions/workflows/ci.yml)
+# Gingko Writer — selfhost fork [![CI](https://github.com/advaitmb/client/actions/workflows/ci.yml/badge.svg?branch=selfhost)](https://github.com/advaitmb/client/actions/workflows/ci.yml)
 
-Writing software to help organize and draft complex documents. Anything from novels and screenplays to legal briefs and graduate theses.
+Writing software to help organize and draft complex documents: anything from
+novels and screenplays to legal briefs and graduate theses. Documents are trees
+of **cards**, rendered as columns.
 
-This is a ground-up rewrite of [GingkoApp.com](https://gingkoapp.com). The latest version is available online at [gingkowriter.com](https://gingkowriter.com).
+This is the `selfhost` branch — a fork of
+[gingko/client](https://github.com/gingko/client) stripped of the hosted-SaaS
+machinery (no payments, no trial, no analytics, no external CDN requests) so it
+can be run on your own server. The companion server is
+[gingko/server](https://github.com/gingko/server); this repository builds only
+the browser client.
 
-The desktop version (on branch [desktop](https://github.com/gingko/client/tree/desktop)), is currently **well behind** the web app version. It will eventually be brought up to par, but if you need it now, it's available to download on [the releases page](https://github.com/gingko/client/releases) (for Linux, Windows, and Mac).
+## Quickstart
 
-## Contributions Welcome!
+You need [Bun](https://bun.sh) (the canonical runtime for this repo — see
+[ADR-0004](./docs/adr/0004-bun-canonical-runtime.md)) and a checkout of
+[gingko/server](https://github.com/gingko/server) to serve the result.
 
-If you want to help **translate Gingko Writer**, you can join [the translation project](https://poeditor.com/join/project/k8Br3k0JVz).
-
-For code contributions, see [CONTRIBUTING.md](./CONTRIBUTING.md) for a guide to getting started.
-
----
-
-### Installation & Dev Environment
-
-#### 1. Install Prerequisites
-- [Node.js](https://nodejs.org)
-- [Bun.sh](https://bun.sh)
-- [SQlite](https://sqlite.org)
-- [CouchDB](https://couchdb.apache.org)*
-  - Note down your admin username and password for the next step.
-
-I can't provide detailed instructions for installing these, because each system is different.
-
-\* _this dependency will be removed once all user documents are migrated to SQLite DB._
-
-#### 2. Project Directories
-
-```
-git clone git@github.com:gingko/client.git
-git clone git@github.com:gingko/server.git
-mkdir data
-```
-After this you should have all three directories side-by-side: client, server, and data.
-
-#### 3. Client setup
-
-```
+```bash
+git clone -b selfhost https://github.com/advaitmb/client.git
 cd client
+
+cp config-example.js config.js   # then edit the four values in it
 bun i
-cp config-example.js config.js
-bun run newwatch
+bun run newbuild
 ```
 
-#### 4. Server setup
+(The repository's default branch is still upstream's abandoned `master`, hence
+the `-b selfhost`.)
 
-In a new terminal, navigate to the `/server` directory, and do the following:
-```
-npm i
-cp config-example.js config.js
-sed -i 's/couchusername/your_couchdb_admin_username/' config.js
-sed -i 's/couchpassword/your_couchdb_admin_password/' config.js
-npm run build
-npm start
+`config.js` is gitignored and holds four values (`HOMEPAGE_URL`,
+`SUPPORT_EMAIL`, `SUPPORT_URGENT_EMAIL`, `LEGACY_URL`). It is baked into the
+bundle at build time, so **edit it before building** — and rebuild after any
+change. `bun run config-check` verifies your `config.js` has exactly the keys
+`config-example.js` declares.
+
+The build writes the whole deployable site to `web/` (gitignored):
+`index.html`, `elm.js`, `doc.js`, `ui.js`, `style.css`, `theme.css`, fonts, and
+`templates/`.
+
+### Serving it
+
+`web/` is a static directory, but it is not standalone: the client makes
+**same-origin** requests for authentication (`/login`, `/signup`), the session
+probe (`/me`), document sync (`/sync` and the `/ws` WebSocket), image upload,
+docx export, and the starter templates. So `web/` has to be served as the
+document root of [gingko/server](https://github.com/gingko/server) (follow that
+repo's README for the server itself) — not from a separate static host. The
+full port and endpoint contract is in
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+
+Then open the address the server prints (`http://localhost:3000` by default).
+
+There is no watch/dev script on this branch: re-run `bun run newbuild` after a
+change.
+
+## Tests
+
+```bash
+bun run test         # both suites
+bun run test:elm     # elm-test, src/elm
+bun run test:ts      # bun test, src/ui + src/shared
 ```
 
-Now you should be able to visit http://localhost:3000 and use your local Gingko Writer install.
+CI (`.github/workflows/ci.yml`) runs the build and both suites on every push to
+`selfhost`.
+
+## Documentation
+
+| File | Contents |
+|---|---|
+| [CONTEXT.md](./CONTEXT.md) | Domain glossary — the vocabulary used in code, issues and tests |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Full system description, including the build pipeline |
+| [docs/adr/](./docs/adr/) | Architecture decision records |
+| [docs/CODE_REVIEW.md](./docs/CODE_REVIEW.md) | Catalog of known bugs and dead code |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to work on this fork |
+
+## License
+
+MIT — see [LICENSE](./LICENSE). Original work by Gingko Inc.

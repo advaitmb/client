@@ -13,12 +13,13 @@ the verified catalog of known bugs and dead code; the tickets under
 ## Development
 
 - Development branch: `selfhost`. Do not push to `master`.
-- Build: `bun i && bun run newbuild` (Bun-only; `esbuild.mjs` uses
-  `import.meta.dir`). Output goes to `web/`.
+- Build: `bun i && bun run newbuild`. Output goes to `web/`. Bun is canonical
+  (ADR-0004), but the build scripts avoid Bun-only APIs.
 - `config.js` is gitignored; create it from `config-example.js` before building.
-- Tests: see `package.json` scripts (`elm-test` for `src/elm`, `bun test` for
-  `src/ui` + `src/shared`). If these don't exist yet, ticket 01 (test
-  infrastructure) hasn't landed — land it before TDD work.
+- Any `package.json` change: regenerate **both** lockfiles (`bun install` and
+  `npm install --package-lock-only`) — CI fails if they drift (ADR-0004).
+- Tests: `bun run test` (`test:elm` = elm-test for `src/elm`, `test:ts` =
+  `bun test` for `src/ui` + `src/shared` + the build seams).
 
 ## Agent skills
 

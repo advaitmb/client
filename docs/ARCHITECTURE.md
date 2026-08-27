@@ -51,10 +51,12 @@ Elm ───────────────────────▶ gw-
 | `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
+| `src/web/database-download.js` | Standalone IndexedDB export page (bundled to `web/database-download.js`, loaded by `database-download.html`) |
 | `src/static/` | `index.html`, CSS, fonts, images, `templates/*.json`; copied verbatim into `web/` |
 | `elm-kernel-replacements/` | Patched copies of `elm/html`, `elm/browser`, `elm/virtual-dom` |
+| `tests/` | `*.elm` (elm-test) and `*.test.ts` (bun test) suites |
 | `web/` (gitignored) | Build output / deploy root |
-| `.github/workflows/` | Upstream CI (Electron release + web deploy) — non-functional on this branch |
+| `.github/workflows/ci.yml` | The only workflow: build + both test suites on `selfhost` |
 | `docs/` | This documentation |
 
 ---
@@ -71,22 +73,26 @@ script on this branch. The steps:
    diff against the *actual* DOM. This is what makes it safe for the `gw-*`
    custom elements (and browser extensions / page translators) to own DOM
    inside the Elm-rendered tree.
-2. **`bun esbuild.mjs`** — bundles `src/shared/doc.js → web/doc.js` and
-   `src/ui/index.ts → web/ui.js` (minified). `require("Container")` is aliased
-   to `src/web/container-web.js`. The root `config.js` (gitignored; created
-   from `config-example.js`) is `require`d by `doc.js` and therefore **inlined
-   into the bundle** — config changes require a rebuild. Note: the script uses
-   Bun-only `import.meta.dir`, so it does not run under Node.
-3. **`cp -r src/static/. web/`** — static assets (currently including several
-   dead Electron-era files; see CODE_REVIEW.md).
+2. **`bun esbuild.mjs`** — bundles three entry points (minified):
+   `src/shared/doc.js → web/doc.js`, `src/ui/index.ts → web/ui.js`, and
+   `src/web/database-download.js → web/database-download.js` (dexie +
+   dexie-export-import for the export page, which therefore makes no external
+   request). `require("Container")` is aliased to `src/web/container-web.js`.
+   The root `config.js` (gitignored; created from `config-example.js`) is
+   `require`d by `doc.js` and therefore **inlined into the bundle** — config
+   changes require a rebuild. The script derives its own directory from
+   `import.meta.url`, so it runs under Node as well as Bun (Bun stays
+   canonical — ADR-0004).
+3. **`cp -r src/static/. web/`** — static assets.
 4. **`bunx tailwindcss -i src/static/style.css -o web/style.css`** — Tailwind
-   (preflight off, `content` scans `src/elm/**/*.elm` only) inlines
-   `shared.css`/`home.css` into one stylesheet.
+   (preflight off, `content` scans `src/elm/**/*.elm` and `src/ui/**/*.ts`)
+   inlines `shared.css`/`home.css` into one stylesheet.
 5. **`ELM_HOME=elm-home/elm-stuff elm-watch make --optimize`** — compiles
-   `src/elm/Main.elm → web/elm.js` per `elm-watch.json`, then postprocesses
-   with `elm-postprocess.mjs`, which (in optimize mode only) substitutes the
+   `src/elm/Main.elm → web/elm.js` per the `app` target in `elm-watch.json`,
+   then postprocesses with `elm-postprocess.mjs`, which substitutes the
    build-time placeholders `{%SUPPORT_EMAIL%}`, `{%SUPPORT_URGENT_EMAIL%}`,
-   and `{%HOMEPAGE_URL%}` from `config.js`.
+   and `{%HOMEPAGE_URL%}` from `config.js` — in every compilation mode, so
+   non-optimize builds don't show raw placeholders either.
 6. **`bun run minifyelm`** — double `uglify-js` pass over `web/elm.js`.
 
 `web/index.html` loads `/elm.js`, `/doc.js`, and `/ui.js` (all deferred), plus
@@ -416,9 +422,14 @@ CODE_REVIEW.md.
 
 ## 8. CI and testing state
 
-There is currently **no functioning CI or test suite on this branch**:
-`build.yml` is the upstream Electron release pipeline (runs on every push,
-calls scripts that no longer exist), `web-deploy.yml` only fires on `master`
-and references removed Playwright/Cypress suites, and the repo contains no
-test files. `@playwright/test` is a phantom devDependency. See CODE_REVIEW.md
-§Build/CI for details.
+One workflow, `.github/workflows/ci.yml`, runs on every push and PR to
+`selfhost`: `bun install --frozen-lockfile`, a check that `package-lock.json`
+is still in sync with `package.json` (ADR-0004), `config-check`, `bun run
+newbuild`, then `bun run test:elm` and `bun run test:ts`. The upstream
+Electron-era `build.yml` and `master`-only `web-deploy.yml` are deleted, as is
+the phantom `@playwright/test` devDependency.
+
+Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
+`*.test.ts` for bun test (custom elements against jsdom, plus the pure helpers
+in `src/shared/stamps.js` and the build's `config-check` / `elm-postprocess`
+seams). The three pre-agreed seams are ADR-0001's.
