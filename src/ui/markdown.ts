@@ -23,6 +23,7 @@
  *   attribute  card-id   the card's id, for checkbox round-tripping
  */
 
+import DOMPurify, { type Config } from "dompurify";
 import { marked } from "marked";
 
 /** `breaks: true` matches the old options: a single newline is a line break. */
@@ -39,6 +40,58 @@ function preprocess(src: string): string {
     .replace(/\+\+\}/g, "</ins>")
     .replace(/\{--/g, "<del class='diff'>")
     .replace(/--\}/g, "</del>");
+}
+
+/**
+ * Card content is untrusted: it reaches a viewer from collaborators (`rt`
+ * messages, shared docs), JSON import and external drag-drop, and marked >= 5
+ * has no sanitizer — it passes raw inline HTML straight through
+ * (CODE_REVIEW.md C1, stored XSS). ADR-0003: one allowlist, defined here, used
+ * by every path that assigns markdown-derived HTML.
+ *
+ * Spelled out rather than left to DOMPurify's defaults, which keep <style> and
+ * the style attribute (CSS injection) plus the whole SVG/MathML profile. What
+ * has to survive is the app's own output: the <ins>/<del> preprocess()
+ * injects, the task-list checkbox wireCheckboxes() enables, and ordinary
+ * markdown — headings, lists, links, images, code, tables. Anything executable
+ * — script, event handlers, javascript: URLs, style, iframe — is not on the
+ * list and so is dropped.
+ */
+const ALLOWLIST: Config = {
+  ALLOWED_TAGS: [
+    "a", "abbr", "b", "blockquote", "br", "caption", "code", "col",
+    "colgroup", "dd", "del", "details", "div", "dl", "dt", "em", "figcaption",
+    "figure", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "input",
+    "ins", "kbd", "li", "mark", "ol", "p", "pre", "q", "s", "samp", "small",
+    "span", "strong", "sub", "summary", "sup", "table", "tbody", "td",
+    "tfoot", "th", "thead", "tr", "u", "ul", "var", "wbr",
+  ],
+  ALLOWED_ATTR: [
+    // Links and images. DOMPurify's URI check rejects javascript: (and every
+    // other scheme outside http/https/mailto/tel/ftp/sms/cid/xmpp) here.
+    "href", "src", "alt", "title", "target", "rel",
+    // Task-list checkboxes.
+    "type", "checked", "disabled",
+    // Presentation marked emits, or that raw HTML in a card may carry. No
+    // "style" (CSS injection) and no "id"/"name" (DOM clobbering).
+    "class", "align", "colspan", "rowspan", "span", "start", "width",
+    "height", "lang", "dir",
+  ],
+};
+
+/**
+ * The module's contract: card markdown in, HTML safe to assign to innerHTML
+ * out. Both Elm call sites — Page/Doc.viewContent and the Export preview —
+ * render through <gw-markdown>, so this is the one place they share and the
+ * one place the sanitize step can be skipped by mistake. Exported so a render
+ * path that ever needs the HTML without this element gets the allowlist by
+ * construction instead of remembering a sanitize call (ADR-0003).
+ */
+export function renderMarkdown(src: string): string {
+  // marked.parse is synchronous with these options; the async overload is
+  // only used when an async extension is registered, and none is.
+  const html = marked.parse(preprocess(src)) as string;
+  return DOMPurify.sanitize(html, ALLOWLIST);
 }
 
 /**
@@ -77,9 +130,7 @@ class Markdown extends HTMLElement {
 
     const holder = document.createElement("div");
     holder.setAttribute("data-private", "lipsum");
-    // marked.parse is synchronous with these options; the async overload is
-    // only used when an async extension is registered, and none is.
-    holder.innerHTML = marked.parse(preprocess(src)) as string;
+    holder.innerHTML = renderMarkdown(src);
     wireCheckboxes(holder, cardId);
 
     this.replaceChildren(holder);

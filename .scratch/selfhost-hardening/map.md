@@ -20,6 +20,13 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   bun test 7), config-check is a real gate, `.github/workflows/ci.yml` green
   on `selfhost`; `build.yml`/`web-deploy.yml` deleted. Details in
   `issues/01-test-infrastructure.md`.
+- Ticket 02 resolved — C1 closed: `renderMarkdown()` in `src/ui/markdown.ts`
+  (marked → DOMPurify with one explicit allowlist) is the only path to
+  `innerHTML`, and both Elm call sites render through `<gw-markdown>`. The
+  bun-test DOM moved happy-dom → jsdom because happy-dom cannot run DOMPurify
+  (`Node.prototype.nodeName` is `''`; `NodeIterator` dies on removal), so the
+  harness could not tell a working sanitizer from a missing one. Details in
+  `issues/02-sanitize-markdown.md`.
 - Ticket 03 resolved — payments/trial ring removed per ADR-0002 (trial block
   derivation, `PaymentStatus`/`daysLeft`, upgrade modal ring, `Route.Upgrade`,
   `Upgrade.elm`, `FlashPrice`/`CheckoutButtonClicked` + JS handler,
