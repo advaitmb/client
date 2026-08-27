@@ -1,6 +1,6 @@
 # 16: Drag-drop correctness (off-by-one, stale flags, id paste, autoscroll throw)
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
