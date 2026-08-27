@@ -17,6 +17,17 @@ path both sides, `window.elmMessages`), and stale `src/ui/README.md` (S11).
 contain only live ends; `src/ui/README.md` describes the actual state of the
 migration.
 
+**Added scope (from ticket 20's resolution):** the repo-root `build/`
+directory (Electron packaging resources, zero references after B11);
+producerless CSS in `src/static/style.css` — `#migrate-modal` /
+`#migrate-bugs-modal` (no producers despite the old comment), `#fullscreen-button`
+(live element is plural), `#help-dropdown`, `#language-menu*` — plus
+`src/static/styles/github.css`; `package.json`'s `repository`/`bugs`/
+`homepage` still pointing at `gingko/client`; `docs/images/
+how-to-clone-address.png` (last referrer removed); the stale "send … to
+Sentry" comment in doc.js. Verify zero references before each deletion, as
+ticket 20 did.
+
 ## Acceptance criteria
 
 - [ ] All §6 JS/TS items removed or justified in Comments; coordinate with
