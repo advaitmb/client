@@ -2,7 +2,6 @@ module Api exposing (exportDocx)
 
 import Bytes exposing (Bytes)
 import Http exposing (Error(..), Response(..))
-import Json.Decode as Dec exposing (Decoder)
 import Json.Encode as Enc
 import Result exposing (Result(..))
 

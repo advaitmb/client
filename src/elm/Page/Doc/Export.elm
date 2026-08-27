@@ -6,7 +6,7 @@ import Bytes exposing (Bytes)
 import Coders exposing (treeToJSON, treeToMarkdownString, treeToOPML)
 import Doc.TreeUtils exposing (getColumnById, getLeaves)
 import File.Download as Download
-import Html exposing (Html, div, node, pre, text)
+import Html exposing (Html, div, node, text)
 import Html.Attributes exposing (attribute, class, id)
 import Html.Events exposing (onClick, onMouseEnter, onMouseLeave)
 import Http

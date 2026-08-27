@@ -1,19 +1,10 @@
 port module Doc.List exposing (Model(..), encodeSidebarDocs, filter, fromList, getLastUpdated, init, subscribe, switchListSort, toList, update)
 
-import Ant.Icons.Svg as AntIcons
 import Doc.Metadata as Metadata exposing (Metadata)
-import Html exposing (Html, a, div, input, li, text, ul)
-import Html.Attributes exposing (attribute, class, classList, href, id, placeholder, title, type_)
-import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave, stopPropagationOn)
 import Json.Decode as Dec
 import Json.Encode as Enc
-import Page.Doc.ContextMenu as ContextMenu
-import Route
-import Svg.Attributes as SA
 import Time
-import Translation exposing (TranslationId(..))
-import Types exposing (SortBy(..), TooltipPosition(..))
-import Utils exposing (onClickStop)
+import Types exposing (SortBy(..))
 
 
 

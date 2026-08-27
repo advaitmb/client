@@ -3,7 +3,6 @@ module Main exposing (main)
 import AppUrl
 import Browser exposing (Document)
 import Browser.Navigation as Nav
-import Dict
 import Doc.UI as UI
 import GlobalData exposing (GlobalData)
 import Html

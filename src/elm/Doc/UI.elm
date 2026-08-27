@@ -6,11 +6,9 @@ import Coders exposing (treeToMarkdownString)
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.TreeUtils as TreeUtils exposing (..)
 import GlobalData exposing (GlobalData)
-import Html exposing (Html, a, div, h2, h3, h5, hr, input, li, node, pre, span, textarea)
+import Html exposing (Html, a, div, h2, h3, h5, hr, input, li, node, pre, span)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
-import Html.Extra exposing (viewIf)
-import Import.Template exposing (Template(..))
 import Json.Encode as Enc
 import Markdown.Block
 import Markdown.Html
@@ -18,15 +16,13 @@ import Markdown.Parser
 import Markdown.Renderer exposing (Renderer)
 import Octicons as Icon exposing (defaultOptions)
 import Regex exposing (Regex, replace)
-import Route
-import Session exposing (LoggedIn)
 import SharedUI exposing (ctrlOrCmdText)
 import Svg exposing (g, svg)
-import Svg.Attributes exposing (d, fill, fontFamily, fontSize, fontWeight, preserveAspectRatio, stroke, strokeDasharray, strokeDashoffset, strokeLinecap, strokeLinejoin, strokeMiterlimit, strokeWidth, textAnchor, version, viewBox)
+import Svg.Attributes exposing (d, fill, fontFamily, fontSize, fontWeight, stroke, strokeDasharray, strokeDashoffset, strokeLinecap, strokeLinejoin, strokeMiterlimit, strokeWidth, textAnchor, version, viewBox)
 import Time exposing (posixToMillis)
 import Toast
 import Translation exposing (TranslationId(..), tr)
-import Types exposing (Children(..), CursorPosition(..), SortBy(..), TextCursorInfo, Toast, ToastRole(..), TooltipPosition(..), ViewMode(..), ViewState)
+import Types exposing (Children(..), CursorPosition(..), TextCursorInfo, Toast, ToastRole(..), TooltipPosition(..), ViewMode(..), ViewState)
 import Utils exposing (asButton, emptyText, ternary, text, textNoTr)
 
 

@@ -1,12 +1,10 @@
 module Doc.Data exposing (Card_tests_only, Model, cardDataReceived, conflictToTree, emptyCardBased, getHistoryList, hasConflicts, historyReceived, importTree, lastSavedTime, lastSyncedTime, localSave, model_tests_only, publicDataDecoder, pushOkHandler, resolveConflicts, restore, triggeredPush)
 
-import Coders exposing (treeToValue, tupleDecoder)
 import Dict exposing (Dict)
 import Http exposing (Error(..))
 import Json.Decode as Dec
 import Json.Encode as Enc
 import List.Extra as ListExtra
-import Maybe exposing (andThen)
 import Outgoing exposing (Msg(..))
 import RemoteData exposing (WebData)
 import Result.Extra

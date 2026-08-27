@@ -7,10 +7,9 @@ import Html exposing (..)
 import Html.Attributes as A exposing (..)
 import Html.Events exposing (onClick)
 import Html.Keyed as Keyed
-import Html.Lazy exposing (lazy2, lazy3, lazy4)
+import Html.Lazy exposing (lazy3, lazy4)
 import Json.Encode as Enc
 import Time
-import Translation exposing (TranslationId(..))
 import Types exposing (..)
 
 

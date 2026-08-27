@@ -14,9 +14,8 @@ import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.UI as UI
 import File exposing (File)
 import File.Download as Download
-import File.Select as Select
 import GlobalData exposing (GlobalData)
-import Html exposing (Html, br, button, div, fieldset, h2, h3, input, label, li, node, p, small, strong, ul)
+import Html exposing (Html, button, div, fieldset, input, label, node, p, strong)
 import Html.Attributes exposing (attribute, checked, class, classList, height, id, style, type_, width)
 import Html.Events exposing (on, onClick, onInput)
 import Html.Extra exposing (viewIf)
@@ -41,7 +40,7 @@ import Task
 import Time
 import Toast
 import Translation exposing (TranslationId(..), tr)
-import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
+import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree)
 import Utils exposing (delay, ternary)
 
 

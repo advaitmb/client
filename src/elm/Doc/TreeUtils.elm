@@ -5,7 +5,6 @@ import Json.Encode as Enc
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra
 import SHA1
-import String
 import Types exposing (Children(..), Column, Tree)
 
 

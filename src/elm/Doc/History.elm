@@ -1,17 +1,11 @@
 module Doc.History exposing (History, checkoutVersion, getCurrentVersionId, idAtIndex, init, revert, sliderState, update)
 
-import Ant.Icons.Svg as AntIcons
 import Doc.Data as Data
-import Html exposing (Html, button, div, input)
-import Html.Attributes as A exposing (id, step, type_)
-import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
 import Http
 import List.Zipper as Zipper exposing (Zipper)
 import RemoteData exposing (WebData)
 import Time
-import Translation exposing (TranslationId(..))
-import Types exposing (TooltipPosition(..), Tree)
-import Utils exposing (text, textNoTr)
+import Types exposing (Tree)
 
 
 

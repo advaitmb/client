@@ -4,7 +4,6 @@ module Page.Import exposing (..)
 
 import Browser.Navigation as Nav
 import Doc.Data as Data
-import Doc.Metadata as Metadata
 import GlobalData exposing (GlobalData)
 import Http
 import Import.Incoming

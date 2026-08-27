@@ -1,23 +1,20 @@
 module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTree, getCollaborators, getGlobalData, getStartingWordcount, getTextCursorInfo, getViewMode, getWorkingTree, init, isDirty, isFullscreen, isNormalMode, lastActives, maybeActivate, opaqueIncoming, opaqueUpdate, publicTreeLoaded, setBlock, setDirty, setGlobalData, setLoading, setTree, setWorkingTree, subscriptions, view)
 
-import Ant.Icons.Svg as AntIcons
-import Browser.Dom exposing (Element)
-import Coders exposing (collabStateEncoder, treeToJSON, treeToValue)
+import Browser.Dom
+import Coders exposing (collabStateEncoder, treeToValue)
 import Doc.Fullscreen as Fullscreen
 import Doc.TreeStructure as TreeStructure exposing (defaultTree)
 import Doc.TreeUtils exposing (..)
 import Doc.UI as UI exposing (viewMobileButtons, viewSearchField)
 import GlobalData exposing (GlobalData)
-import Html exposing (Attribute, Html, div, node, span, text)
-import Html.Attributes as Attributes exposing (attribute, class, classList, dir, id, style, title)
-import Html.Events exposing (custom, on, onClick, onDoubleClick)
-import Html.Extra exposing (viewIf)
+import Html exposing (Attribute, Html, div, node, text)
+import Html.Attributes as Attributes exposing (attribute, id, style)
+import Html.Events exposing (custom, on)
 import Html.Keyed as Keyed
-import Html.Lazy exposing (lazy2, lazy3, lazy4, lazy6, lazy8)
+import Html.Lazy exposing (lazy3)
 import Json.Decode as Json
 import Json.Encode as Enc
 import List.Extra as ListExtra
-import Markdown
 import Outgoing exposing (Msg(..), send)
 import Page.Doc.Incoming as Incoming exposing (Msg(..))
 import Random

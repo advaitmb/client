@@ -1,7 +1,7 @@
 module GlobalData exposing (GlobalData, currentTime, decode, isMac, public, seed, setSeed, updateTime)
 
 import Json.Decode as Dec exposing (Decoder)
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (required)
 import Random
 import Time
 
