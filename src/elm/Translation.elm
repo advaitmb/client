@@ -605,7 +605,7 @@ tr trans =
                     }
 
                 AltKey ->
-                    { en = "AltKey"
+                    { en = "Alt"
                     }
 
                 EditFullscreenAction ->
@@ -793,11 +793,11 @@ tr trans =
                     }
 
                 ParenNumber ->
-                    { en = "ParenNumber"
+                    { en = "(1-6)"
                     }
 
                 SetHeadingLevel ->
-                    { en = "SetHeadingLevel"
+                    { en = "to Set Title Level"
                     }
 
                 HelpVideos ->
