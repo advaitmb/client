@@ -286,6 +286,23 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   its children on connect, and bun 1.3.14 shares one `customElements` registry
   across test files while 1.3.11 does not; `tests/dom.ts` now records that
   rule. Details in `issues/16-drag-drop.md`.
+- Ticket 31 resolved — the hole ticket 15 filed beside E5: `changeMode`'s three
+  `FullscreenEditing` targets carried no `preventIfBlocked` at all, so
+  `shift+enter` on a blocked document (history open, public document) opened a
+  fullscreen editor and broadcast `CollabEditing` while it did. Four routes in,
+  three branches: `shift+enter` from the normal view, the card editor's
+  fullscreen button, and the fullscreen view moving focus to another card —
+  inserting from a fullscreen editor was already covered by `insert`'s own
+  guard. All three now end with the guard, so it replaces the whole triple and
+  no mode change, save or collab broadcast survives the block. The fullscreen
+  **exits** stay unguarded on purpose: guarding them would trap a reader in an
+  editor and undo E6 (leaving browser fullscreen must close the fullscreen
+  editor). ADR-0001 gains **seam 11** (the mode machine: which mode an event
+  leaves the document in); 6 tests, 3 red first, one per guard, and the button's
+  test simulates `gw-edit-fullscreen` on `Page.Doc.view` because
+  `Page.Doc.Msg` exports no constructors. Guard *ordering* is still invisible to
+  a test, as seam 10 records. Details in
+  `issues/31-fullscreen-bypasses-block.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
