@@ -586,6 +586,24 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   compiled once per search instead of once per card, twice. P5: `lazy2` on what
   `treeView` renders. No existing test was modified. Details in
   `issues/25-perf-data-layer.md`.
+- Ticket 35 resolved — the app's shortcut map is scoped by **region**, not by
+  control. Mousetrap binds every shortcut on `document` and ignored only form
+  fields, so once tickets 32-34 made the header real buttons, typing `j` with a
+  menu open moved the card cursor behind it. `src/shared/shortcut-scope.js`
+  (ADR-0001 seam 14, installed as `Mousetrap.prototype.stopCallback`) holds the
+  whole rule: `.mousetrap` opts in, a form field is the field's, and inside the
+  **chrome** — `gw-header`, `gw-sidebar` and the four modals, by `closest()`
+  against one list — an unmodified keystroke is the control's. Escape gets
+  through (the way out) and so does a modifier chord, because no button reads
+  one and because `needOverride` cancels the browser's own `mod+s`/`mod+o` from
+  *inside* the handler — stopping those would open Save-page rather than do
+  nothing. Not a "focused control" rule: card content and the shortcut tray hold
+  real links, and the shortcuts must survive clicking one. Falls out of it: Tab
+  moves the focus in the header again, where the global tab binding used to
+  cancel it. Still open, and Elm's: a menu open with focus on `<body>` (Safari
+  does not focus a clicked button) — `Page.App` gates the shortcuts on
+  `modalState` and never on `headerMenu`. Details in
+  `issues/35-shortcut-leak-from-header.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
