@@ -122,3 +122,17 @@ test("keeps local document data, clearing only the session blob", async () => {
 
   expect(localStorage.getItem("gingko-local-store/tree-1/settings")).toBe('{"theme":"dark"}');
 });
+
+test("keeps the record of which account owns the legacy database", async () => {
+  // Ticket 27's claim (gingko-local-db-owner, §6.2): the one account that has
+  // adopted the pre-per-account database `"db"`. Logout is exactly where it
+  // must not go. An unclaimed `"db"` is adoptable, so a logout that took the
+  // claim with the session blob would hand the departing account's documents
+  // to whoever logged in next — the leak ticket 27 exists to close, restored
+  // by a plausible tidy-up ("clear the gingko-* keys we wrote").
+  localStorage.setItem("gingko-local-db-owner", "e99ead1f7cfdea04");
+
+  await logoutUser({});
+
+  expect(localStorage.getItem("gingko-local-db-owner")).toBe("e99ead1f7cfdea04");
+});

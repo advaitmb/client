@@ -81,6 +81,25 @@ test("the same account always names the same database", () => {
   expect(dbNameForEmail("someone@example.com")).toBe(dbNameForEmail("someone@example.com"));
 });
 
+test("an account's database name is the same one it was before", () => {
+  // Known-good literals, and the only test here that can catch the mistake
+  // that actually costs data: the test above compares the hash to itself, so
+  // it stays green through *any* change of mixer, encoding or case handling.
+  // Every such change is a silent migration — a name nobody records anywhere
+  // else, so an account whose name moves does not find a renamed database, it
+  // finds no database. It opens an empty one, re-pulls from the server, and
+  // the offline rows that had never been pushed are still sitting in the
+  // database under the old name with nothing left that knows to look there.
+  //
+  // So these values are frozen. Changing the derivation means writing a real
+  // migration (read the claim's counterpart for every old name, or adopt as
+  // §6.2 does), not editing this line.
+  expect(dbNameForEmail("someone@example.com")).toBe("db-e99ead1f7cfdea04");
+  expect(dbNameForEmail("a@example.com")).toBe("db-3e871d8feb391cee");
+  expect(dbNameForEmail("user@localhost")).toBe("db-5454eeb251834d7f");
+  expect(dbNameForEmail("ünïcode@example.com")).toBe("db-6db98a3bdf3f8ffe");
+});
+
 test("two accounts name two databases", () => {
   expect(dbNameForEmail("a@example.com")).not.toBe(dbNameForEmail("b@example.com"));
 });
