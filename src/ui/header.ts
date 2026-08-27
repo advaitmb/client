@@ -125,27 +125,36 @@ const ARROW_STEP = new Map<string, number>([
  * toggles, which these are not: exactly one of the four is in effect, and Tab
  * would be the only way past the eight of them.
  *
- * The container id and the child id prefix differ in the existing stylesheet
- * (#export-selection holds #export-select-all, …), so both are passed.
+ * Named arguments because four of these are strings: the container id and the
+ * child id prefix differ in the existing stylesheet (#export-selection holds
+ * #export-select-all, …), and neither is the group's name or the value in
+ * effect.
  */
-function radioGroup(
-  containerId: string,
-  childPrefix: string,
-  groupLabel: string,
-  current: string,
-  options: Array<[value: string, label: string]>,
-  onPick: (v: string) => void,
-) {
+function radioGroup({
+  id,
+  childPrefix,
+  label: groupLabel,
+  current,
+  options,
+  onPick,
+}: {
+  id: string;
+  childPrefix: string;
+  label: string;
+  current: string;
+  options: Array<[value: string, label: string]>;
+  onPick: (v: string) => void;
+}) {
   const tabStop = Math.max(0, options.findIndex(([value]) => value === current));
 
   /** Each option's value beside the node it rendered to, for the arrow keys. */
   const radios: Array<{ value: string; node: HTMLElement }> = [];
 
   /** The arrow key: hand the focus to the neighbour, and choose it. */
-  const move = (from: number, step: number) => {
+  const move = (from: number, delta: number) => {
     // Wrapping, so four options are a loop and not a wall. The modulo keeps
     // the index in range; the assertion is only the compiler's rule.
-    const to = radios[(from + step + radios.length) % radios.length]!;
+    const to = radios[(from + delta + radios.length) % radios.length]!;
     to.node.focus();
     onPick(to.value);
   };
@@ -188,7 +197,7 @@ function radioGroup(
   return h(
     "div",
     {
-      id: containerId,
+      id,
       class: "toggle-button",
       role: "radiogroup",
       // Neither row has a heading on screen to borrow, and an unnamed group
@@ -456,18 +465,32 @@ class Header extends HTMLElement {
     return h(
       "div",
       { id: "export-menu" },
-      radioGroup("export-selection", "export-select-", "What to export", s?.selection ?? "all", [
-        ["all", "Everything"],
-        ["subtree", "Current Subtree"],
-        ["leaves", "Leaves-only"],
-        ["column", "Current Column"],
-      ], (v) => emit(this, "gw-export-selection", v)),
-      radioGroup("export-format", "export-format-", "Export format", s?.format ?? "word", [
-        ["word", "Word"],
-        ["text", "Plain Text"],
-        ["opml", "OPML"],
-        ["json", "JSON"],
-      ], (v) => emit(this, "gw-export-format", v)),
+      radioGroup({
+        id: "export-selection",
+        childPrefix: "export-select-",
+        label: "What to export",
+        current: s?.selection ?? "all",
+        options: [
+          ["all", "Everything"],
+          ["subtree", "Current Subtree"],
+          ["leaves", "Leaves-only"],
+          ["column", "Current Column"],
+        ],
+        onPick: (v) => emit(this, "gw-export-selection", v),
+      }),
+      radioGroup({
+        id: "export-format",
+        childPrefix: "export-format-",
+        label: "Export format",
+        current: s?.format ?? "word",
+        options: [
+          ["word", "Word"],
+          ["text", "Plain Text"],
+          ["opml", "OPML"],
+          ["json", "JSON"],
+        ],
+        onPick: (v) => emit(this, "gw-export-format", v),
+      }),
       // Download and Print are NOT here: Page/Doc/Export.elm renders them in
       // the preview pane, and duplicating them would give two of each.
     );

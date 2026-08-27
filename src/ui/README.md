@@ -87,9 +87,19 @@ lives in Elm: an element is handed the answer, not the inputs to compute one.
   `color`, `font`, `text-align`. `color` is the one that shows: `dom.ts` strokes
   its icons with `currentColor`, so a button's own colour repaints the glyph.
   Leave the focus ring: it is how a keyboard user knows where they are.
+- **A set of mutually exclusive options is a radio group, and owes the arrow
+  keys.** `role="radiogroup"` with a name, `role="radio"` and `aria-checked` on
+  each option, **one** tab stop — the option in effect, `tabindex="-1"` on the
+  rest — and the four arrow keys moving through them with the choice following
+  the focus. The export menu's two rows are the case (ticket 34); `aria-pressed`
+  buttons, as in the theme picker, describe *independent* toggles and give one
+  tab stop each. Not `<input type="radio">`, which brings all of that for free
+  but owns its own checked state, and every mark on this side of the boundary is
+  Elm's answer rather than the click's.
 - **A `keydown` an element handles must not also reach the app.** Mousetrap
   binds the shortcuts on `document` and ignores only form fields, so Enter on a
-  menu button opens the active card's editor as well as choosing the entry.
+  menu button opens the active card's editor as well as choosing the entry — and
+  an arrow key in a radio group moves the card cursor behind the open menu.
   `stopPropagation` on the keys you handle, and only those — Escape has to get
   through.
 - **Loading states render but wire nothing.** The `static` attribute is the

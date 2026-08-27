@@ -1155,10 +1155,11 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
 }
 /* The options are real <button>s with role="radio" (ticket 34; `div`s with
    onclick before it), so the UA chrome comes off as it does for the menu
-   entries and the icons — with `border` and `text-align` carrying this group's
-   own values rather than being reset to nothing. `color` is the one that shows
-   twice over: the group's gray would otherwise become buttontext, and `dom.ts`
-   strokes icons with `currentColor`. Preflight is off in this repo
+   entries and the header icons — with `border` and `text-align` carrying this
+   group's own values rather than being reset to nothing. `color: inherit` is
+   what keeps `.toggle-button`'s gray, which buttontext would otherwise
+   replace, and `font: inherit` the label's size, which a UA button's 13px
+   would shrink inside the 30px row. Preflight is off in this repo
    (tailwind.config.js), so these are the whole reset. The focus ring is left
    alone: it is the only thing that says which option you are on. */
 .toggle-button button {

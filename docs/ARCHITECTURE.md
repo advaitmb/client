@@ -197,7 +197,9 @@ slider is a *checkout* — the version goes into the working tree to be read;
 leaving the view is `closeHistoryView`, which puts the tree back to the version
 the view opened at unless the exit was a restore (ticket 34: the ✕ and the
 history icon used to disagree about that). Export
-state is `(ExportSelection, ExportFormat)`; DOCX goes through
+state is `(ExportSelection, ExportFormat)`, one half per row of the header's
+export menu, each an ARIA radio group that reports a choice and waits for
+Elm's answer (ticket 34); DOCX goes through
 `Api.exportDocx` (POST `/export-docx`), other formats are built client-side
 (§4.5).
 
