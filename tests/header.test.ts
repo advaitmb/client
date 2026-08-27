@@ -364,6 +364,206 @@ test("the word count entry still opens the word count", () => {
   expect(opened).toEqual(["wordcount"]);
 });
 
+/* === The three menu icons (ticket 33) ===
+ *
+ * Ticket 32 made the settings menu's *entries* real buttons, and left the
+ * honest gap: the icons that open the menus were `div`s with `onclick`, so a
+ * keyboard-only user could not reach the picker at all. These pin the icons as
+ * controls — and the history menu's own two, which the history icon now opens
+ * for a keyboard user.
+ */
+
+/** The three icons, by the menu each one owns. */
+const ICONS: Array<[id: string, menu: string, label: string]> = [
+  ["history-icon", "history", "Version history"],
+  ["doc-settings-icon", "settings", "Document settings"],
+  ["export-icon", "export", "Export or print"],
+];
+
+const control = (el: HTMLElement, id: string) =>
+  el.querySelector<HTMLElement>(`#${id}`)!;
+
+/**
+ * Activate a control the way a keyboard does. jsdom implements no activation
+ * behaviour, so this is the platform's rule written out: the keydown, and then
+ * — only for a control the browser itself activates from the keyboard, and
+ * only if nothing cancelled the keydown — the click that follows it. A
+ * `<div onclick>` gets the keydown and nothing more, which is exactly what a
+ * keyboard user gets from one.
+ */
+function press(node: HTMLElement, key: string) {
+  const live = node.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+  const activates =
+    node instanceof HTMLButtonElement && (key === "Enter" || key === " ");
+  if (live && activates) node.click();
+}
+
+/** Collect what the icons ask Elm for, in order. */
+function watchMenus(el: HTMLElement): unknown[] {
+  const asked: unknown[] = [];
+  el.addEventListener("gw-menu", (e) => asked.push((e as CustomEvent).detail));
+  return asked;
+}
+
+/** Run `body` with a document-level keydown listener watching for leaks. */
+function withDocumentKeys(body: (escaped: string[]) => void) {
+  const escaped: string[] = [];
+  const watch = (e: Event) => escaped.push((e as KeyboardEvent).key);
+  document.addEventListener("keydown", watch);
+  try {
+    body(escaped);
+  } finally {
+    document.removeEventListener("keydown", watch);
+  }
+}
+
+test("each menu icon is a control the keyboard can reach", () => {
+  const [el] = mount();
+
+  for (const [id, , label] of ICONS) {
+    const icon = control(el, id);
+    // A real button, so the platform gives Enter and Space activation and a
+    // focus ring without this element implementing any of it (S12).
+    expect([id, icon.tagName]).toEqual([id, "BUTTON"]);
+    expect([id, icon.getAttribute("type")]).toEqual([id, "button"]);
+    expect([id, icon.tabIndex]).toEqual([id, 0]);
+    icon.focus();
+    expect(document.activeElement).toBe(icon);
+    // The label is a tooltip on screen and the accessible name in a screen
+    // reader: the icon is a bare glyph, so there is no text to fall back on.
+    expect([id, icon.getAttribute("aria-label")]).toEqual([id, label]);
+    expect([id, icon.getAttribute("title")]).toEqual([id, label]);
+  }
+});
+
+test("Enter on an icon asks for the menu that icon owns", () => {
+  for (const [id, menu] of ICONS) {
+    const [el] = mount();
+    const asked = watchMenus(el);
+
+    control(el, id).focus();
+    press(control(el, id), "Enter");
+
+    expect([id, asked]).toEqual([id, [menu]]);
+    document.body.replaceChildren();
+  }
+});
+
+test("Space on an open icon closes its menu again", () => {
+  const [el] = mount({ menu: "settings" });
+  const asked = watchMenus(el);
+
+  press(control(el, "doc-settings-icon"), " ");
+
+  // The icon is a toggle: Elm is told to close the menu it has open, not to
+  // open it a second time.
+  expect(asked).toEqual(["none"]);
+});
+
+test("an icon says whether its menu is open", () => {
+  const [el] = mount({ menu: "settings" });
+
+  expect(control(el, "doc-settings-icon").getAttribute("aria-expanded")).toBe("true");
+  expect(control(el, "export-icon").getAttribute("aria-expanded")).toBe("false");
+
+  // Elm's answer, like the theme mark: the icon reports the click and waits.
+  el.setAttribute("menu", "export");
+
+  expect(control(el, "doc-settings-icon").getAttribute("aria-expanded")).toBe("false");
+  expect(control(el, "export-icon").getAttribute("aria-expanded")).toBe("true");
+});
+
+test("Enter and Space on an icon do not also reach the app's shortcuts", () => {
+  const [el] = mount();
+
+  withDocumentKeys((escaped) => {
+    for (const [id] of ICONS) {
+      // Mousetrap binds "enter" on `document` and ignores only form fields, so
+      // an Enter that got there would open the active card's editor as well as
+      // the menu (ticket 24's breadcrumb, ticket 32's menu entries).
+      press(control(el, id), "Enter");
+      press(control(el, id), " ");
+    }
+    expect(escaped).toEqual([]);
+
+    // Narrowly: the app's other keys still get through, so an icon is not a
+    // place a keyboard user gets stuck.
+    press(control(el, "export-icon"), "Escape");
+    expect(escaped).toEqual(["Escape"]);
+  });
+});
+
+test("the icon keeps the focus while its menu opens and closes", () => {
+  const [el] = mount();
+  control(el, "doc-settings-icon").focus();
+
+  // Elm's answer rebuilds everything but the title, so without ticket 32's
+  // refocus the user who opened the menu is dropped on <body> — unable to tab
+  // into what they just opened, or to close it again.
+  el.setAttribute("menu", "settings");
+  expect(document.activeElement).toBe(control(el, "doc-settings-icon"));
+
+  el.setAttribute("menu", "none");
+  expect(document.activeElement).toBe(control(el, "doc-settings-icon"));
+});
+
+test("the menu an icon opens is the next thing in the tab order", () => {
+  const [el] = mount({ menu: "settings" });
+
+  const icon = control(el, "doc-settings-icon");
+  const first = settingsMenu(el).querySelector("button")!;
+  // Tab order is document order here (nothing sets tabindex), so this is what
+  // makes the picker reachable: Tab off the icon lands in the menu it opened.
+  expect(icon.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING)
+    .toBeGreaterThan(0);
+  const focusable = Array.from(
+    el.querySelectorAll<HTMLElement>("button, input:not([disabled])"),
+  );
+  expect(focusable[focusable.indexOf(icon) + 1]).toBe(first);
+});
+
+/* The history menu's own controls: unreachable until now for the same reason
+ * the picker was, and named in ticket 32's Comments as landing with the icons.
+ */
+
+test("the history menu's controls are keyboard-operable", () => {
+  const [el] = mount({ menu: "history", history: JSON.stringify({ index: 2, max: 5 }) });
+  const reported: string[] = [];
+  for (const name of ["gw-history-restore", "gw-history-cancel"]) {
+    el.addEventListener(name, () => reported.push(name));
+  }
+
+  for (const id of ["history-restore", "history-close-button"]) {
+    const button = control(el, id);
+    expect([id, button.tagName]).toEqual([id, "BUTTON"]);
+    expect([id, button.getAttribute("type")]).toEqual([id, "button"]);
+    button.focus();
+    expect(document.activeElement).toBe(button);
+  }
+
+  press(control(el, "history-restore"), "Enter");
+  press(control(el, "history-close-button"), " ");
+
+  // Cancel is not the icon's toggle: closing the menu from the icon leaves the
+  // checked-out version in place, while this one reverts it (Page.App's
+  // CancelHistory), so it has to be operable in its own right.
+  expect(reported).toEqual(["gw-history-restore", "gw-history-cancel"]);
+});
+
+test("Enter and Space in the history menu do not reach the app's shortcuts", () => {
+  const [el] = mount({ menu: "history", history: JSON.stringify({ index: 2, max: 5 }) });
+
+  withDocumentKeys((escaped) => {
+    for (const id of ["history-restore", "history-close-button"]) {
+      press(control(el, id), "Enter");
+      press(control(el, id), " ");
+    }
+    expect(escaped).toEqual([]);
+  });
+});
+
 test("the header says when it has rendered, so nothing has to poll its geometry", () => {
   // The port layer fixed-positions the GitHub sync button against
   // #history-icon and used to re-measure the header every 800ms, forever, to

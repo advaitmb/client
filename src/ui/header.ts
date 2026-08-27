@@ -73,6 +73,23 @@ const THEMES: Array<[value: string, label: string]> = [
 ];
 
 /**
+ * Enter and Space stop at the header control that was activated.
+ *
+ * Mousetrap binds the app's shortcuts on `document` and ignores only form
+ * fields, so an Enter that escaped a button would activate it *and* open the
+ * active card's editor (ticket 24's breadcrumb finding). Nothing here has to
+ * implement either key: the control is a real <button>, so activation is the
+ * platform's — this only keeps the keystroke from being acted on twice.
+ *
+ * Narrow on purpose. Escape and every other key still reach the app, so a
+ * focused control is not a place a keyboard user gets stuck.
+ */
+function stopActivationKeys(e: Event) {
+  const k = (e as KeyboardEvent).key;
+  if (k === "Enter" || k === " ") e.stopPropagation();
+}
+
+/**
  * The container id and the child id prefix differ in the existing stylesheet
  * (#export-selection holds #export-select-all, …), so both are passed.
  */
@@ -132,15 +149,35 @@ class Header extends HTMLElement {
     this.replaceChildren();
   }
 
+  /**
+   * One of the three icons that open a menu — a real <button>, so the keyboard
+   * can reach it and Enter and Space activate it (ticket 33; ticket 32 made
+   * the menu *entries* buttons and left the icons that open them as `div`s,
+   * which put the picker out of a keyboard user's reach entirely).
+   *
+   * The label is both the tooltip and the accessible name: the icon is a bare
+   * glyph, so there is no text for a screen reader to fall back on. Whether
+   * the menu is open is announced too (`aria-expanded`), not only coloured by
+   * `.open` — and it is Elm's answer, like the theme mark, never the click.
+   *
+   * No `aria-haspopup`: that promises the ARIA menu pattern (arrow keys,
+   * Home/End, focus management for the whole menu), which the menus are not
+   * and do not owe — see ticket 32 on `aria-pressed`. A disclosure that says
+   * whether it is expanded is the honest description of what this is.
+   */
   private menuButton(id: string, glyph: string, menu: string, label: string) {
     const open = this.getAttribute("menu") === menu;
     return h(
-      "div",
+      "button",
       {
+        type: "button",
         id,
         class: `header-button${open ? " open" : ""}`,
         title: label,
+        "aria-label": label,
+        "aria-expanded": String(open),
         onclick: () => emit(this, "gw-menu", open ? "none" : menu),
+        onkeydown: stopActivationKeys,
       },
       icon(glyph),
     );
@@ -278,14 +315,8 @@ class Header extends HTMLElement {
 
   /**
    * One entry of a header menu: a real <button>, so Enter and Space activate
-   * it without this element implementing either (S12).
-   *
-   * The keydown stops here for exactly those two keys. Mousetrap binds the
-   * app's shortcuts on `document` and ignores only form fields, so an Enter
-   * that escaped would open the active card's editor as well as activating the
-   * button (ticket 24's breadcrumb, same reason). Everything else still gets
-   * through: swallowing all keys would leave a keyboard user stuck in an open
-   * menu.
+   * it without this element implementing either (S12). Those two keys stop
+   * here — see stopActivationKeys.
    *
    * `pressed` is for an entry that is one of a set of choices: every entry of
    * that set carries `aria-pressed`, so the state is announced and not only
@@ -301,10 +332,7 @@ class Header extends HTMLElement {
         class: pressed ? "selected" : undefined,
         "aria-pressed": pressed === undefined ? undefined : String(pressed),
         onclick: act,
-        onkeydown: (e: Event) => {
-          const k = (e as KeyboardEvent).key;
-          if (k === "Enter" || k === " ") e.stopPropagation();
-        },
+        onkeydown: stopActivationKeys,
       },
       label,
     );
@@ -358,6 +386,19 @@ class Header extends HTMLElement {
     );
   }
 
+  /**
+   * The history menu. Its two controls are real buttons with the same guard as
+   * the rest (ticket 33): the icon that opens this menu is keyboard-reachable
+   * now, so these are the first controls a keyboard user meets in it.
+   *
+   * Cancel is not the same thing as toggling the icon shut — `CancelHistory`
+   * reverts the checked-out version, while `HistoryToggled False` only closes
+   * the menu — so it has to be operable in its own right, not merely
+   * duplicated by the icon.
+   *
+   * The slider needs neither: an <input> is keyboard-operable already, and
+   * Mousetrap ignores form fields.
+   */
   private historyMenu() {
     const hist = jsonAttr<{ index: number; max: number }>(this, "history");
     return h(
@@ -376,15 +417,23 @@ class Header extends HTMLElement {
       }),
       h(
         "button",
-        { id: "history-restore", onclick: () => emit(this, "gw-history-restore") },
+        {
+          type: "button",
+          id: "history-restore",
+          onclick: () => emit(this, "gw-history-restore"),
+          onkeydown: stopActivationKeys,
+        },
         "Restore this Version",
       ),
       h(
-        "div",
+        "button",
         {
+          type: "button",
           id: "history-close-button",
           title: "Cancel",
+          "aria-label": "Cancel",
           onclick: () => emit(this, "gw-history-cancel"),
+          onkeydown: stopActivationKeys,
         },
         icon(I.close),
       ),

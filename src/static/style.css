@@ -821,12 +821,23 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   box-shadow: var(--small-shadow);
   z-index: 3;
 }
+/* The three menu icons are real <button>s (S12, ticket 33), so the UA chrome
+   comes off, the same reset the menu entries get. `color` is the load-bearing
+   one: dom.ts draws the icons stroked with `currentColor`, so a button's own
+   `color` would repaint every glyph in the header. The focus ring is left
+   alone -- it is what tells a keyboard user which icon they are on. */
 .header-button {
   width: 40px;
   height: 40px;
   padding: 10px;
   cursor: pointer;
   fill: var(--ui-1-fg);
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
 }
 .header-button:hover {
   background: var(--background-sidebar-menu);
@@ -993,11 +1004,19 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   right: 80px;
   z-index: 999;
 }
+/* A <button> too, and for the same reason (ticket 33): the history icon can be
+   opened from the keyboard now, so the menu's own exit has to be reachable. */
 #history-close-button {
   width: 40px;
   padding: 10px;
   cursor: pointer;
   fill: #555;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
 }
 #history-close-button:hover {
   fill: black;

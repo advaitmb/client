@@ -77,6 +77,16 @@ lives in Elm: an element is handed the answer, not the inputs to compute one.
   switcher search all report what was typed and are never written back to while
   they have focus. Elm re-renders on every save-status tick, so a controlled
   input loses the caret — or the word.
+- **Anything that reports a click is a real control** — S12's standard, on this
+  side of the boundary. A `div` with `onclick` cannot be tabbed to and does not
+  activate on Enter, so the surface is mouse-only however it looks: the header's
+  three menu icons were `div`s, which put the theme picker *inside* them out of
+  a keyboard user's reach entirely (ticket 33). Use `<button type="button">`,
+  give an icon-only one an `aria-label` (there is no text to fall back on), and
+  take the UA chrome off in `style.css` — `appearance`, `background`, `border`,
+  `color`, `font`, `text-align`. `color` is the one that shows: `dom.ts` strokes
+  its icons with `currentColor`, so a button's own colour repaints the glyph.
+  Leave the focus ring: it is how a keyboard user knows where they are.
 - **A `keydown` an element handles must not also reach the app.** Mousetrap
   binds the shortcuts on `document` and ignores only form fields, so Enter on a
   menu button opens the active card's editor as well as choosing the entry.
