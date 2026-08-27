@@ -11,9 +11,11 @@
  * What these pin: while the field has focus it belongs to the user, whatever
  * attribute changed, and the rest of the header still updates around it.
  *
- * The second half of the file pins the settings menu's theme picker (ticket
- * 32): what it lists, what a choice reports, and that the mark on the current
- * theme is Elm's answer rather than the click's.
+ * The second half of the file pins the menus and the controls that open them:
+ * the settings menu's theme picker (ticket 32) — what it lists, what a choice
+ * reports, and that the mark on the current theme is Elm's answer rather than
+ * the click's — then the three menu icons and the history menu (ticket 33), and
+ * the export menu's two radio groups (ticket 34).
  */
 import { afterEach, expect, test } from "bun:test";
 import "../src/ui/header";
@@ -548,6 +550,16 @@ test("the history menu's controls are keyboard-operable", () => {
   expect(reported).toEqual(["gw-history-restore", "gw-history-cancel"]);
 });
 
+test("the history slider says what it moves through", () => {
+  const [el] = mount({ menu: "history", history: JSON.stringify({ index: 2, max: 5 }) });
+
+  // A range input is keyboard-operable and Mousetrap leaves form fields alone,
+  // so the slider needed no work in ticket 33 — but a bare one announces itself
+  // as "slider, 3 of 6" and nothing about what the 3 is (ticket 34).
+  const slider = el.querySelector<HTMLInputElement>("#history-slider")!;
+  expect(slider.getAttribute("aria-label")).toBe("Document version");
+});
+
 test("Enter and Space in the history menu do not reach the app's shortcuts", () => {
   const [el] = mount({ menu: "history", history: JSON.stringify({ index: 2, max: 5 }) });
 
@@ -558,6 +570,213 @@ test("Enter and Space in the history menu do not reach the app's shortcuts", () 
     }
     expect(escaped).toEqual([]);
   });
+});
+
+/* === The export menu's two rows of toggles (ticket 34) ===
+ *
+ * Eight `div`s with `onclick`, styled as two segmented controls: what to export
+ * (Everything / Current Subtree / Leaves-only / Current Column) and in which
+ * format (Word / Plain Text / OPML / JSON). Exactly one of each four is in
+ * effect, which makes each row a radio group rather than four toggles — and
+ * mouse-only, for the reason ticket 33's icons were.
+ *
+ * So: `<button role="radio">` in a named `role="radiogroup"`, with the keyboard
+ * behaviour the platform gives a real radio and not a button — one tab stop for
+ * the group, and the arrow keys moving through it, the choice following the
+ * focus. Not `aria-pressed` (ticket 32's theme entries): eight independent
+ * toggles is not what a segmented control of four exclusive options is, and
+ * eight tab stops is what the ARIA pattern exists to avoid.
+ */
+
+/** The two rows, by the group each one is: id, child id prefix, name, values. */
+const EXPORT_GROUPS: Array<
+  [id: string, prefix: string, label: string, values: string[]]
+> = [
+  [
+    "export-selection",
+    "export-select-",
+    "What to export",
+    ["all", "subtree", "leaves", "column"],
+  ],
+  [
+    "export-format",
+    "export-format-",
+    "Export format",
+    ["word", "text", "opml", "json"],
+  ],
+];
+
+/** The export menu open, with Elm's answer for both settings. */
+function mountExport(selection = "all", format = "word") {
+  const [el] = mount({
+    menu: "export",
+    "export-settings": JSON.stringify({ selection, format }),
+  });
+  const picked: Array<[string, unknown]> = [];
+  for (const name of ["gw-export-selection", "gw-export-format"]) {
+    el.addEventListener(name, (e) => picked.push([name, (e as CustomEvent).detail]));
+  }
+  return { el, picked };
+}
+
+/**
+ * An arrow key on the focused option. Returns what the platform would read
+ * from it — false if the element cancelled the event, and so cancelled the
+ * page scroll an unhandled arrow key would cause.
+ */
+function arrow(node: HTMLElement, key: string) {
+  node.focus();
+  return node.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+}
+
+test("each row of export toggles is a named radio group of real controls", () => {
+  const { el } = mountExport();
+
+  for (const [id, prefix, label, values] of EXPORT_GROUPS) {
+    const group = control(el, id);
+    expect([id, group.getAttribute("role")]).toEqual([id, "radiogroup"]);
+    // A group with no name announces as "radio group" and nothing about which
+    // of the two it is; neither row has a heading on screen to borrow.
+    expect([id, group.getAttribute("aria-label")]).toEqual([id, label]);
+
+    const radios = Array.from(group.querySelectorAll<HTMLElement>('button[role="radio"]'));
+    expect(radios.map((r) => r.id)).toEqual(values.map((v) => `${prefix}${v}`));
+    for (const r of radios) {
+      expect([r.id, r.getAttribute("type")]).toEqual([r.id, "button"]);
+    }
+  }
+});
+
+test("the option in effect is the checked one, and the group's only tab stop", () => {
+  const { el } = mountExport("leaves", "opml");
+
+  // Eight options, two tab stops: Tab reaches each group once and the arrow
+  // keys move within it. Eight stops would make Tab the only way through, and
+  // put seven of them between the export icon and whatever follows it.
+  const tabStops = Array.from(el.querySelectorAll<HTMLElement>("#export-menu button"))
+    .filter((b) => b.tabIndex === 0)
+    .map((b) => b.id);
+  expect(tabStops).toEqual(["export-select-leaves", "export-format-opml"]);
+
+  const checked = Array.from(
+    el.querySelectorAll<HTMLElement>('#export-menu button[aria-checked="true"]'),
+  ).map((b) => b.id);
+  expect(checked).toEqual(["export-select-leaves", "export-format-opml"]);
+  // The stylesheet's hook for the same fact.
+  expect(control(el, "export-select-leaves").className).toBe("selected");
+});
+
+test("the checked option is Elm's answer, not the click", () => {
+  const { el } = mountExport("all", "word");
+
+  control(el, "export-format-json").click();
+
+  // Elm owns the export settings — it is what builds the file — so the element
+  // reports the choice and waits, as ticket 32's theme picker does.
+  expect(control(el, "export-format-word").getAttribute("aria-checked")).toBe("true");
+  expect(control(el, "export-format-json").getAttribute("aria-checked")).toBe("false");
+
+  el.setAttribute("export-settings", JSON.stringify({ selection: "all", format: "json" }));
+
+  expect(control(el, "export-format-json").getAttribute("aria-checked")).toBe("true");
+  expect(control(el, "export-format-word").getAttribute("aria-checked")).toBe("false");
+});
+
+test("clicking an export option still reports it to Elm", () => {
+  const { el, picked } = mountExport();
+
+  control(el, "export-select-subtree").click();
+  control(el, "export-format-opml").click();
+
+  expect(picked).toEqual([
+    ["gw-export-selection", "subtree"],
+    ["gw-export-format", "opml"],
+  ]);
+});
+
+test("Enter and Space choose an export option, and stop there", () => {
+  const { el, picked } = mountExport();
+
+  withDocumentKeys((escaped) => {
+    press(control(el, "export-select-subtree"), "Enter");
+    press(control(el, "export-format-opml"), " ");
+    // As everywhere else in the header: an Enter that reached `document` would
+    // open the active card's editor as well as choosing the option.
+    expect(escaped).toEqual([]);
+  });
+
+  expect(picked).toEqual([
+    ["gw-export-selection", "subtree"],
+    ["gw-export-format", "opml"],
+  ]);
+});
+
+test("the arrow keys move through a row of export options, wrapping, and choose", () => {
+  const { el, picked } = mountExport("all", "word");
+  const from = (id: string, key: string) => {
+    arrow(control(el, id), key);
+    return document.activeElement;
+  };
+
+  // Both axes: the group is a row on screen, and Left/Right and Up/Down are
+  // the same movement in the ARIA radio pattern.
+  expect(from("export-select-all", "ArrowRight")).toBe(control(el, "export-select-subtree"));
+  expect(from("export-select-subtree", "ArrowDown")).toBe(control(el, "export-select-leaves"));
+  expect(from("export-select-leaves", "ArrowUp")).toBe(control(el, "export-select-subtree"));
+  // Wrapping, in both directions, so four options are a loop and not a wall.
+  expect(from("export-select-all", "ArrowLeft")).toBe(control(el, "export-select-column"));
+  expect(from("export-select-column", "ArrowRight")).toBe(control(el, "export-select-all"));
+  // The other row is the same group, wired the same way.
+  expect(from("export-format-word", "ArrowRight")).toBe(control(el, "export-format-text"));
+
+  // The arrow does not only move the focus: in a radio group the selection
+  // follows it, so every step is a choice reported to Elm — which is also why
+  // nothing checked moves here, Elm having answered none of them.
+  expect(picked).toEqual([
+    ["gw-export-selection", "subtree"],
+    ["gw-export-selection", "leaves"],
+    ["gw-export-selection", "subtree"],
+    ["gw-export-selection", "column"],
+    ["gw-export-selection", "all"],
+    ["gw-export-format", "text"],
+  ]);
+});
+
+test("the arrow keys in the export menu do not also reach the app's shortcuts", () => {
+  const { el } = mountExport();
+
+  withDocumentKeys((escaped) => {
+    for (const key of ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"]) {
+      // Cancelled, so the page does not scroll under the open menu as well.
+      expect([key, arrow(control(el, "export-select-all"), key)]).toEqual([key, false]);
+    }
+    // Mousetrap binds "left"/"right"/"up"/"down" on `document` to move between
+    // cards, so an arrow that got there would move the card cursor behind the
+    // open menu as well as the choice inside it.
+    expect(escaped).toEqual([]);
+
+    // Narrowly, as ever: Escape still closes the menu.
+    press(control(el, "export-select-all"), "Escape");
+    expect(escaped).toEqual(["Escape"]);
+  });
+});
+
+test("the option chosen with an arrow key still has focus after Elm answers", () => {
+  const { el } = mountExport("all", "word");
+
+  arrow(control(el, "export-select-all"), "ArrowRight");
+
+  // Elm's answer rebuilds everything but the title, so without ticket 32's
+  // refocus-by-id the arrow key that made the choice also drops the user on
+  // <body> — and the next arrow key moves a card instead of the choice.
+  el.setAttribute("export-settings", JSON.stringify({ selection: "subtree", format: "word" }));
+
+  const chosen = control(el, "export-select-subtree");
+  expect(document.activeElement).toBe(chosen);
+  // And the group's one tab stop moved with the choice.
+  expect(chosen.tabIndex).toBe(0);
 });
 
 test("the header says when it has rendered, so nothing has to poll its geometry", () => {

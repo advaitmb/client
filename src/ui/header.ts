@@ -90,30 +90,112 @@ function stopActivationKeys(e: Event) {
 }
 
 /**
+ * Where an arrow key moves inside a radio group: both axes, both directions.
+ * A Map rather than an object literal, so a key named after something on
+ * Object.prototype cannot look like a step.
+ */
+const ARROW_STEP = new Map<string, number>([
+  ["ArrowRight", 1],
+  ["ArrowDown", 1],
+  ["ArrowLeft", -1],
+  ["ArrowUp", -1],
+]);
+
+/**
+ * One row of the export menu: four mutually exclusive options, drawn as a
+ * segmented control. That is a radio group, and it now says so (ticket 34) —
+ * until here it was four `div`s with `onclick`, so the menu was mouse-only for
+ * the reason ticket 33's icons were.
+ *
+ * `<button role="radio">` rather than `<input type="radio">`, which would bring
+ * the keyboard behaviour for free. Two reasons, and the first is this element's
+ * rule: **the mark is Elm's answer, never the click.** A real radio owns its
+ * own checked state — the browser moves the dot on the click, before Elm has
+ * agreed — and taking that back is the controlled-input fight
+ * `src/ui/README.md` keeps text fields out of. Second, the segmented look needs
+ * the input hidden behind a `<label>`, which takes the platform focus ring with
+ * it, and ticket 33 kept that ring deliberately.
+ *
+ * So what the real radio would have supplied, this supplies. **One tab stop**
+ * for the group: the option in effect, or the first if the attribute names none
+ * of them, which is where ARIA says focus enters. **The arrow keys** move
+ * through the options, and the choice follows the focus, as it does in a native
+ * radio group. Four buttons each carrying `aria-pressed` (ticket 32's pattern
+ * for the theme entries) is the honest description of four *independent*
+ * toggles, which these are not: exactly one of the four is in effect, and Tab
+ * would be the only way past the eight of them.
+ *
  * The container id and the child id prefix differ in the existing stylesheet
  * (#export-selection holds #export-select-all, …), so both are passed.
  */
-function toggleGroup(
+function radioGroup(
   containerId: string,
   childPrefix: string,
+  groupLabel: string,
   current: string,
   options: Array<[value: string, label: string]>,
   onPick: (v: string) => void,
 ) {
-  return h(
-    "div",
-    { id: containerId, class: "toggle-button" },
-    ...options.map(([value, label]) =>
-      h(
-        "div",
+  const tabStop = Math.max(0, options.findIndex(([value]) => value === current));
+
+  /** Each option's value beside the node it rendered to, for the arrow keys. */
+  const radios: Array<{ value: string; node: HTMLElement }> = [];
+
+  /** The arrow key: hand the focus to the neighbour, and choose it. */
+  const move = (from: number, step: number) => {
+    // Wrapping, so four options are a loop and not a wall. The modulo keeps
+    // the index in range; the assertion is only the compiler's rule.
+    const to = radios[(from + step + radios.length) % radios.length]!;
+    to.node.focus();
+    onPick(to.value);
+  };
+
+  options.forEach(([value, label], i) => {
+    const checked = value === current;
+    radios.push({
+      value,
+      node: h(
+        "button",
         {
+          type: "button",
           id: `${childPrefix}${value}`,
-          class: value === current ? "selected" : undefined,
+          // `.selected` colours it, `aria-checked` announces it — the theme
+          // picker's pair, and `role="radio"` requires the second.
+          class: checked ? "selected" : undefined,
+          role: "radio",
+          "aria-checked": String(checked),
+          tabindex: i === tabStop ? 0 : -1,
           onclick: () => onPick(value),
+          onkeydown: (e: Event) => {
+            const step = ARROW_STEP.get((e as KeyboardEvent).key);
+            if (step === undefined) {
+              stopActivationKeys(e);
+              return;
+            }
+            // Handled here, so it stops here: Mousetrap binds all four arrows
+            // on `document` to move between cards, and an arrow key nothing
+            // handles scrolls the page under the open menu.
+            e.preventDefault();
+            e.stopPropagation();
+            move(i, step);
+          },
         },
         label,
       ),
-    ),
+    });
+  });
+
+  return h(
+    "div",
+    {
+      id: containerId,
+      class: "toggle-button",
+      role: "radiogroup",
+      // Neither row has a heading on screen to borrow, and an unnamed group
+      // announces as "radio group" and nothing about which choice it is.
+      "aria-label": groupLabel,
+    },
+    ...radios.map(({ node }) => node),
   );
 }
 
@@ -364,18 +446,23 @@ class Header extends HTMLElement {
     );
   }
 
+  /**
+   * What to export and in which format: two radio groups (see `radioGroup`),
+   * whose checked option is Elm's `export-settings` rather than the last click
+   * — Elm is what builds the file.
+   */
   private exportMenu() {
     const s = jsonAttr<{ selection: string; format: string }>(this, "export-settings");
     return h(
       "div",
       { id: "export-menu" },
-      toggleGroup("export-selection", "export-select-", s?.selection ?? "all", [
+      radioGroup("export-selection", "export-select-", "What to export", s?.selection ?? "all", [
         ["all", "Everything"],
         ["subtree", "Current Subtree"],
         ["leaves", "Leaves-only"],
         ["column", "Current Column"],
       ], (v) => emit(this, "gw-export-selection", v)),
-      toggleGroup("export-format", "export-format-", s?.format ?? "word", [
+      radioGroup("export-format", "export-format-", "Export format", s?.format ?? "word", [
         ["word", "Word"],
         ["text", "Plain Text"],
         ["opml", "OPML"],
@@ -407,6 +494,9 @@ class Header extends HTMLElement {
       h("input", {
         id: "history-slider",
         type: "range",
+        // What the positions are. Without it the input announces itself as
+        // "slider, 3 of 6" and nothing about what the 3 counts.
+        "aria-label": "Document version",
         min: 0,
         max: hist?.max ?? 0,
         step: 1,

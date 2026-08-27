@@ -1121,10 +1121,10 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   right: 0px;
   z-index: 999;
 }
-#export-selection div {
+#export-selection button {
   width: 150px;
 }
-#export-format div {
+#export-format button {
   width: 100px;
 }
 #export-action-buttons {
@@ -1153,22 +1153,34 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   align-items: center;
   color: gray
 }
-.toggle-button div {
+/* The options are real <button>s with role="radio" (ticket 34; `div`s with
+   onclick before it), so the UA chrome comes off as it does for the menu
+   entries and the icons — with `border` and `text-align` carrying this group's
+   own values rather than being reset to nothing. `color` is the one that shows
+   twice over: the group's gray would otherwise become buttontext, and `dom.ts`
+   strokes icons with `currentColor`. Preflight is off in this repo
+   (tailwind.config.js), so these are the whole reset. The focus ring is left
+   alone: it is the only thing that says which option you are on. */
+.toggle-button button {
   padding: 3px 10px;
-  border: 1px solid lightgray;
   cursor: pointer;
+  appearance: none;
+  background: none;
+  border: 1px solid lightgray;
+  color: inherit;
+  font: inherit;
   text-align: center;
 }
-.toggle-button div.selected {
+.toggle-button button.selected {
   background: #c8ceef;
   color: #243586;
   font-weight: bold;
   border: 1px solid;
 }
-.toggle-button div:first-child {
+.toggle-button button:first-child {
   border-radius: 6px 0 0 6px;
 }
-.toggle-button div:last-child {
+.toggle-button button:last-child {
   border-radius: 0 6px 6px 0;
 }
 
