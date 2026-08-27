@@ -1059,7 +1059,7 @@ update msg model =
         Exported docName (Ok bytes) ->
             let
                 mime =
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    Export.toMimeType DOCX
 
                 filename =
                     docName ++ ".docx"

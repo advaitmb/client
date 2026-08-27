@@ -1,4 +1,4 @@
-module Page.Doc.Export exposing (ExportFormat(..), ExportSelection(..), command, exportView, exportViewError, toExtension, toString)
+module Page.Doc.Export exposing (ExportFormat(..), ExportSelection(..), command, exportView, exportViewError, toExtension, toMimeType, toString)
 
 import Ant.Icons.Svg as AntIcons
 import Api
@@ -37,13 +37,13 @@ command exportedMsg docId docName (( _, exportFormat ) as exportSettings) active
     in
     case exportFormat of
         JSON ->
-            Download.string (docName ++ ".json") "application/json" exportedString
+            Download.string (docName ++ ".json") (toMimeType JSON) exportedString
 
         OPML ->
-            Download.string (docName ++ ".opml") "application/xml, text/xml, text/x-opml" exportedString
+            Download.string (docName ++ ".opml") (toMimeType OPML) exportedString
 
         PlainText ->
-            Download.string (docName ++ ".txt") "text/plain" exportedString
+            Download.string (docName ++ ".txt") (toMimeType PlainText) exportedString
 
         DOCX ->
             Api.exportDocx
@@ -71,6 +71,12 @@ toString docName ( exportSelection, exportFormat ) activeTree fullTree =
                 |> Maybe.withDefault []
                 |> List.concat
                 |> List.map (\c -> { c | children = Children [] })
+
+        -- The invisible root every export is written from, holding a selection
+        -- of cards as its children. Its own content is empty, which is exactly
+        -- the root `ExportEverything` writes.
+        flatTree cards =
+            Tree "0" "" (Children cards)
     in
     case exportSelection of
         ExportEverything ->
@@ -79,27 +85,38 @@ toString docName ( exportSelection, exportFormat ) activeTree fullTree =
         ExportSubtree ->
             stringFn True activeTree
 
+        -- A flat selection of cards is a tree of depth one, so it goes through
+        -- the same `stringFn` as the other two: for JSON and Markdown that is
+        -- what the hand-rolled branches here already produced (a childless
+        -- card renders as its own content), and OPML now gets a real OPML
+        -- document instead of Markdown in an `.opml` file (E13).
         ExportLeaves ->
-            case exportFormat of
-                JSON ->
-                    treeToJSON False (Tree "0" "" (Children (getLeaves fullTree [])))
-                        |> Enc.encode 2
-
-                _ ->
-                    getLeaves fullTree []
-                        |> List.map .content
-                        |> String.join "\n\n"
+            stringFn False (flatTree (getLeaves fullTree []))
 
         ExportCurrentColumn ->
-            case exportFormat of
-                JSON ->
-                    treeToJSON False (Tree "0" "" (Children currentColumnCards))
-                        |> Enc.encode 2
+            stringFn False (flatTree currentColumnCards)
 
-                _ ->
-                    currentColumnCards
-                        |> List.map .content
-                        |> String.join "\n\n"
+
+{-| The one MIME type a downloaded export is saved as. Kept beside
+`toExtension` because they are two halves of the same answer, and in one place
+because OPML was once handed to the browser as the list
+"application/xml, text/xml, text/x-opml" -- which is a set of candidates a
+client might accept, not a type a file can have (E13).
+-}
+toMimeType : ExportFormat -> String
+toMimeType expFormat =
+    case expFormat of
+        DOCX ->
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        JSON ->
+            "application/json"
+
+        OPML ->
+            "text/x-opml"
+
+        PlainText ->
+            "text/plain"
 
 
 toExtension : ExportFormat -> String
