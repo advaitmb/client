@@ -42,7 +42,7 @@ Eleven commits on `selfhost` (claim: `e9e241a`):
 | 10 | `0b20746` | naming pass on the grouping's accumulators |
 | 11 | `00b42c8` | P1's twin in `src/shared/cards.js` (the ImmortalDB backup walk) |
 
-**One shape, five times over: the version log was read once per card, where it
+**One shape, six times over: the version log was read once per card, where it
 only ever needed reading once per pass.** Every fix builds one index (a `Dict`
 keyed by parent id, a `Dict` keyed by card id, a `Set` of ids) and then looks
 things up in it. Nothing about *what* those functions answer changed — the
@@ -162,6 +162,10 @@ written into the working tree (`saveCard` is its `andThen`-shaped wrapper), and
   nothing else in `tests/` is modified — `git diff` over `tests/` shows one new
   file and no edits. `bun run newbuild`, `bun run typecheck` and
   `bun run config-check` all exit 0.
+- **Every commit was pushed green.** Each of the eleven got its own `ci.yml`
+  run on `selfhost` and each came back `success` — the point of working in
+  single-move commits here, since a behaviour-preserving refactor that is only
+  green at the end cannot say which move broke what.
 - **Order is the whole risk in this ticket, and it was the design constraint.**
   Three output orders are load-bearing and each is reproduced deliberately:
   (1) `groupedByCardId` returns groups in the order their ids *first appear* in
