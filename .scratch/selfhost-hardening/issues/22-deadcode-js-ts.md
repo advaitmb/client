@@ -210,7 +210,7 @@ already discharged.
 | `bun run newbuild` | exit 0 from an empty `web/`, 17 outputs |
 | `bun run config-check` | exit 0 |
 | lockfiles | both regenerated per ADR-0004 |
-| CI | green on all six commits |
+| CI | green on all seven commits (six code/docs + this tracker one) |
 
 `docs/ARCHITECTURE.md` updated in four places: §2's `container-web.js` row,
 §4.3's "render-once surfaces", §7's port tables (now stating both directions
@@ -305,7 +305,9 @@ are exhaustive, and why that is load-bearing) and §8's CI step list.
   [33106039962](https://github.com/advaitmb/client/actions/runs/33106039962)
   (`0c3648e`) and
   [33106602970](https://github.com/advaitmb/client/actions/runs/33106602970)
-  (`cc5e141`). Each was pushed as its own green group.
+  (`cc5e141`) and
+  [33106972755](https://github.com/advaitmb/client/actions/runs/33106972755)
+  (`37d746e`, this tracker entry). Each was pushed as its own green group.
 
 - **Environment note, correcting ticket 21's.** `bun run test:elm` needed no
   `danfishgold/base64-bytes` 1.1.0 fix on this container: `npm install` plus
