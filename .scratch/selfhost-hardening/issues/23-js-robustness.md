@@ -19,6 +19,10 @@ couplings in S13 are consolidated where cheap.
 `editBlurHandler` is one module-level handler shared by all `gw-textarea`
 instances — per-instance state is the S13-style fix.
 
+**Added scope (from ticket 10's resolution):** `doc.js`'s snapshot-id
+`Math.max` uses a seedless `reduce`, which throws on an empty card set —
+harden alongside S8's boot guards.
+
 ## Acceptance criteria
 
 - [ ] No anonymous-listener accumulation on `ScrollCards` (verifiable by
