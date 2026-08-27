@@ -60,4 +60,8 @@ Vocabulary used in code, issues, and tests. Full system description:
 3. Custom elements: attribute-in → DOM/CustomEvent-out, in a DOM test
    environment.
 4. Session sequences extracted from `doc.js` (`src/shared/session.js`:
-   logout) — faked `fetch`, real `localStorage`, injected callbacks.
+   logout, adopting the server's account on boot) — faked `fetch`, real
+   `localStorage`, injected callbacks.
+5. `Session`'s stored-blob surface (Elm, pure): `decode`/`encode` of the
+   session blob and `responseDecoder` for a login answer — the preferences
+   this client persists.

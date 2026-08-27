@@ -215,7 +215,16 @@ init nKey globalData session dbData_ =
         Nothing ->
             case Session.lastDocId session of
                 Just docId ->
-                    ( defaultModel nKey session (Empty globalData session), Route.replaceUrl nKey (Route.DocUntitled docId) )
+                    -- Reopen the document the user left off in (E2). The
+                    -- document list still has to be asked for: the sidebar
+                    -- renders it, and the branch below is the only other place
+                    -- that requests it.
+                    ( defaultModel nKey session (Empty globalData session)
+                    , Cmd.batch
+                        [ Route.replaceUrl nKey (Route.DocUntitled docId)
+                        , send <| GetDocumentList
+                        ]
+                    )
 
                 Nothing ->
                     let
