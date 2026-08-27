@@ -62,9 +62,10 @@ Vocabulary used in code, issues, and tests. Full system description:
 - **Document metadata** — the `trees` row behind a document: name, `deletedAt`,
   location, timestamp. It syncs on its own channel (the `trees` message), not
   as cards — a rename or a delete produces no card. Unsynced rows are
-  re-derived from the newest `trees` snapshot and sent on every liveQuery
-  emission *and* on every reconnect, never queued: what the server needs is
-  their state, not the states they passed through (`src/shared/metadata.js`).
+  re-derived from the `trees` table as the liveQuery last emitted it, and sent
+  on every emission *and* on every reconnect, never queued: what the server
+  needs is their state, not the states they passed through
+  (`src/shared/metadata.js`).
 
 ## Application layers
 

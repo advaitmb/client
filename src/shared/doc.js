@@ -242,8 +242,8 @@ function initWebSocket () {
 
     // The queue holds messages that are events, so it can only hold what was
     // asked for while the socket was down. Document metadata is state: it is
-    // re-derived here from the newest trees snapshot instead, so a rename or
-    // delete made offline reaches the server as soon as it can (D6).
+    // re-derived here from the trees table as the liveQuery last emitted it, so
+    // a rename or delete made offline reaches the server as soon as it can (D6).
     metadataSync.socketOpened();
 
     if (TREE_ID) {

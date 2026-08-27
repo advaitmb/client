@@ -18,29 +18,41 @@
  * tree-table change or a reload happened to retrigger the liveQuery
  * (CODE_REVIEW.md D6).
  *
- * WHY A RECONNECT RE-READS THE STATE INSTEAD OF QUEUEING THE MESSAGE
+ * WHY A RECONNECT RE-DERIVES THE STATE INSTEAD OF QUEUEING THE MESSAGES
  *
  * The alternative fix was to let the liveQuery's message into doc.js's send
- * queue (`wsSend(…, true)`), which `onopen` drains. That queues one snapshot
- * per emission, and every snapshot but the last is a state the document has
- * already left: an offline session that renames a document twice would push
- * the first name and then the second. Those rows are not invalid — they carry
- * their own `updatedAt` — but they are stale, they arrive as new news, and a
- * server that takes the last message it received at face value would answer
- * with the older name in a `trees` message, which doc.js bulk-puts straight
- * over the newer row in Dexie. It also grows without bound while the
- * connection is away.
+ * queue (`wsSend(…, true)`), which `onopen` drains. That queues one emission's
+ * worth of rows at a time, and every one but the last is a state the document
+ * has already left: an offline session that renames a document twice would
+ * push the first name and then the second. Those rows are not invalid — they
+ * carry their own `updatedAt` — but they are stale, they arrive as new news,
+ * and a server that takes the last message it received at face value would
+ * answer with the older name in a `trees` message, which doc.js bulk-puts
+ * straight over the newer row in Dexie. The queue also grows without bound
+ * while the connection is away.
  *
  * So the queue stays for the messages that are events (`pull`, `rt:join`), and
  * metadata — which is *state* — is re-derived at send time from the newest
- * snapshot the liveQuery has emitted. Both senders are this module, both send
- * the same projection of the same snapshot, and the snapshot only ever moves
- * forward, so no send can carry state older than one already sent, and a
- * reconnect sends at most one message however long it was away.
+ * emission. Both senders are this module, both send the same projection of the
+ * same rows, and what they read only ever moves forward (a newer emission
+ * replaces an older one, and every send reads it synchronously), so no send
+ * can carry state older than one already sent, and a reconnect sends at most
+ * one message however long it was away.
+ *
+ * The one thing that read is *behind* is a write whose emission has not
+ * arrived yet, and that emission is exactly what sends it — the socket being
+ * up by then.
+ *
+ * That last property is also why the resend reads the emission rather than
+ * querying Dexie itself on reconnect. A query is asynchronous, so a rename
+ * committed while it is in flight can emit, and be sent, before the query
+ * answers — leaving the resend to send the state *before* that rename, after
+ * the newer state has already gone out. Reading what the liveQuery last
+ * emitted takes no turn of the event loop, so there is no window to lose.
  */
 
 /**
- * The rows of a trees snapshot that the server has not acknowledged, in the
+ * The rows of the trees table that the server has not acknowledged, in the
  * shape the `trees` message carries.
  *
  * `synced` is this client's own bookkeeping and `collaborators` is the
@@ -74,17 +86,17 @@ function unsyncedTreeRows(trees) {
  * @returns {{treesChanged: Function, socketOpened: Function, stop: Function}}
  */
 function createMetadataSync({ send, isOpen }) {
-  // The newest snapshot of the trees table, as the liveQuery last emitted it.
-  // Not a backlog: a newer snapshot replaces an older one, because what the
-  // server needs is the state of those rows, not their history.
-  let latest = [];
+  // The trees table as the liveQuery last emitted it. Not a backlog: a newer
+  // emission replaces an older one, because what the server needs is the state
+  // of those rows, not their history.
+  let latestTrees = [];
   let stopped = false;
 
   function sendUnsynced() {
     if (stopped) return;
     if (!isOpen()) return;
 
-    const unsynced = unsyncedTreeRows(latest);
+    const unsynced = unsyncedTreeRows(latestTrees);
     if (unsynced.length === 0) return;
 
     send('trees', unsynced);
@@ -97,7 +109,7 @@ function createMetadataSync({ send, isOpen }) {
      * leaves them for the next `socketOpened` — which is the whole of D6.
      */
     treesChanged(trees) {
-      latest = trees;
+      latestTrees = trees;
       sendUnsynced();
     },
 
@@ -113,7 +125,7 @@ function createMetadataSync({ send, isOpen }) {
      */
     stop() {
       stopped = true;
-      latest = [];
+      latestTrees = [];
     },
   };
 }

@@ -394,12 +394,15 @@ The queue and the metadata resend are two different mechanisms on purpose. The
 queue holds messages that are **events** (`pull`, `pullHistoryMeta`,
 `rt:join`), asked for while the socket was down and sent verbatim when it
 returns. Document metadata is **state**: `src/shared/metadata.js` keeps the
-newest `trees` snapshot the liveQuery emitted and derives the message from it
+`trees` table as the liveQuery last emitted it and derives the message from it
 at send time, so a reconnect sends one message however long it was away and can
 never carry a name the document has already been renamed away from. Queueing
-one snapshot per emission would do exactly that, and a server taking the last
+one message per emission would do exactly that, and a server taking the last
 message it received at face value would echo the older name back into Dexie
-over the newer row.
+over the newer row. Reading the emission rather than querying Dexie on
+reconnect is the same argument: a query is asynchronous, and a rename that
+commits while it is in flight would be sent first and then undone by the older
+state the query answers with.
 
 ### 6.4 The editor element
 
