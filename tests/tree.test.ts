@@ -96,10 +96,12 @@ test("dropping on a region reports the card, the target and the region", () => {
 
 test("a drop keeps to itself: no document-level handler sees it", () => {
   const escaped: string[] = [];
-  document.addEventListener("drop", () => escaped.push("drop"));
+  const watch = () => escaped.push("drop");
+  document.addEventListener("drop", watch);
 
   startDragging("card-one");
   region("card-two", "above").dispatchEvent(dragEvent("drop"));
+  document.removeEventListener("drop", watch);
 
   expect(escaped).toEqual([]);
 });

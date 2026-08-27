@@ -50,6 +50,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
 | `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/shared/save.js` | The local half of a save: apply a `SaveCardBased` payload to the document it names (cards, snapshot, tree timestamp) |
+| `src/shared/drag.js` | The drag lifecycle: which drag is in progress (a card, or text from outside the app), what Elm is told about it, and drag auto-scroll |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
 | `src/web/database-download.js` | Standalone IndexedDB export page (bundled to `web/database-download.js`, loaded by `database-download.html`) |
@@ -403,7 +404,11 @@ All are rendered by Elm as `Html.node "gw-…"` with JSON-string attributes and
 report back with bubbling `CustomEvent`s (`emit` in `dom.ts`). `tree.ts` is the
 largest: keyed reconciliation of columns/groups/cards by id, class-only
 updates for cursor changes, and native HTML5 drag-drop with CSS-revealed drop
-regions. `markdown.ts` renders card content with `marked` (GFM + breaks) plus
+regions. A card drag is the element's end to end: it reports the drop to Elm
+as `gw-drop` and stops it propagating, and announces the drag itself as
+`gw-drag-start` / `gw-drag-end` so `src/shared/drag.js` can tell it from text
+dragged in from outside the app. `markdown.ts` renders card content with
+`marked` (GFM + breaks) plus
 a CriticMarkup preprocessor. `header.ts`, `sidebar.ts`, and the modals are
 render-once surfaces following the rules in `src/ui/README.md`.
 
@@ -464,6 +469,6 @@ the phantom `@playwright/test` devDependency.
 
 Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
 `*.test.ts` for bun test (custom elements against jsdom, the extracted
-sequences in `src/shared/stamps.js`, `src/shared/session.js` and
-`src/shared/save.js`, and the build's `config-check` / `elm-postprocess`
-seams). The pre-agreed seams are ADR-0001's.
+sequences in `src/shared/stamps.js`, `src/shared/session.js`,
+`src/shared/save.js` and `src/shared/drag.js`, and the build's `config-check`
+/ `elm-postprocess` seams). The pre-agreed seams are ADR-0001's.

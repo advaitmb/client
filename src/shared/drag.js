@@ -148,7 +148,18 @@ function installDragHandlers(deps) {
     else startScrolling("horizontal", scrollRoot(), horizontal * SCROLL_AMOUNT, 0);
   }
 
-  /** What was dropped on the tree, as the card Elm should insert. */
+  /** No drag is in progress any more, whichever kind it was. */
+  function endDrag() {
+    draggingCard = false;
+    draggingExternal = false;
+  }
+
+  /**
+   * Hand what was dropped on the tree to Elm, which inserts it as a card.
+   *
+   * An Obsidian link names a file rather than carrying text, so the file's
+   * name becomes the card instead of the URL.
+   */
   function dropExternalText(ev) {
     const dropText = ev.dataTransfer.getData("text");
     if (dropText.startsWith("obsidian://open?")) {
@@ -181,8 +192,7 @@ function installDragHandlers(deps) {
       // drag sets it again -- where telling Elm "dropped, nothing to insert"
       // through the one message it has for that (`DropExternal`) would risk a
       // blank card from a stale drop region.
-      draggingCard = false;
-      draggingExternal = false;
+      endDrag();
     }
   }
 
@@ -199,8 +209,7 @@ function installDragHandlers(deps) {
 
     if (ev.type === "drop") {
       if (draggingExternal) dropExternalText(ev);
-      draggingCard = false;
-      draggingExternal = false;
+      endDrag();
     }
 
     // Both types need this: a dragover that allows no drop makes the app an
