@@ -24,6 +24,18 @@
  * harness could not tell a working sanitizer from a missing one. jsdom
  * implements both to spec. It boots slower; correctness of the security gate
  * wins.
+ *
+ * ONE DOCUMENT, SHARED (sometimes)
+ *
+ * Whether this preload runs once for the whole run or once per test file is
+ * the runner's business, and it has changed between Bun versions: bun 1.3.14
+ * (CI) shares this document -- and its `customElements` registry -- across
+ * every test file, while 1.3.11 does not. So a test must not assume it has the
+ * DOM to itself: clear `document.body` in a `beforeEach`, take document-level
+ * listeners off again, and never build a fixture out of a tag some other file
+ * defines as a custom element. `<gw-tree>` replaces its children with its own
+ * scaffolding when it connects, and a fixture that borrowed the tag name was
+ * silently dismantled in CI and nowhere else (ticket 16).
  */
 import { JSDOM } from "jsdom";
 

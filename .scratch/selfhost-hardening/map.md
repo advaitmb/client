@@ -239,6 +239,30 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   with); the other 6 pin both directions of the cases that already worked.
   `CONTEXT.md` gains **Merge**. Details in
   `issues/30-merge-down-orphans-children.md`.
+- Ticket 16 resolved — E7/E8/E9/E15 were one story: the port layer could not
+  tell a **card drag** from text dragged in from **outside** the app (the only
+  setter of that flag was the dead elm-dnd `DragStart` port), and Elm computed
+  the drop against a tree that still held the card being dropped. Where a card
+  lands is now `Doc.TreeStructure.dropPlacement`, read on the *pruned* tree —
+  the one `Mov` inserts into and the sibling list `placeCard` positions among —
+  which fixes the one-slot-too-far downward drop and makes a drop into the
+  card's own subtree no move at all, where before `insertSubtree` looked for a
+  parent that had just been pruned away and lost every card under it. A card
+  drag reports itself through the `gw-drag-start`/`gw-drag-end` pair
+  `<gw-tree>` already emitted and nothing listened to: `dragend` fires at the
+  source whatever the drag ended in, which is the reset `stopPropagation` on an
+  internal drop had made unreachable, and `CardDropped` sends `DragDone` as
+  well. Dropping a card on the card being edited now inserts nothing (empty
+  payload *and* the default prevented for a card drag only) while text from
+  outside still lands at the caret, told to nobody — deliberately, because the
+  one message Elm has for "dropped, nothing to insert" would risk a blank card.
+  Autoscroll over the header no longer dereferences a column that isn't there.
+  The handlers live in `src/shared/drag.js` (seam 4 gains it; ADR-0001 gains
+  **seam 9**, drop placement); 39 tests, 14 red first. The 14 CI-only failures
+  were the fixture borrowing the `gw-tree` tag — a defined custom element wipes
+  its children on connect, and bun 1.3.14 shares one `customElements` registry
+  across test files while 1.3.11 does not; `tests/dom.ts` now records that
+  rule. Details in `issues/16-drag-drop.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
