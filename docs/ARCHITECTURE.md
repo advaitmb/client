@@ -241,9 +241,13 @@ sidebar, markdown rendering (`<gw-markdown>`), and the card tree (`<gw-tree>`).
 Elm's `--optimize` dead-code elimination strips the unused parts, so its size
 is intentional.
 
-Translation: `Translation.elm` keeps the upstream `TranslationId` union but
-the fork is English-only — `tr` takes no language argument and the 25 language
-tables were deleted. Surfaces that moved to TS hardcode their English strings.
+Translation: `Translation.elm` is English-only — `tr` takes no language
+argument and the 25 language tables were deleted. Ticket 21 then cut the union
+down to the 56 constructors the surfaces above actually render: help,
+template, word-count, theme, export-settings, save-state and account strings
+went with their views, and each of those surfaces now hardcodes its English in
+TypeScript. A string wanted by both sides is spelled on the side that renders
+it, not shared.
 
 Export: JSON/OPML/plain-text are built client-side
 (`Coders.treeToJSON` / `treeToOPML` / `treeToMarkdownString`) and saved with
@@ -322,9 +326,12 @@ Delete-vs-edit conflicts are auto-resolved by `resolveDeleteConflicts`
 surfaced to the user (`Ours`/`Theirs`/`Original` preview and commit via
 `Data.resolveConflicts`).
 
-The legacy git-era conflict machinery (`Doc/Data/Conflict.elm`, `Diff3.elm`,
-`TreeStructure.setTreeWithConflicts`) is dead code from the format removal —
-`Diff3.diff3Merge` is a stub that returns `[]`.
+The card-based machinery above is the only conflict machinery. The legacy
+git-era one — `Doc/Data/Conflict.elm`, `Diff3.elm`,
+`TreeStructure.setTreeWithConflicts`, `Data.conflictList`, `Data.resolve` —
+was deleted by ticket 21: it had no caller, and `Diff3.diff3Merge` was a stub
+returning `[]` that `conflictToMsg` would have joined into a card's content,
+blanking it.
 
 ### 5.5 History
 
@@ -508,11 +515,12 @@ One outgoing port (`infoForOutside`, tagged `{tag, data}`) and several
 incoming ones (`docMsgs`, `appMsgs`, `documentListChanged`, `importComplete`,
 `userLoggedInMsg`, `userLoggedOutMsg`, `userSettingsChange`).
 
-**Live Elm → JS tags:** `StoreUser`, `SaveUserSetting`, `Alert`, `SetDirty`,
+**Live Elm → JS tags** — all 28 of `Outgoing.Msg`, every one of them with a
+producer in `src/elm`: `StoreUser`, `SaveUserSetting`, `Alert`, `SetDirty`,
 `DragDone`, `ConfirmCancelCard`, `InitDocument`, `LoadDocument`,
 `GetDocumentList`, `RequestDelete`, `RenameDocument`, `SaveCardBased`,
 `SaveImportedTree`, `PushDeltas`,
-`SendCollabState`, `ScrollCards`, `ScrollFullscreenCards`, `DragStart`,
+`SendCollabState`, `ScrollCards`,
 `CopyCurrentSubtree`, `CopyToClipboard`, `SelectAll`, `TextSurround`,
 `InsertMarkdownLink`, `SetCursorPosition`, `HistorySlider`,
 `SetSidebarState`, `SaveThemeSetting`, `Print`,
@@ -539,17 +547,27 @@ socket, `src/shared/session.js`) → `userLoggedOutMsg` →
 kept; see `src/shared/session.js`.
 
 **Live JS → Elm:** `docMsgs` — `CancelCardConfirmed`, `InitialActivation`,
-`DragStarted`, `DragExternalStarted`, `DropExternal`, `Paste`, `PasteInto`,
-`FieldChanged`, `AutoSaveRequested`, `FullscreenCardFocused`, `TextCursor`,
+`DragExternalStarted`, `DropExternal`, `Paste`, `PasteInto`,
+`FieldChanged`, `AutoSaveRequested`, `FullscreenCardFocused`,
+`FullscreenChanged`, `TextCursor`,
 `ClickedOutsideCard`, `CheckboxClicked`, `Keyboard`, `WillPrint`,
-`RecvCollabState`, `RecvCollabUsers`, `CollaboratorDisconnected`
-(⚠ JS also sends `FullscreenChanged`, which has no decoder);
+`RecvCollabState`, `RecvCollabUsers`, `CollaboratorDisconnected`;
 `appMsgs` — `SocketConnected`, `CardDataReceived`, `HistoryDataReceived`,
-`PushOk`, `PushError`, `MetadataUpdate`, `SavedRemotely`, `ErrorAlert`,
-`NotFound`.
+`PushOk`, `PushError`, `MetadataUpdate`, `ErrorAlert`, `NotFound`.
 
-Dead tags on both sides (never sent and/or never handled) are cataloged in
-CODE_REVIEW.md.
+Every tag listed above has a live sender at the other end; ticket 21 removed
+the Elm ends that did not (`DragStart`/`DragStarted`, the elm-dnd path;
+`ScrollFullscreenCards`; `SavedRemotely`; and the nine outgoing tags no Elm
+code constructed).
+
+The `doc.js` halves of those pairs are still there and are ticket 22's, but
+none of them can fire: `DragStarted` is sent only from inside the `DragStart`
+handler, and `ScrollFullscreenCards` is itself a handler — both keyed on
+outgoing tags Elm can no longer construct — and `SavedRemotely`'s only
+`toElm` call sits in `pushSuccessHandler`, which nothing calls. That matters
+because an unknown incoming tag is *not* ignored: `Page.Doc.Incoming`'s
+catch-all returns `Err "Unexpected info from outside: <tag>"`, which reaches
+`onError` and surfaces as a toast (ticket 18).
 
 ---
 

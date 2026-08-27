@@ -457,6 +457,31 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   unclaimed `"db"` is adoptable, so tidying `gingko-*` away restores the leak).
   22 tests at seam 4, ADR-0001 gains local-db.js there. Details in
   `issues/27-per-account-local-data.md`.
+- Ticket 21 resolved — §6's Elm side, all of it: net **−2,204 lines** over
+  eleven commits, five modules deleted, four `elm.json` pins dropped and
+  `elm/parser` demoted to indirect. The method mattered more than the list.
+  Re-verifying every entry against the *current* tree rather than the review's
+  snapshot changed five answers — `GlobalData.public`,
+  `Page.Doc.publicTreeLoaded` and `Doc.Metadata.encode` had grown test
+  callers, `userLoggedOutMsg` had grown a sender (ticket 04), and the dead
+  `TranslationId` count was 144 of 200, not 138 of 203, because tickets 24 and
+  32 moved the save indicator and theme labels to TS in between. Two classes
+  the inventory's shape could not see: **private** zero-caller declarations,
+  which have no exposing-list entry to look wrong — and two of the four found
+  (`Export.toExtension`, `RandomId.fromObjectId`) had been *half*-removed
+  earlier in this same ticket, taken out of the exposing list with the body
+  left behind, so "removed from the exposing list" is not "removed"; and the
+  question of whether a dead branch is a hole — `SavedRemotely` was only safe
+  to delete because `lastRemoteSave` has a better producer
+  (`Data.lastSyncedTime`, read off the synced rows rather than from a report
+  about them), which was checked first. Two mechanical invariants now hold and
+  are worth re-running after any port change: every `Outgoing.Msg` constructor
+  has an Elm producer, and every incoming tag has a reachable JS sender. Left
+  deliberately: 14 more unimported direct pins (pre-fork, and dropping them is
+  a solver re-solve, not a line edit) and `Toast.elm`'s vendored surface.
+  Ticket 22 still owns the `doc.js` halves — none can fire, which matters
+  because an unknown incoming tag toasts rather than being ignored (18).
+  Details in `issues/21-deadcode-elm.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
