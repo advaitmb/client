@@ -538,6 +538,31 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   strokes its icons with `currentColor`. 9 tests at seam 3, all red first, then
   mutation-checked; `src/ui/README.md` gains the standard as a rule. Details in
   `issues/33-header-icons-keyboard.md`.
+- Ticket 34 resolved — ticket 33's three findings, one question each time:
+  which control the user reached for, and what it may mean. (1) **Leaving the
+  history view puts the tree back, whichever control closes it.** The icon's
+  `HistoryToggled False` dropped the menu and left the checked-out version in
+  the working tree with editing unblocked; the ✕ reverted; the decision was at
+  the two call sites, where nothing could see them disagree. It moves into
+  `Page.App.closeHistoryView`, a function of (the exit, the history, the
+  document) — plain data, where `Model` needs a `Nav.Key` no test can make —
+  taking the exit as a value *naming the control* (`HistoryIcon`/`CancelButton`/
+  `RestoreButton`), so the answer is in one tested place: a slider move is a
+  checkout, leaving without committing is a preview exit and reverts, a restore
+  keeps what is on screen. ADR-0001 seam 11 extended. (2) **The export menu's
+  eight toggles are two ARIA radio groups** — `role="radiogroup"` + named,
+  `<button role="radio">` + `aria-checked`, one tab stop per group and the arrow
+  keys through it, choice following focus. Not `<input type="radio">`, which
+  would bring it free but owns its own checked state, where every mark here is
+  Elm's answer; not eight `aria-pressed` buttons, which describe *independent*
+  toggles and put seven tab stops in the way. The four arrows `stopPropagation`
+  (Mousetrap moves between cards with them) and `preventDefault` (or the page
+  scrolls). The theme picker keeps `aria-pressed` on purpose: a column that also
+  holds a plain command is not a radiogroup. (3) `#history-slider` gets an
+  `aria-label`. 15 tests (6 elm at seam 11, 9 TS at seam 3), red first wherever
+  the code was wrong — 2 of the 6 and 8 of the 9 — then mutation-checked;
+  `src/ui/README.md` gains the radio-group standard. Details in
+  `issues/34-header-follow-ups.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
