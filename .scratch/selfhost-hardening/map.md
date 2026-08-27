@@ -621,6 +621,7 @@ ticket carries `needs-info` any more.
 | 32 | restore-theme-picker | owner decision | 17, 24 |
 | 33 | header-icons-keyboard | new (from 32) | 32 |
 | 34 | header-follow-ups | new (from 33) | 33 |
+| 35 | shortcut-leak-from-header | new (from 34) | 34 |
 
 ## Not yet specified
 
