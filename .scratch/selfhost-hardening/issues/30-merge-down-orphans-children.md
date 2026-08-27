@@ -140,7 +140,16 @@ dependency, and the proxy blocks the npx download); the new code follows the
 file's formatting, checked hunk by hunk.
 
 CI on `selfhost`: run <https://github.com/advaitmb/client/actions/runs/33074332243>
-(`386f913`, the code) green.
+(`386f913`, the code) green. The two runs after it -- `c10ab62` (this ticket's
+tests and glossary,
+<https://github.com/advaitmb/client/actions/runs/33074534997>) and `ddc9949`
+(the tracker, <https://github.com/advaitmb/client/actions/runs/33074727706>) --
+are red in the `TypeScript/JS tests` step only, on the 14 drag/autoscroll tests
+ticket 16 landed in `0dbe35f` just before them; build, config check and the elm
+suite pass in both. Those 14 pass locally in this worktree (`bun test` 84/84,
+`bun test tests/drag.test.ts` 17/17) with the same bun 1.3.11, so the split is
+environmental rather than a code conflict: nothing in this ticket touches
+`src/shared/`, `src/ui/` or the dependency manifests. Flagged for ticket 16.
 
 ## Comments
 
