@@ -119,6 +119,11 @@ mid-work): `bun test` 62/62 across 9 files, `bun run test:elm` 75/75,
 `newestVersionPerId(...).filter(...)` is in `web/doc.js`), `node config-check.js`
 exit 0. Pre-rebase, on ticket 08's tree, the same checks were 62/62 and 43/43.
 
+CI green on `selfhost` for both commits: run
+<https://github.com/advaitmb/client/actions/runs/33073185764> (`63b4145`, the
+code) and <https://github.com/advaitmb/client/actions/runs/33073395631>
+(`54db121`, the tracker).
+
 ## Comments
 
 - **Red-first evidence** (the four tests against the unfixed handler — 7 pass,
