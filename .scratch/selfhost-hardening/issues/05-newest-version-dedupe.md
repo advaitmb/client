@@ -97,7 +97,9 @@ Tests (`tests/DataTest.elm`, ADR-0001 seam 1, driven through `localSave` /
 
 Verification (rebased on `selfhost` at `34bfc37`): `bun run test:elm` 12/12
 (8 DataTest + 4 SessionTest, was 7), `bun test` 28/28 across 4 files,
-`bun run newbuild` succeeds, `node config-check.js` exit 0.
+`bun run newbuild` succeeds, `node config-check.js` exit 0. CI run
+<https://github.com/advaitmb/client/actions/runs/33065264109> green on
+`selfhost` (`ab4a495`).
 
 ## Comments
 
