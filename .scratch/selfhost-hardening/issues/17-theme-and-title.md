@@ -154,5 +154,6 @@ CONTEXT.md's seam list name `fromLocalStore`.
   harmless because cancel resets `titleField` to the committed name first, and
   it predates this ticket.
 - **Verified:** `bun run test:elm` 154/154, `bun test` 108/108,
-  `bun run newbuild` clean, `bun run config-check` exit 0, and CI run
-  33089037362 green on `selfhost` for `fc8348c` (the head carrying both fixes).
+  `bun run newbuild` clean, `bun run config-check` exit 0, and CI green on
+  `selfhost` for both heads: run 33089037362 (`fc8348c`, the two fixes) and
+  33089405069 (`022a805`, the tracker).
