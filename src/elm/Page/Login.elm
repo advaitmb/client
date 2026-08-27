@@ -1,4 +1,4 @@
-module Page.Login exposing (Model, Msg, globalData, init, navKey, subscriptions, toSession, transition, update, view)
+module Page.Login exposing (Field(..), Model, Msg, credentialsValidator, globalData, init, navKey, subscriptions, toSession, transition, update, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom
@@ -15,7 +15,7 @@ import Session exposing (Guest, LoggedIn, Session(..))
 import Svg.Attributes
 import Task
 import Utils exposing (getFieldErrors)
-import Validate exposing (Valid, Validator, ifBlank, ifInvalidEmail, ifTrue, validate)
+import Validate exposing (Valid, Validator, ifBlank, ifInvalidEmail, validate)
 
 
 
@@ -96,7 +96,7 @@ update msg model =
             ( model, Cmd.none )
 
         SubmittedForm ->
-            case validate modelValidator model of
+            case validate credentialsValidator model of
                 Ok validModel ->
                     ( model
                     , sendLoginRequest validModel
@@ -133,7 +133,7 @@ update msg model =
                         BadStatus statusCode ->
                             case statusCode of
                                 401 ->
-                                    ( Form, "Email or Password was incorrect.\n\nNOTE: that this is separate from existing gingkoapp.com accounts.\n\n" )
+                                    ( Form, "Email or Password was incorrect." )
 
                                 _ ->
                                     fallbackMsg
@@ -147,14 +147,30 @@ update msg model =
             ( model, Route.pushUrl model.navKey Route.Root )
 
 
-modelValidator : Validator ( Field, String ) Model
-modelValidator =
+{-| What a login form needs before it is worth sending: an address that could
+be an email, and a password of any shape at all.
+
+Whether a password is acceptable is the server's answer, not this form's, so
+there is no length rule here (A2) -- an account whose password predates the
+current rules still has to be able to log in. Signup, which is where a password
+is chosen, is the page that gets to insist on a length.
+
+At most one message per field, too: `firstError` picks between the two email
+rules, and blankness is now the only password rule. A blank login form used to
+answer "Please enter a password." *and* "Password should be 7 characters or
+more." — two problems where the user has one.
+
+Extensible in its subject so that it can be validated without a `Model` (which
+carries a `Nav.Key` no test can make).
+
+-}
+credentialsValidator : Validator ( Field, String ) { a | email : String, password : String }
+credentialsValidator =
     Validate.all
         [ Validate.firstError
             [ ifBlank .email ( Email, "Please enter an email address." )
             , ifInvalidEmail .email (\_ -> ( Email, "This does not seem to be a valid email." ))
             ]
-        , ifTrue (\model -> String.length model.password < 7) ( Password, "Password should be 7 characters or more." )
         , ifBlank .password ( Password, "Please enter a password." )
         ]
 
@@ -241,16 +257,13 @@ view model =
                 , span [ class "alt-action" ]
                     [ text "New to Gingko? "
                     , a [ href "/signup" ] [ text "Signup" ]
-                    , br [] []
-                    , br [] []
-                    , a [ class "forgot-password", href "/forgot-password" ] [ text "Forgot your Password?" ]
                     ]
                 , br [] []
                 , if fromLegacy then
                     small [ class "extra-info", class "legacy" ]
-                        [ text "This is "
-                        , strong [] [ text "not connected" ]
-                        , text " to your gingkoapp.com account."
+                        [ text "This server keeps its own accounts, "
+                        , strong [] [ text "separate" ]
+                        , text " from the site you came from."
                         , br [] []
                         , br [] []
                         , a [ href <| Route.toString Route.Signup ] [ text "Signup here" ]

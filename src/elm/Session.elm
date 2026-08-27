@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestLogin, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, signupBody, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -348,11 +348,11 @@ type UserSource
     | Other
 
 
-{-| A logged-in session from what the server answered to a signup, login,
-forgotten-password or password-reset request — decoded against the guest
-session that made the request, so that preferences the response does not
-mention are the ones the user already had, not defaults (E3). `storeLogin`
-persists the result, so anything invented here is written over the real thing.
+{-| A logged-in session from what the server answered to a signup or login
+request — decoded against the guest session that made the request, so that
+preferences the response does not mention are the ones the user already had,
+not defaults (E3). `storeLogin` persists the result, so anything invented here
+is written over the real thing.
 
 Exposed for the login-decoding tests as well as for the request functions
 below.
@@ -407,20 +407,26 @@ encode (LoggedIn sessData userData) =
 -- AUTHENTICATION
 
 
-requestSignup : (Result Http.Error LoggedIn -> msg) -> String -> String -> Bool -> Guest -> Cmd msg
-requestSignup toMsg email password didOptIn session =
-    let
-        requestBody =
-            Enc.object
-                [ ( "email", Enc.string email )
-                , ( "password", Enc.string password )
-                , ( "subscribed", Enc.bool didOptIn )
-                ]
-                |> Http.jsonBody
-    in
+{-| Everything the client asks a self-hosted server to create an account with.
+
+There was a third field, carrying a mailing-list opt-in from a checkbox on the
+signup form. A self-hosted server has no mailing list to add anyone to, so the
+field and the checkbox are both gone (A4).
+
+-}
+signupBody : String -> String -> Enc.Value
+signupBody email password =
+    Enc.object
+        [ ( "email", Enc.string email )
+        , ( "password", Enc.string password )
+        ]
+
+
+requestSignup : (Result Http.Error LoggedIn -> msg) -> String -> String -> Guest -> Cmd msg
+requestSignup toMsg email password session =
     Http.post
         { url = "/signup"
-        , body = requestBody
+        , body = signupBody email password |> Http.jsonBody
         , expect = Http.expectJson toMsg (responseDecoder FromSignup session)
         }
 
@@ -454,39 +460,6 @@ requestLogin toMsg email password session =
 storeLogin : LoggedIn -> Cmd msg
 storeLogin session =
     store session
-
-
-requestForgotPassword : (Result Http.Error LoggedIn -> msg) -> String -> Guest -> Cmd msg
-requestForgotPassword toMsg email session =
-    let
-        requestBody =
-            Enc.object
-                [ ( "email", Enc.string email )
-                ]
-                |> Http.jsonBody
-    in
-    Http.post
-        { url = "/forgot-password"
-        , body = requestBody
-        , expect = Http.expectJson toMsg (responseDecoder Other session)
-        }
-
-
-requestResetPassword : (Result Http.Error LoggedIn -> msg) -> { newPassword : String, token : String } -> Guest -> Cmd msg
-requestResetPassword toMsg { newPassword, token } session =
-    let
-        requestBody =
-            Enc.object
-                [ ( "token", Enc.string token )
-                , ( "password", Enc.string newPassword )
-                ]
-                |> Http.jsonBody
-    in
-    Http.post
-        { url = "/reset-password"
-        , body = requestBody
-        , expect = Http.expectJson toMsg (responseDecoder Other session)
-        }
 
 
 logout : Cmd msg

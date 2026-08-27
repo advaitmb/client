@@ -52,6 +52,12 @@
    test that, not the ambient `config.js`. These are in scope because a
    silently-passing gate is indistinguishable from a missing one — exactly
    the B1 and B13 failures.
+7. Auth forms (Elm, pure) — what the login and signup forms accept, and what
+   the client then asks the server to create an account with:
+   `Page.Login.credentialsValidator` and `Session.signupBody`. Recorded by
+   ticket 19. Tested through those two exports rather than the views, because a
+   page `Model` carries a `Nav.Key` no test can make — which is why the
+   validator is extensible in its subject.
 
 No test is written at a seam outside this list without updating this ADR.
 

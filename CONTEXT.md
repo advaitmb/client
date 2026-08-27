@@ -68,3 +68,9 @@ Vocabulary used in code, issues, and tests. Full system description:
 5. `Session`'s stored-blob surface (Elm, pure): `decode`/`encode` of the
    session blob and `responseDecoder` for a login answer — the preferences
    this client persists.
+6. Build-time gates: `config-check.js` and `elm-postprocess.mjs`'s
+   placeholder substitution — expose the decision as a pure function and test
+   that, not the ambient `config.js`.
+7. Auth forms (Elm, pure): `Page.Login.credentialsValidator` and
+   `Session.signupBody` — what the login and signup forms accept, and what
+   the client asks the server to create an account with.

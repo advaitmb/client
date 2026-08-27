@@ -234,13 +234,6 @@ body {
   box-shadow: inset 2px 2px 3px #eee;
   border-radius: 4px;
 }
-a.forgot-password {
-  margin-top: 0px;
-  margin-bottom: 18px;
-  text-align: right;
-  font-size: smaller;
-  color: #b1b1b1;
-}
 #form-errors {
   background: #ffebee;
   padding: 10px;

@@ -5,8 +5,8 @@ import Browser.Dom
 import Browser.Navigation as Nav
 import GlobalData exposing (GlobalData)
 import Html exposing (..)
-import Html.Attributes exposing (autocomplete, autofocus, checked, class, classList, for, href, id, src, style, type_, value)
-import Html.Events exposing (onCheck, onClick, onInput, onSubmit)
+import Html.Attributes exposing (autocomplete, autofocus, class, classList, for, href, id, src, type_, value)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Extra exposing (viewIf)
 import Http exposing (Error(..))
 import Import.Template as Template
@@ -29,7 +29,6 @@ type alias Model =
     , email : String
     , password : String
     , showPassword : Bool
-    , didOptIn : Bool
     , errors : List ( Field, FieldError )
     , navKey : Nav.Key
     }
@@ -49,7 +48,6 @@ init nKey gData session =
       , email = ""
       , password = ""
       , showPassword = False
-      , didOptIn = False
       , errors = []
       , navKey = nKey
       }
@@ -87,7 +85,6 @@ type Msg
     | EnteredEmail String
     | EnteredPassword String
     | ToggleShowPassword
-    | ToggledOptIn Bool
     | CompletedSignup (Result Http.Error LoggedIn)
     | UserSaved
 
@@ -117,9 +114,6 @@ update msg model =
         ToggleShowPassword ->
             ( { model | showPassword = not model.showPassword }, Task.attempt (\_ -> NoOp) (Browser.Dom.focus "signup-password") )
 
-        ToggledOptIn isOptedIn ->
-            ( { model | didOptIn = isOptedIn }, Cmd.none )
-
         CompletedSignup (Ok user) ->
             ( { model | transition = Just user }, Session.storeSignup user )
 
@@ -139,7 +133,7 @@ update msg model =
                         BadStatus statusCode ->
                             case statusCode of
                                 409 ->
-                                    ( Form, UsernameExists )
+                                    ( Form, EmailTaken )
 
                                 _ ->
                                     fallbackMsg
@@ -181,10 +175,10 @@ modelValidator =
 sendSignupRequest : Valid Model -> Cmd Msg
 sendSignupRequest validModel =
     let
-        { email, password, session, didOptIn } =
+        { email, password, session } =
             Validate.fromValid validModel
     in
-    Session.requestSignup CompletedSignup email password didOptIn session
+    Session.requestSignup CompletedSignup email password session
 
 
 
@@ -217,7 +211,7 @@ view model =
             ]
         , div [ class "center-form" ]
             [ form [ onSubmit SubmittedForm ]
-                [ label [ for "singup-email" ] [ text "Email" ]
+                [ label [ for "signup-email" ] [ text "Email" ]
                 , input
                     [ id "signup-email"
                     , classList [ ( "has-error", List.length emailErrors > 0 ) ]
@@ -229,7 +223,7 @@ view model =
                     ]
                     []
                 , viewErrors Email model.errors
-                , label [ for "singup-password" ] [ text "Password (7+ characters)", showHidePassword ]
+                , label [ for "signup-password" ] [ text "Password (7+ characters)", showHidePassword ]
                 , input
                     [ id "signup-password"
                     , onInput EnteredPassword
@@ -246,10 +240,6 @@ view model =
                     ]
                     []
                 , viewErrors Password model.errors
-                , div [ style "display" "flex", style "gap" "6px" ]
-                    [ input [ type_ "checkbox", id "email-optin", checked model.didOptIn, onCheck ToggledOptIn ] []
-                    , label [ for "email-optin" ] [ text "Email me help & tips (~6 emails)", br [] [], text "and product news (every ~2 months)." ]
-                    ]
                 , viewErrors Form model.errors
                 , button [ id "signup-button", class "cta" ] [ text "Start Writing" ]
                 , div [ id "post-cta-divider" ] [ hr [] [], div [] [ text "or" ], hr [] [] ]
@@ -263,7 +253,7 @@ type FieldError
     = ServerIssue
     | TimeoutError
     | NetworkErrorMsg
-    | UsernameExists
+    | EmailTaken
     | BlankEmail
     | InvalidEmail String
     | BlankPassword
@@ -307,8 +297,8 @@ viewError field error =
         ( Form, NetworkErrorMsg ) ->
             text "Network error. Maybe you're offline?"
 
-        ( Form, UsernameExists ) ->
-            span [] [ text "Username already exists. ", a [ href "/login" ] [ text "Login" ], text "?" ]
+        ( Form, EmailTaken ) ->
+            span [] [ text "An account with that email already exists. ", a [ href "/login" ] [ text "Login" ], text "?" ]
 
         ( Email, BlankEmail ) ->
             text "Please enter an email address."
