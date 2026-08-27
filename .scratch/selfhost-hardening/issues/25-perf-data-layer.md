@@ -1,6 +1,6 @@
 # 25: Data-layer performance (Dict-keyed hot paths)
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 05, 06, 12 · **Owner decided (2026-08-27):** in scope,
 scheduled last — after all correctness tickets are green.
