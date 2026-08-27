@@ -192,6 +192,22 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   is worse than the fraction of a save the clear costs. Restore staging stays
   unstaged (modal, per 11). 9 new tests at seam 1, 8 red first. Details in
   `issues/29-stale-row-save-reverts.md`.
+- Ticket 14 resolved — E4 closed: the URL→page decision is a pure total
+  function in `Route` (`loggedInLanding`/`guestLanding` → a **landing**: the
+  page to initialize plus an optional `Route` to correct the address bar to),
+  and `Main.routeUrl` — which both `init` and `handleUrlChange` call — is the
+  only thing that carries one out, so a cold-loaded URL runs its page's
+  commands like any other. No shape answers `Cmd.none` any more:
+  `/<dbName>/<title>` opens `<dbName>`, three-plus segments and
+  `/<dbName>/404-not-found` reach the not-found screen (which now asks for the
+  document list it tells the user to look at), and a guest at any signed-in-only
+  URL gets the login form with the address bar corrected to `/login`. Landings
+  correct by `Replace`, never `Push` — a pushed redirect leaves the bad URL for
+  Back to land on — and a just-completed login now routes as the user it signed
+  in for *every* path, not the two the old guest branch special-cased. ADR-0001
+  gains seam 8 (routing, Elm, pure); 23 tests, including a round trip of every
+  URL `Route.toString` builds back to the page it names. Details in
+  `issues/14-cold-url-init.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
