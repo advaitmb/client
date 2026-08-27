@@ -2,10 +2,11 @@
  * <gw-header> — the whole document header: title, save state, the three menu
  * buttons and the menus they open.
  *
- * Replaces UI/Header.elm, Doc.UI.viewSaveIndicator and Doc/History.view. Elm
- * keeps every decision: which menu is open, whether the title is editable,
- * what the export settings are, and which version the history slider maps to.
- * This renders that state and reports intent back.
+ * Replaces UI/Header.elm and Doc/History.view. Elm keeps every decision: which
+ * menu is open, whether the title is editable, what the export settings are,
+ * and which version the history slider maps to. This renders that state and
+ * reports intent back. The save state is <gw-save-indicator>'s, which the
+ * fullscreen view renders too — this only forwards the attribute.
  *
  * The title input is UNCONTROLLED, for the reason gw-switcher-modal's is: Elm
  * re-renders the header on every save-status tick, and writing the value back
@@ -38,56 +39,16 @@
 
 import { h, icon, emit } from "./dom";
 import { jsonAttr } from "./modal";
-import { relativeTime } from "./relative-time";
+// The save indicator is its own element, shared with the fullscreen view; the
+// import is what registers it (S1).
+import "./save-indicator";
 
 const I = {
   history: "M3 3v6h6M3.5 13a9 9 0 1 0 2.1-6.4L3 9",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.1a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-3-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.1-3l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 3 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z",
   export: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 15h6M9 12h6",
   close: "M18 6L6 18M6 6l12 12",
-  synced: "M20 6L9 17l-5-5",
-  warning: "M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
-  info: "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zM12 16v-4M12 8h.01",
 };
-
-interface Save {
-  dirty: boolean;
-  lastLocalSave: number | null;
-  lastRemoteSave: number | null;
-  now: number;
-}
-
-/** Mirrors the branch structure of Doc.UI.viewSaveIndicator. */
-function saveIndicator(s: Save | null) {
-  if (!s) return h("div", { id: "save-indicator" });
-
-  let label: string, tip: string, state: string, glyph: string;
-  const since = (t: number | null) =>
-    t === null ? "" : relativeTime(t, s.now);
-
-  if (s.dirty) {
-    [label, tip, state, glyph] =
-      ["Unsaved Changes...", `Last saved ${since(s.lastLocalSave)}`, "unsaved", I.info];
-  } else if (s.lastLocalSave === null && s.lastRemoteSave === null) {
-    [label, tip, state, glyph] = ["Loading...", "", "never-saved", I.info];
-  } else if (s.lastRemoteSave === null) {
-    [label, tip, state, glyph] =
-      ["Saved Offline", `Last synced ${since(s.lastLocalSave)}`, "saved-offline", I.warning];
-  } else if (s.lastLocalSave !== null && s.lastLocalSave <= s.lastRemoteSave) {
-    [label, tip, state, glyph] =
-      ["Synced", `Last edit ${since(s.lastLocalSave)}`, "synced", I.synced];
-  } else {
-    [label, tip, state, glyph] =
-      ["Saved Offline", `Last synced ${since(s.lastRemoteSave)}`, "saved-offline", I.warning];
-  }
-
-  return h(
-    "div",
-    { id: "save-indicator", class: `inset ${state}${s.dirty ? " saving" : ""}` },
-    icon(glyph, 16),
-    h("span", { title: tip }, label),
-  );
-}
 
 /**
  * The container id and the child id prefix differ in the existing stylesheet
@@ -122,8 +83,11 @@ interface TitleParts {
   span: HTMLElement;
   input: HTMLInputElement;
   shadow: HTMLElement;
-  /** The save indicator lives inside the title span, and is swapped, not kept. */
-  indicator: Element | null;
+  /**
+   * <gw-save-indicator>, inside the title span. Kept like the rest: it renders
+   * itself from its own `save` attribute, so the header only forwards it.
+   */
+  indicator: HTMLElement;
 }
 
 class Header extends HTMLElement {
@@ -212,10 +176,11 @@ class Header extends HTMLElement {
     // The shadow sizes the input, so it follows what the input shows.
     title.shadow.textContent = title.input.value || " ";
 
-    const indicator = saveIndicator(jsonAttr<Save>(this, "save"));
-    if (title.indicator) title.indicator.replaceWith(indicator);
-    else title.span.append(indicator);
-    title.indicator = indicator;
+    // Forwarded, not interpreted: what the state means is
+    // <gw-save-indicator>'s, which the fullscreen view renders too.
+    const save = this.getAttribute("save");
+    if (save === null) title.indicator.removeAttribute("save");
+    else title.indicator.setAttribute("save", save);
 
     return title;
   }
@@ -239,15 +204,19 @@ class Header extends HTMLElement {
     // .title-grow-wrap + .shadow is how the input sizes itself to its
     // content; the shadow must carry identical text and typography.
     const shadow = h("div.shadow", {}, " ");
+    // The id is the stylesheet's hook (`#save-indicator`), given by the caller
+    // the way Elm gives <gw-header> its `#document-header`.
+    const indicator = h("gw-save-indicator", { id: "save-indicator" });
     const span = h(
       "span",
       { id: "title" },
       h("div.title-grow-wrap", {}, shadow, input),
+      indicator,
     );
 
     // First child, ahead of the menu buttons render() appends after it.
     this.prepend(span);
-    return { span, input, shadow, indicator: null };
+    return { span, input, shadow, indicator };
   }
 
   private settingsMenu() {

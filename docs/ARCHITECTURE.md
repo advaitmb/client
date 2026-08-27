@@ -224,7 +224,9 @@ shortcut tray, breadcrumbs, search field, mobile buttons, conflict banner,
 export preview pane, loading spinners, empty/not-found screens.
 
 Moved to `src/ui/` custom elements: help modal, word-count modal, switcher
-modal, template modal, header (incl. save indicator + history slider),
+modal, template modal, header (incl. the history slider), the save indicator
+(`<gw-save-indicator>`, rendered by the header *and* by the still-Elm
+fullscreen view — one implementation, which is why it is its own element),
 sidebar, markdown rendering (`<gw-markdown>`), and the card tree (`<gw-tree>`).
 (`src/ui/README.md`'s "what has moved" table predates most of these moves.)
 
@@ -427,6 +429,13 @@ dragged in from outside the app. `markdown.ts` renders card content with
 `marked` (GFM + breaks) plus
 a CriticMarkup preprocessor. `header.ts`, `sidebar.ts`, and the modals are
 render-once surfaces following the rules in `src/ui/README.md`.
+
+One element is rendered from two places rather than one: `save-indicator.ts`
+(`<gw-save-indicator>`) is inside the header's title span *and* in
+`Doc/Fullscreen.elm`'s button column. Elm encodes the state once
+(`Doc.UI.encodeSaveState`) and the header only forwards its `save` attribute
+through, so neither surface can come to disagree about what "saved" says — they
+had, as two separate implementations (CODE_REVIEW.md S1).
 
 ---
 

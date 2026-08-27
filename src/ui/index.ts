@@ -15,7 +15,9 @@
  *   gw-wordcount-modal   Doc/UI.viewWordCount
  *   gw-switcher-modal    Doc/Switcher.view + Doc/List.viewSwitcher
  *   gw-template-modal    Doc/UI.viewTemplateSelector
- *   gw-header            UI/Header.elm, Doc.UI.viewSaveIndicator, Doc/History.view
+ *   gw-header            UI/Header.elm, Doc/History.view
+ *   gw-save-indicator    Doc.UI.viewSaveIndicator (header AND fullscreen: one
+ *                        implementation, which is the point — S1)
  *   gw-sidebar           UI/Sidebar.elm, Doc.List.viewSidebarList
  *   gw-markdown          Page/Doc.viewContent + the Export preview
  *   gw-tree              Page/Doc treeView / viewColumn / viewGroup / the cards
@@ -30,6 +32,7 @@ import "./wordcount-modal";
 import "./switcher-modal";
 import "./template-modal";
 import "./header";
+import "./save-indicator";
 import "./sidebar";
 import "./markdown";
 import "./tree";

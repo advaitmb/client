@@ -1,4 +1,4 @@
-module Doc.UI exposing (countWords, documentWordcount, encodeStats, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTooltip)
+module Doc.UI exposing (countWords, documentWordcount, encodeSaveState, encodeStats, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTooltip)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -27,85 +27,56 @@ import Svg exposing (g, svg)
 import Svg.Attributes exposing (d, fill, fontFamily, fontSize, fontWeight, preserveAspectRatio, stroke, strokeDasharray, strokeDashoffset, strokeLinecap, strokeLinejoin, strokeMiterlimit, strokeWidth, textAnchor, version, viewBox)
 import Time exposing (posixToMillis)
 import Toast
-import Translation exposing (TranslationId(..), timeDistInWords, tr)
+import Translation exposing (TranslationId(..), tr)
 import Types exposing (Children(..), CursorPosition(..), SortBy(..), TextCursorInfo, Toast, ToastRole(..), TooltipPosition(..), ViewMode(..), ViewState)
 import Utils exposing (emptyText, ternary, text, textNoTr)
 
 
+{-| The save state of the document, as `<gw-save-indicator>`
+(`src/ui/save-indicator.ts`) renders it. Used by the fullscreen view; the
+document header sends the same JSON as an attribute of `<gw-header>`, which
+forwards it to the same element.
+
+There used to be two implementations of what "saved" looks like -- this one and
+a copy inside `header.ts` -- and they had already drifted apart (S1): the copy
+had no "Database Error..." branch and read the zero timestamp of a document
+still loading as an offline save. `encodeSaveState` below is now the only place
+this state crosses out of Elm, and the element is the only place it is turned
+into words, so the next change to it is made once on each side.
+
+-}
 viewSaveIndicator :
     { m | dirty : Bool, lastLocalSave : Maybe Time.Posix, lastRemoteSave : Maybe Time.Posix }
     -> Time.Posix
     -> Html msg
-viewSaveIndicator { dirty, lastLocalSave, lastRemoteSave } currentTime =
+viewSaveIndicator saveState currentTime =
+    node "gw-save-indicator"
+        [ id "save-indicator"
+        , attribute "save" (encodeSaveState saveState currentTime)
+        ]
+        []
+
+
+{-| The `save` attribute both surfaces pass: what the document's save state is,
+and the clock reading the element measures "5 minutes ago" against. Epoch
+milliseconds, `null` for "never".
+-}
+encodeSaveState :
+    { m | dirty : Bool, lastLocalSave : Maybe Time.Posix, lastRemoteSave : Maybe Time.Posix }
+    -> Time.Posix
+    -> String
+encodeSaveState { dirty, lastLocalSave, lastRemoteSave } currentTime =
     let
-        timeDistPast t1 t2 =
-            if Time.posixToMillis t1 < Time.posixToMillis t2 then
-                timeDistInWords t1 t2
-
-            else
-                timeDistInWords t2 t1
-
-        lastChangeString =
-            timeDistPast
-                (lastLocalSave |> Maybe.withDefault (Time.millisToPosix 0))
-                currentTime
-
-        lastSyncString =
-            timeDistPast
-                (lastRemoteSave |> Maybe.withDefault (Time.millisToPosix 0))
-                currentTime
-
-        ( saveStateSpan, saveStateIcon, name ) =
-            if dirty then
-                ( span [ title (tr LastSaved ++ " " ++ lastChangeString) ] [ text UnsavedChanges ]
-                , AntIcons.infoCircleOutlined [ width 16, height 16 ]
-                , "unsaved"
-                )
-
-            else
-                case ( lastLocalSave, lastRemoteSave ) of
-                    ( Nothing, Nothing ) ->
-                        ( span [] [ text Loading ]
-                        , AntIcons.loading3QuartersOutlined [ width 16, height 16 ]
-                        , "never-saved"
-                        )
-
-                    ( Just time, Nothing ) ->
-                        if Time.posixToMillis time == 0 then
-                            ( span [] [ text Loading ]
-                            , AntIcons.loading3QuartersOutlined [ width 16, height 16 ]
-                            , "never-saved"
-                            )
-
-                        else
-                            ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text SavedInternally ]
-                            , AntIcons.warningFilled [ width 16, height 16 ]
-                            , "saved-offline"
-                            )
-
-                    ( Just commitTime, Just fileTime ) ->
-                        if posixToMillis commitTime <= posixToMillis fileTime then
-                            ( span [ title (tr LastEdit ++ " " ++ lastChangeString) ]
-                                [ text ChangesSynced ]
-                            , AntIcons.checkCircleFilled [ width 16, height 16 ]
-                            , "synced"
-                            )
-
-                        else
-                            ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text SavedInternally ]
-                            , AntIcons.warningFilled [ width 16, height 16 ]
-                            , "saved-offline"
-                            )
-
-                    ( Nothing, Just _ ) ->
-                        ( span [ title (tr LastSynced ++ " " ++ lastSyncString) ] [ text DatabaseError ]
-                        , AntIcons.closeCircleFilled [ width 16, height 16 ]
-                        , "database-error"
-                        )
+        millis t_ =
+            t_ |> Maybe.map (posixToMillis >> Enc.int) |> Maybe.withDefault Enc.null
     in
-    div
-        [ id "save-indicator", classList [ ( "inset", True ), ( "saving", dirty ), ( name, True ) ] ]
-        [ saveStateIcon, saveStateSpan ]
+    Enc.encode 0 <|
+        Enc.object
+            [ ( "dirty", Enc.bool dirty )
+            , ( "lastLocalSave", millis lastLocalSave )
+            , ( "lastRemoteSave", millis lastRemoteSave )
+            , ( "now", Enc.int (posixToMillis currentTime) )
+            ]
 
 
 viewBreadcrumbs : (String -> msg) -> List ( String, String ) -> Html msg

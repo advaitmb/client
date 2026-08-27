@@ -892,15 +892,24 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
 #save-indicator span {
   margin-top: 4px;
 }
+/* The state colours below set `stroke` as well as `fill`: <gw-save-indicator>
+   draws the app's own stroked glyphs (dom.ts `icon`), where the Elm view it
+   replaced used filled Ant icons and only `fill` had any effect. */
 #save-indicator.synced svg {
   fill: hsl(86, 54%, 51%);
+  stroke: hsl(86, 54%, 51%);
 }
 #save-indicator.saved-offline {
   animation: fadeInDelayed 1.3s forwards;
 }
 #save-indicator.saved-offline svg {
-  transition: fill 1s ease-in-out;
+  transition: fill 1s ease-in-out, stroke 1s ease-in-out;
   fill: hsl(35, 100%, 50%);
+  stroke: hsl(35, 100%, 50%);
+}
+#save-indicator.database-error svg {
+  fill: hsl(0, 65%, 51%);
+  stroke: hsl(0, 65%, 51%);
 }
 #save-indicator.never-saved svg {
   animation-name: ckw;
@@ -910,6 +919,7 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
 }
 #save-indicator.unsaved svg {
   fill: hsl(0, 0%, 50%);
+  stroke: hsl(0, 0%, 50%);
 }
 
 @keyframes ckw {

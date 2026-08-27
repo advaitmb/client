@@ -1769,13 +1769,12 @@ view ({ documentState } as model) =
                                 , attribute "owner" (ownershipName ownership)
                                 , attribute "menu" (headerMenuName model.headerMenu)
                                 , attribute "save"
-                                    (Enc.encode 0 <|
-                                        Enc.object
-                                            [ ( "dirty", Enc.bool dirty )
-                                            , ( "lastLocalSave", encodeMaybePosix lastLocalSave )
-                                            , ( "lastRemoteSave", encodeMaybePosix lastRemoteSave )
-                                            , ( "now", Enc.int (Time.posixToMillis (GlobalData.currentTime globalData)) )
-                                            ]
+                                    (UI.encodeSaveState
+                                        { dirty = dirty
+                                        , lastLocalSave = lastLocalSave
+                                        , lastRemoteSave = lastRemoteSave
+                                        }
+                                        (GlobalData.currentTime globalData)
                                     )
                                 , attribute "export-settings"
                                     (Enc.encode 0 <|
@@ -2116,11 +2115,6 @@ subscriptions model =
 detailString : Json.Decoder String
 detailString =
     Json.at [ "detail" ] Json.string
-
-
-encodeMaybePosix : Maybe Time.Posix -> Enc.Value
-encodeMaybePosix t_ =
-    t_ |> Maybe.map (Time.posixToMillis >> Enc.int) |> Maybe.withDefault Enc.null
 
 
 {-| Who owns the document, for `<gw-header>`'s `owner` attribute. Three values,
