@@ -1065,7 +1065,59 @@ toTree allCards =
 
 toTrees : List (Card UpdatedAt) -> List Tree
 toTrees allCards =
-    treeHelper (newestVisible allCards) Nothing
+    treeHelper (childIndex (newestVisible allCards)) Nothing
+
+
+{-| The cards of a document grouped by parent, so that walking the tree costs
+one lookup per node instead of one scan of the whole document.
+
+Materializing the tree used to filter the entire card list once per node --
+O(n^2) on every card-rows echo, which is every keystroke-save's round trip
+(CODE_REVIEW.md P1). Building this index once and looking each parent up in it
+is O(n log n) for the whole document.
+
+Root cards are held apart rather than under a sentinel key: `Maybe String` is
+not `comparable`, and no string is safe to reserve as "no parent" because card
+ids come from whichever client made the card.
+
+Every group keeps the order its cards came in, so a caller reading one sees
+exactly what filtering the same list gave it.
+
+-}
+type alias ChildIndex a =
+    { roots : List (Card a)
+    , byParentId : Dict String (List (Card a))
+    }
+
+
+childIndex : List (Card a) -> ChildIndex a
+childIndex cards =
+    let
+        addCard card index =
+            case card.parentId of
+                Nothing ->
+                    { index | roots = card :: index.roots }
+
+                Just parentId ->
+                    { index
+                        | byParentId =
+                            index.byParentId
+                                |> Dict.update parentId
+                                    (\existing -> Just (card :: Maybe.withDefault [] existing))
+                    }
+    in
+    -- From the right, so each group comes out in the order the cards came in.
+    List.foldr addCard { roots = [], byParentId = Dict.empty } cards
+
+
+childrenOf : Maybe String -> ChildIndex a -> List (Card a)
+childrenOf parentId index =
+    case parentId of
+        Nothing ->
+            index.roots
+
+        Just id ->
+            index.byParentId |> Dict.get id |> Maybe.withDefault []
 
 
 {-| The newest version row of each card id.
@@ -1095,12 +1147,11 @@ newestVisible allCards =
         |> List.filter (not << .deleted)
 
 
-treeHelper : List (Card UpdatedAt) -> Maybe String -> List Tree
-treeHelper allCards parentId =
+treeHelper : ChildIndex UpdatedAt -> Maybe String -> List Tree
+treeHelper index parentId =
     let
         cards =
-            allCards
-                |> List.filter (\card -> card.parentId == parentId)
+            childrenOf parentId index
                 -- By position, then by id.  Local saves can no longer mint two
                 -- siblings with the same position (CODE_REVIEW.md D8), but rows
                 -- written by another client still can, and sorting on position
@@ -1108,7 +1159,7 @@ treeHelper allCards parentId =
                 -- order Dexie returned the rows in.
                 |> List.sortBy (\card -> ( card.position, card.id ))
     in
-    List.map (\card -> { id = card.id, content = card.content, children = Children (treeHelper allCards (Just card.id)) }) cards
+    List.map (\card -> { id = card.id, content = card.content, children = Children (treeHelper index (Just card.id)) }) cards
 
 
 {-| The card and every card below it, as the user sees the tree.
