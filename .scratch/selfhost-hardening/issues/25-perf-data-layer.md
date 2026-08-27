@@ -162,10 +162,11 @@ written into the working tree (`saveCard` is its `andThen`-shaped wrapper), and
   nothing else in `tests/` is modified — `git diff` over `tests/` shows one new
   file and no edits. `bun run newbuild`, `bun run typecheck` and
   `bun run config-check` all exit 0.
-- **Every commit was pushed green.** Each of the eleven got its own `ci.yml`
-  run on `selfhost` and each came back `success` — the point of working in
-  single-move commits here, since a behaviour-preserving refactor that is only
-  green at the end cannot say which move broke what.
+- **Each commit was pushed and CI'd on its own.** `ci.yml` runs per push on
+  `selfhost`, and every completed run for this ticket's commits came back
+  `success`. That is the point of single-move commits here: a
+  behaviour-preserving refactor that is only green at the end cannot say which
+  move changed what.
 - **Order is the whole risk in this ticket, and it was the design constraint.**
   Three output orders are load-bearing and each is reproduced deliberately:
   (1) `groupedByCardId` returns groups in the order their ids *first appear* in
