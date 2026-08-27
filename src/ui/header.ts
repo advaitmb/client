@@ -9,7 +9,10 @@
  *
  * The title input is UNCONTROLLED, for the reason gw-switcher-modal's is: Elm
  * re-renders the header on every save-status tick, and writing the value back
- * on each one would fight the caret while you are typing a title.
+ * on each one would fight the caret while you are typing a title. `doc-title`
+ * is the last *committed* name, never the text being typed, so the input node
+ * itself is built once and kept: a re-render (from any attribute) replaces
+ * everything after the title, and touches the field only while it is idle.
  *
  * Contract — attributes in
  *   doc-title        current document name
@@ -113,26 +116,32 @@ function toggleGroup(
   );
 }
 
+/** The nodes render() keeps rather than rebuilds; see Header.renderTitle. */
+interface TitleParts {
+  span: HTMLElement;
+  input: HTMLInputElement;
+  shadow: HTMLElement;
+  /** The save indicator lives inside the title span, and is swapped, not kept. */
+  indicator: Element | null;
+}
+
 class Header extends HTMLElement {
   static observedAttributes = [
     "doc-title", "owner", "menu", "save", "export-settings", "history",
   ];
 
-  private titleInput: HTMLInputElement | null = null;
+  private titleParts: TitleParts | null = null;
 
   connectedCallback() {
     this.render();
   }
 
-  attributeChangedCallback(name: string) {
-    // The title is the one piece Elm must not write back while it is being
-    // typed into; everything else re-renders freely.
-    if (name === "doc-title" && this.titleInput === document.activeElement) return;
+  attributeChangedCallback() {
     if (this.isConnected) this.render();
   }
 
   disconnectedCallback() {
-    this.titleInput = null;
+    this.titleParts = null;
     this.replaceChildren();
   }
 
@@ -152,22 +161,64 @@ class Header extends HTMLElement {
 
   private render() {
     const menu = this.getAttribute("menu") ?? "none";
+
+    const title = this.renderTitle();
+
+    const parts: Array<Node | null> = [
+      this.menuButton("history-icon", I.history, "history", "Version history"),
+      menu === "history" ? this.historyMenu() : null,
+      this.menuButton("doc-settings-icon", I.settings, "settings", "Document settings"),
+      menu === "settings" ? this.settingsMenu() : null,
+      this.menuButton("export-icon", I.export, "export", "Export or print"),
+      menu === "export" ? this.exportMenu() : null,
+    ];
+    // Everything except the title is thrown away and rebuilt. The title span
+    // stays put: detaching it -- which replaceChildren() does even when the
+    // same node goes straight back -- takes the focus, the caret and the
+    // browser's own undo stack with it.
+    for (const child of Array.from(this.children)) {
+      if (child !== title.span) child.remove();
+    }
+    this.append(...parts.filter((n): n is Node => n !== null));
+  }
+
+  /**
+   * Update the title in place, building it on the first render of a
+   * connection. The one rule: while the field has focus it belongs to the
+   * user, so nothing writes its value -- whichever attribute the re-render
+   * came from (E12: the `save` tick alone fires every 9 seconds). Elm learns
+   * the text through `gw-title-input` and hands back a new `doc-title` only
+   * once the rename is committed.
+   */
+  private renderTitle(): TitleParts {
     const owner = this.getAttribute("owner") === "yes";
     const docTitle = this.getAttribute("doc-title") ?? "Untitled";
 
-    const keepCaret =
-      this.titleInput === document.activeElement
-        ? { start: this.titleInput?.selectionStart, end: this.titleInput?.selectionEnd }
-        : null;
+    const title =
+      this.titleParts?.span.parentNode === this
+        ? this.titleParts
+        : (this.titleParts = this.buildTitle());
 
+    if (title.input !== document.activeElement) title.input.value = docTitle;
+    title.input.disabled = !owner;
+    title.input.style.cursor = owner ? "" : "not-allowed";
+    // The shadow sizes the input, so it follows what the input shows.
+    title.shadow.textContent = title.input.value || " ";
+
+    const indicator = saveIndicator(jsonAttr<Save>(this, "save"));
+    if (title.indicator) title.indicator.replaceWith(indicator);
+    else title.span.append(indicator);
+    title.indicator = indicator;
+
+    return title;
+  }
+
+  private buildTitle(): TitleParts {
     const input = h("input", {
       id: "title-rename",
       type: "text",
-      value: docTitle,
       size: 1,
       "data-private": "lipsum",
-      disabled: !owner,
-      style: owner ? undefined : "cursor: not-allowed",
       oninput: (e: Event) =>
         emit(this, "gw-title-input", (e.target as HTMLInputElement).value),
       onfocus: () => emit(this, "gw-title-focus"),
@@ -178,35 +229,18 @@ class Header extends HTMLElement {
         if (k === "Escape") emit(this, "gw-title-cancel");
       },
     }) as HTMLInputElement;
+    // .title-grow-wrap + .shadow is how the input sizes itself to its
+    // content; the shadow must carry identical text and typography.
+    const shadow = h("div.shadow", {}, " ");
+    const span = h(
+      "span",
+      { id: "title" },
+      h("div.title-grow-wrap", {}, shadow, input),
+    );
 
-    const parts: Array<Node | null> = [
-      h(
-        "span",
-        { id: "title" },
-        // .title-grow-wrap + .shadow is how the input sizes itself to its
-        // content; the shadow must carry identical text and typography.
-        h(
-          "div.title-grow-wrap",
-          {},
-          h("div.shadow", {}, docTitle || " "),
-          input,
-        ),
-        saveIndicator(jsonAttr<Save>(this, "save")),
-      ),
-      this.menuButton("history-icon", I.history, "history", "Version history"),
-      menu === "history" ? this.historyMenu() : null,
-      this.menuButton("doc-settings-icon", I.settings, "settings", "Document settings"),
-      menu === "settings" ? this.settingsMenu() : null,
-      this.menuButton("export-icon", I.export, "export", "Export or print"),
-      menu === "export" ? this.exportMenu() : null,
-    ];
-    this.replaceChildren(...parts.filter((n): n is Node => n !== null));
-
-    this.titleInput = input;
-    if (keepCaret) {
-      input.focus();
-      input.setSelectionRange(keepCaret.start ?? null, keepCaret.end ?? null);
-    }
+    // First child, ahead of the menu buttons render() appends after it.
+    this.prepend(span);
+    return { span, input, shadow, indicator: null };
   }
 
   private settingsMenu() {
