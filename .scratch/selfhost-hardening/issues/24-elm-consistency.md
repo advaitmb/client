@@ -206,7 +206,9 @@ CI green on `selfhost` for every push:
 [33092886443](https://github.com/advaitmb/client/actions/runs/33092886443)
 (`3ef333b`, S2 + S12) and
 [33093397621](https://github.com/advaitmb/client/actions/runs/33093397621)
-(`3047616`, P4 + the self-review pass).
+(`3047616`, P4 + the self-review pass) and
+[33093788531](https://github.com/advaitmb/client/actions/runs/33093788531)
+(`f1b0b51`, the tracker, on the tree rebased over ticket 23).
 
 ## Comments
 
