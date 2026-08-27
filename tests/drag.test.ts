@@ -34,7 +34,8 @@ let scrolls: Map<Element, Array<[number, number]>>;
 
 interface Dom {
   root: HTMLElement;
-  /** <gw-tree>: the element that reports card drags, and scrolls sideways. */
+  /** Where <gw-tree> renders: the element that reports card drags, and the one
+   * that scrolls sideways through the columns. */
   tree: HTMLElement;
   column: HTMLElement;
   card: HTMLElement;
@@ -99,7 +100,14 @@ function buildDom(): Dom {
 
   const root = el("div", { id: "app" });
   const header = el("div", { id: "header" });
-  const tree = el("gw-tree", { id: "document" });
+  // `div`, not `gw-tree`: the tag is a defined custom element as soon as any
+  // test in the run has imported src/ui/tree, and connecting one replaces its
+  // children with its own scaffolding -- which detached this whole fixture from
+  // `root`, so nothing bubbled to the handlers under test. Which tag renders
+  // the columns is no business of this module's: it is handed the element to
+  // scroll, and listens on the document. (`#document` is the id <gw-tree> gives
+  // itself.)
+  const tree = el("div", { id: "document" });
   const column = el("div", { class: "column" });
   const card = el("div", { class: "card", id: "card-a" });
   const region = el("div", { class: "drop-region-below" });
@@ -149,6 +157,17 @@ function tick() {
 }
 
 const scrolledBy = (el: Element) => scrolls.get(el) ?? [];
+
+test("the fixture is one connected tree, so every drag reaches the handlers", () => {
+  // Every handler under test listens on `root`, so a fixture node that is not
+  // inside it reports nothing and every assertion below reads as "the drag did
+  // nothing". This says which it was. It caught the fixture being built from a
+  // `gw-tree` element, which replaces its children with its own scaffolding as
+  // soon as any other test file in the run has defined it.
+  for (const node of [dom.tree, dom.column, dom.card, dom.region, dom.editor, dom.header]) {
+    expect(dom.root.contains(node)).toBe(true);
+  }
+});
 
 test("a card dragged inside the app is not announced to Elm as text from outside", () => {
   treeEvent("gw-drag-start", "card-a");
