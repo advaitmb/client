@@ -303,6 +303,26 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   `Page.Doc.Msg` exports no constructors. Guard *ordering* is still invisible to
   a test, as seam 10 records. Details in
   `issues/31-fullscreen-bypasses-block.md`.
+- Ticket 09 resolved — D6 closed: `ws.onopen` now asks for the document
+  metadata the server has not acknowledged, so a rename or delete made while
+  the socket was down goes out on reconnect instead of waiting for an unrelated
+  tree-table change or a reload. Both senders of the `trees` message live in
+  `src/shared/metadata.js` (seam 4), which keeps the trees table as the
+  liveQuery last emitted it and **re-derives** the message at send time. The
+  ticket's two suggested designs were both rejected for the same reason: they
+  can put stale state on the wire *after* newer state. Queueing holds one
+  message per emission, so two offline renames push the first name and then the
+  second, and a server taking the last at face value echoes the older name back
+  over the newer Dexie row; an `await db.trees.toArray()` in `onopen` can be
+  overtaken by an emission and then answer with the pre-rename state. Reading
+  the last emission takes no turn of the event loop, and one code path for both
+  senders makes every `trees` message a read of the same monotonic sequence, so
+  none can be older than one already sent. The queue keeps the messages that
+  are **events** (`pull`, `rt:join`). `stop()` (called by ticket 04's
+  `stopSyncing`) makes an instance inert for good, so a reconnect cannot push
+  the rows of the account that logged out. 10 tests at seam 4, 3 red first;
+  `CONTEXT.md` gains **document metadata**. Details in
+  `issues/09-offline-metadata-resend.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
