@@ -663,6 +663,7 @@ ticket carries `needs-info` any more.
 | 33 | header-icons-keyboard | new (from 32) | 32 |
 | 34 | header-follow-ups | new (from 33) | 33 |
 | 35 | shortcut-leak-from-header | new (from 34) | 34 |
+| 36 | shortcuts-while-header-menu-open | new (from 35) | 35 |
 
 ## Not yet specified
 
