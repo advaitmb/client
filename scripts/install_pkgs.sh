@@ -21,4 +21,8 @@ cd "$CLAUDE_PROJECT_DIR" || exit 0
 # `bun run newbuild` once the dependencies are on disk.
 npm install --no-fund --no-audit || true
 
+# Elm packages can't be downloaded by the elm compiler here (the proxy
+# rejects GitHub zipball requests), so pre-install them from git clones.
+bash scripts/install_elm_pkgs.sh || true
+
 exit 0
