@@ -482,6 +482,7 @@ ticket carries `needs-info` any more.
 | 30 | merge-down-orphans-children | new (from 29) | 29 |
 | 31 | fullscreen-bypasses-block | new (from 15) | 15 |
 | 32 | restore-theme-picker | owner decision | 17, 24 |
+| 33 | header-icons-keyboard | new (from 32) | 32 |
 
 ## Not yet specified
 
