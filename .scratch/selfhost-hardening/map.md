@@ -518,6 +518,26 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   what it deleted, and that prose needs the same verification the deletions get.
   Translations needed nothing — all 56 surviving `TranslationId` constructors
   have live uses. Details in `issues/22-deadcode-js-ts.md`.
+- Ticket 33 resolved — the gap ticket 32 named: the three header icons are
+  real `<button type="button">`s now, so the menus (and the theme picker in
+  one of them) can be opened from the keyboard at all. No new mechanism — 32's
+  three halves applied to the five controls that were left: the button, the
+  Enter/Space keydown guard (now one shared `stopActivationKeys` instead of a
+  second copy), and `render()`'s refocus-by-id, which only starts mattering for
+  an icon once the icon can hold focus. An icon-only button also needs a name
+  (`aria-label`; `title` is only a fallback name) and says whether its menu is
+  open (`aria-expanded`) — Elm's answer, never the click, like the theme mark.
+  No `aria-haspopup`: it promises the ARIA menu pattern 32 declined. The
+  history menu came with them, as 32's Comments said it would: `#history-restore`
+  gains the guard and `#history-close-button` becomes a button, because closing
+  from the icon is **not** the same act — `CancelHistory` reverts the checked-out
+  version, `HistoryToggled False` only closes the menu (which is a bug of its
+  own, now easier to hit, recorded for a ticket). **Correction to 32's CSS
+  reasoning:** preflight is *off* in this repo, so the six-line UA reset is the
+  whole of it and not belt-and-braces — `color` above all, since `dom.ts`
+  strokes its icons with `currentColor`. 9 tests at seam 3, all red first, then
+  mutation-checked; `src/ui/README.md` gains the standard as a rule. Details in
+  `issues/33-header-icons-keyboard.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
