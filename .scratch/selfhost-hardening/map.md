@@ -482,6 +482,42 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   Ticket 22 still owns the `doc.js` halves — none can fire, which matters
   because an unknown incoming tag toasts rather than being ignored (18).
   Details in `issues/21-deadcode-elm.md`.
+- Ticket 22 resolved — §6's JS/TS side, and the port contract is now
+  **symmetric and checkable**: 28 outgoing Elm tags against 28 JS handlers,
+  identical *as sets* (extracted and `diff`ed, not counted), where the JS side
+  had 37; and 26 incoming tags against 26 `toElm` sends. Net **−415 lines**
+  (259 added, 674 removed) over 30 files. Nine dead handlers went — the four
+  ticket 21 named, the three §6 called no-ops, **plus `SetField`,
+  `SetFullscreen` and `RequestFullscreen`, which §6 does not list as dead
+  handlers at all**: it lists them as dead *outgoing tags*, and ticket 21's
+  removal of the Elm constructors orphaned their JS halves in the gap between
+  the two tickets. The cross-check found those three in one step; reading down
+  the inventory would not have, which is the transferable lesson — for a
+  two-sided contract, diff the two sides rather than walking a list. Also gone:
+  the write-only globals (`PULL_LOCK`, `savedObjectIds`, `userDbName`, and
+  `remoteDB`/`db`), `treeToHtml`, `pushSuccessHandler`, `toHex`,
+  `isEditTextarea`, `errorAlert`, container-web's ten PouchDB/Electron exports
+  (101 → 40 lines), `localStore.get` (which *was* the S8 bug and had no
+  caller), the sidebar's never-set `context-target`, ticket 20's `build/` dir,
+  producerless CSS and upstream package URLs. Kept with reasons recorded in the
+  code, not just the ticket: `window.elmMessages` (the only runtime record of
+  port traffic in a file no test can import — ticket 08 deleted a `console.log`
+  on that ground), and the live-since-the-review `gw-drag-start`/`gw-drag-end`
+  (16), `userLoggedOutMsg` (04) and theme ring (32). **The `tsc` gate is real
+  now** rather than the claim being deleted: `typescript` pinned, `bun run
+  typecheck`, a CI step, and `moduleResolution` `node` → `bundler` — which is a
+  floor, not taste, because TypeScript 7.0.2 answers the old setting with
+  `TS5108: Option 'moduleResolution=node10' has been removed` and then checks
+  *nothing*. The gate was confirmed to catch a deliberate cross-module error
+  before being trusted, since a bad resolution degrades imports to `any`
+  silently. `src/ui/README.md` rewritten, and its moved-element list **deleted
+  rather than corrected** — it drifted because it was a copy of `index.ts`'s.
+  The self-review pass is where four *comments* proved wrong (a duplicate of the
+  stale claim in `dom.ts`, a reference to Elm's deleted `modalWrapper`, a
+  misattributed ticket, and a guess about `node10`): a purge writes prose about
+  what it deleted, and that prose needs the same verification the deletions get.
+  Translations needed nothing — all 56 surviving `TranslationId` constructors
+  have live uses. Details in `issues/22-deadcode-js-ts.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
