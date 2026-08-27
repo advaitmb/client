@@ -11,6 +11,11 @@ Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
 unsynced rows for that card id are removed, not just the newest. Picking
 **Ours** keeps exactly the winning newest unsynced row.
 
+**Note from ticket 05's resolution:** `cardDataReceived`'s auto-resolve
+condition still tests `toAdd`/`toMarkSynced`, both of which
+`resolveDeleteConflicts` now always leaves empty (the dead D10 limb was
+removed). Check that condition still gates correctly while you're in there.
+
 ## Acceptance criteria
 
 - [ ] Failing test first (seam 1): offline-edit a card three times (three
