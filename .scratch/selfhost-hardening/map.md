@@ -404,6 +404,28 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   (newest-per-id then drop-deleted, which the backup was half-applying) and
   `documents.js`; `session.js` gains the blob's writer. 205 bun test + 199
   elm-test. Details in `issues/23-js-robustness.md`.
+- Ticket 32 resolved — the theme picker is back in `<gw-header>`'s settings
+  menu, so ticket 17's round trip has the producer it lacked. The decision was
+  *who names a theme*: `Page.Doc.Theme.name`/`fromName` are now the module's
+  string vocabulary and `toValue`/`decoder` are written in terms of them, so
+  the `theme` attribute, the `gw-theme` detail and the string in localStorage
+  are one spelling by construction — which is what makes "chosen in the menu"
+  and "restored on the next load" the same theme, and it leaves `Page.App` with
+  `themeMsg = Theme.fromName >> ThemeChanged` and no table of its own. The
+  element never marks its own choice: a click only reports, and the mark
+  follows the attribute Elm hands back after `applyTheme` and
+  `SaveThemeSetting` (pinned). Entries are real `<button>`s (S12) — "Word
+  count..." included, it was a clickable div — whose keydown stops for Enter
+  and Space only, because Mousetrap's `document` bindings ignore just form
+  fields and an escaping Enter would open the active card's editor;
+  `render()` also refocuses the rebuilt control by its id, so choosing a theme
+  with the keyboard no longer drops the user on `<body>` (the history slider
+  gains the same). **Still mouse-only to open**: the three header icons are
+  `div`s, a pre-existing S12 gap ticket 24 did not cover, and converting them
+  needs the same keydown guard — worth its own ticket. Ticket 22's "don't
+  delete the theme write ring" warning is discharged. 16 tests (9 at seam 3,
+  7 at seam 10), 7 red first plus a mutation red for the Elm pair. Details in
+  `issues/32-restore-theme-picker.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
