@@ -1,4 +1,4 @@
-module Doc.History exposing (History, checkoutVersion, getCurrentVersionId, init, revert, update, view)
+module Doc.History exposing (History, checkoutVersion, getCurrentVersionId, idAtIndex, init, revert, sliderState, update)
 
 import Ant.Icons.Svg as AntIcons
 import Doc.Data as Data
@@ -100,56 +100,26 @@ revert model =
 -- VIEW
 
 
-type alias ViewConfig msg =
-    { noOp : msg
-    , checkoutTree : String -> msg
-    , restore : msg
-    , cancel : msg
-    , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
-    , tooltipClosed : msg
-    }
-
-
-view : ViewConfig msg -> History -> Html msg
-view config model =
-    case model of
+{-| The slider position and its maximum, for <gw-header>. The index -> version
+mapping stays here; the element only reports a position.
+-}
+sliderState : History -> { index : Int, max : Int }
+sliderState history =
+    case history of
         History _ zipper ->
-            viewHistory config zipper
+            { index = List.length (Zipper.before zipper)
+            , max = List.length (Zipper.toList zipper) - 1
+            }
 
         Empty ->
-            div [ id "history-menu" ] [ textNoTr "No history" ]
+            { index = 0, max = 0 }
 
 
-viewHistory : ViewConfig msg -> Zipper Version -> Html msg
-viewHistory { noOp, checkoutTree, restore, cancel, tooltipRequested, tooltipClosed } zipper =
-    let
-        maybeTimeDisplay =
-            textNoTr ""
+idAtIndex : Int -> History -> Maybe String
+idAtIndex idx history =
+    case history of
+        History _ zipper ->
+            Zipper.toList zipper |> List.drop idx |> List.head |> Maybe.map .id
 
-        maxIdx =
-            Zipper.toList zipper
-                |> List.length
-                |> (\len -> len - 1)
-                |> String.fromInt
-
-        maybeCheckoutTree : String -> msg
-        maybeCheckoutTree idxStr =
-            idxStr
-                |> String.toInt
-                |> Maybe.andThen (\idx -> Zipper.toList zipper |> List.drop idx |> List.head)
-                |> Maybe.map .id
-                |> Maybe.map checkoutTree
-                |> Maybe.withDefault noOp
-    in
-    div [ id "history-menu" ]
-        [ input [ id "history-slider", type_ "range", A.min "0", A.max maxIdx, step "1", onInput maybeCheckoutTree ] []
-        , maybeTimeDisplay
-        , button [ id "history-restore", onClick restore ] [ text RestoreThisVersion ]
-        , div
-            [ id "history-close-button"
-            , onClick cancel
-            , onMouseEnter <| tooltipRequested "history-close-button" BelowLeftTooltip Cancel
-            , onMouseLeave <| tooltipClosed
-            ]
-            [ AntIcons.closeOutlined [] ]
-        ]
+        Empty ->
+            Nothing

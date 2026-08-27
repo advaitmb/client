@@ -15,12 +15,13 @@
  *   gw-wordcount-modal   Doc/UI.viewWordCount
  *   gw-switcher-modal    Doc/Switcher.view + Doc/List.viewSwitcher
  *   gw-template-modal    Doc/UI.viewTemplateSelector
+ *   gw-header            UI/Header.elm, Doc.UI.viewSaveIndicator, Doc/History.view
  *
- * Still in Elm: the card tree, the header and sidebar, the document list,
- * and the remaining modals.
+ * Still in Elm: the card tree, the sidebar, and the document list.
  */
 
 import "./help-modal";
 import "./wordcount-modal";
 import "./switcher-modal";
 import "./template-modal";
+import "./header";

@@ -44,7 +44,6 @@ import Time
 import Toast
 import Translation exposing (TranslationId(..), tr)
 import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
-import UI.Header exposing (HeaderMenuState(..), viewHeader)
 import UI.Sidebar exposing (SidebarMenuState(..), SidebarState(..), viewSidebar)
 import Upgrade exposing (Msg(..))
 import Utils exposing (delay, ternary)
@@ -96,6 +95,16 @@ type ConflictViewerState
 
 type alias DbData =
     { dbName : String, isNew : Bool }
+
+
+{-| Which header menu is open. Moved here from UI/Header.elm when the header
+became <gw-header>; the state stays in Elm, only the markup left.
+-}
+type HeaderMenuState
+    = NoHeaderMenu
+    | ExportPreview
+    | HistoryView History.History
+    | Settings
 
 
 type ModalState
@@ -1633,41 +1642,55 @@ view ({ documentState } as model) =
                         lastRemoteSave
                         docModel
                         ++ [ UI.renderToast ToastMsg model.tray
-                           , viewHeader
-                                { noOp = NoOp
-                                , titleFocused = TitleFocused
-                                , titleFieldChanged = TitleFieldChanged
-                                , titleEdited = TitleEdited
-                                , titleEditCanceled = TitleEditCanceled
-                                , tooltipRequested = TooltipRequested
-                                , tooltipClosed = TooltipClosed
-                                , toggledHistory = HistoryToggled
-                                , checkoutTree = CheckoutVersion
-                                , restore = Restore
-                                , cancelHistory = CancelHistory
-                                , toggledDocSettings = DocSettingsToggled (not <| model.headerMenu == Settings)
-                                , wordCountClicked = WordcountModalOpened
-                                , themeChanged = ThemeChanged
-                                , toggledExport = ExportPreviewToggled (not <| model.headerMenu == ExportPreview)
-                                , exportSelectionChanged = ExportSelectionChanged
-                                , exportFormatChanged = ExportFormatChanged
-                                , export = Export
-                                , printRequested = PrintRequested
-                                , toggledUpgradeModal = ToggledUpgradeModal
-                                }
-                                { session = session
-                                , title_ = Session.getDocName session docId
-                                , titleField_ = titleField
-                                , headerMenu = model.headerMenu
-                                , collaborators = collaborators
-                                , isOwner = isOwner
-                                , exportSettings = model.exportSettings
-                                , data = data
-                                , dirty = dirty
-                                , lastLocalSave = lastLocalSave
-                                , lastRemoteSave = lastRemoteSave
-                                , globalData = globalData
-                                }
+                           , node "gw-header"
+                                [ id "document-header"
+                                , attribute "doc-title" (Session.getDocName session docId |> Maybe.withDefault "Untitled")
+                                , attribute "owner" (ternary isOwner "yes" "no")
+                                , attribute "menu" (headerMenuName model.headerMenu)
+                                , attribute "save"
+                                    (Enc.encode 0 <|
+                                        Enc.object
+                                            [ ( "dirty", Enc.bool dirty )
+                                            , ( "lastLocalSave", encodeMaybePosix lastLocalSave )
+                                            , ( "lastRemoteSave", encodeMaybePosix lastRemoteSave )
+                                            , ( "now", Enc.int (Time.posixToMillis (GlobalData.currentTime globalData)) )
+                                            ]
+                                    )
+                                , attribute "export-settings"
+                                    (Enc.encode 0 <|
+                                        Enc.object
+                                            [ ( "selection", Enc.string (exportSelectionName (Tuple.first model.exportSettings)) )
+                                            , ( "format", Enc.string (exportFormatName (Tuple.second model.exportSettings)) )
+                                            ]
+                                    )
+                                , attribute "history"
+                                    (case model.headerMenu of
+                                        HistoryView history ->
+                                            let
+                                                st =
+                                                    History.sliderState history
+                                            in
+                                            Enc.encode 0 <|
+                                                Enc.object
+                                                    [ ( "index", Enc.int st.index ), ( "max", Enc.int st.max ) ]
+
+                                        _ ->
+                                            ""
+                                    )
+                                , on "gw-title-input" (Json.map TitleFieldChanged detailString)
+                                , on "gw-title-commit" (Json.succeed TitleEdited)
+                                , on "gw-title-cancel" (Json.succeed TitleEditCanceled)
+                                , on "gw-title-focus" (Json.succeed TitleFocused)
+                                , on "gw-menu" (Json.map (headerMenuMsg model.headerMenu) detailString)
+                                , on "gw-export-selection" (Json.map exportSelectionMsg detailString)
+                                , on "gw-export-format" (Json.map exportFormatMsg detailString)
+                                , on "gw-wordcount" (Json.succeed WordcountModalOpened)
+                                , on "gw-history-restore" (Json.succeed Restore)
+                                , on "gw-history-cancel" (Json.succeed CancelHistory)
+                                , on "gw-history-checkout"
+                                    (Json.map (historyCheckoutMsg model.headerMenu) detailString)
+                                ]
+                                []
                            , viewConflictSelector model.conflictViewerState
                            , maybeExportView
                            , viewSidebar globalData
@@ -2002,3 +2025,141 @@ subscriptions model =
                 Sub.none
         , Time.every (9 * 1000) TimeUpdate
         ]
+
+
+{- The <gw-header> contract. Attributes and event details are strings, so these
+   are the only translation between them and Elm's types. -}
+
+
+detailString : Json.Decoder String
+detailString =
+    Json.at [ "detail" ] Json.string
+
+
+encodeMaybePosix : Maybe Time.Posix -> Enc.Value
+encodeMaybePosix t_ =
+    t_ |> Maybe.map (Time.posixToMillis >> Enc.int) |> Maybe.withDefault Enc.null
+
+
+headerMenuName : HeaderMenuState -> String
+headerMenuName menu =
+    case menu of
+        NoHeaderMenu ->
+            "none"
+
+        ExportPreview ->
+            "export"
+
+        HistoryView _ ->
+            "history"
+
+        Settings ->
+            "settings"
+
+
+{-| The element reports which menu it wants; "none" closes whichever is open,
+and only this side knows which that is.
+-}
+headerMenuMsg : HeaderMenuState -> String -> Msg
+headerMenuMsg current wanted =
+    case wanted of
+        "history" ->
+            HistoryToggled True
+
+        "settings" ->
+            DocSettingsToggled True
+
+        "export" ->
+            ExportPreviewToggled True
+
+        _ ->
+            case current of
+                HistoryView _ ->
+                    HistoryToggled False
+
+                Settings ->
+                    DocSettingsToggled False
+
+                ExportPreview ->
+                    ExportPreviewToggled False
+
+                NoHeaderMenu ->
+                    NoOp
+
+
+exportSelectionName : ExportSelection -> String
+exportSelectionName sel =
+    case sel of
+        ExportEverything ->
+            "all"
+
+        ExportSubtree ->
+            "subtree"
+
+        ExportLeaves ->
+            "leaves"
+
+        ExportCurrentColumn ->
+            "column"
+
+
+exportSelectionMsg : String -> Msg
+exportSelectionMsg name =
+    case name of
+        "subtree" ->
+            ExportSelectionChanged ExportSubtree
+
+        "leaves" ->
+            ExportSelectionChanged ExportLeaves
+
+        "column" ->
+            ExportSelectionChanged ExportCurrentColumn
+
+        _ ->
+            ExportSelectionChanged ExportEverything
+
+
+exportFormatName : ExportFormat -> String
+exportFormatName fmt =
+    case fmt of
+        DOCX ->
+            "word"
+
+        PlainText ->
+            "text"
+
+        OPML ->
+            "opml"
+
+        JSON ->
+            "json"
+
+
+exportFormatMsg : String -> Msg
+exportFormatMsg name =
+    case name of
+        "text" ->
+            ExportFormatChanged PlainText
+
+        "opml" ->
+            ExportFormatChanged OPML
+
+        "json" ->
+            ExportFormatChanged JSON
+
+        _ ->
+            ExportFormatChanged DOCX
+
+
+{-| The slider reports a position; History owns the position -> version map.
+-}
+historyCheckoutMsg : HeaderMenuState -> String -> Msg
+historyCheckoutMsg menu idxStr =
+    case ( menu, String.toInt idxStr ) of
+        ( HistoryView history, Just idx ) ->
+            History.idAtIndex idx history
+                |> Maybe.map CheckoutVersion
+                |> Maybe.withDefault NoOp
+
+        _ ->
+            NoOp

@@ -1,0 +1,280 @@
+/**
+ * <gw-header> — the whole document header: title, save state, the three menu
+ * buttons and the menus they open.
+ *
+ * Replaces UI/Header.elm, Doc.UI.viewSaveIndicator and Doc/History.view. Elm
+ * keeps every decision: which menu is open, whether the title is editable,
+ * what the export settings are, and which version the history slider maps to.
+ * This renders that state and reports intent back.
+ *
+ * The title input is UNCONTROLLED, for the reason gw-switcher-modal's is: Elm
+ * re-renders the header on every save-status tick, and writing the value back
+ * on each one would fight the caret while you are typing a title.
+ *
+ * Contract — attributes in
+ *   doc-title        current document name
+ *   owner            "yes" when the title may be edited
+ *   menu             "none" | "history" | "settings" | "export"
+ *   save             JSON { dirty, lastLocalSave, lastRemoteSave, now }
+ *                    (epoch ms; lastLocalSave/lastRemoteSave may be null)
+ *   export-settings  JSON { selection, format }
+ *   history          JSON { index, max }
+ *
+ * Contract — events out
+ *   gw-title-input     detail: string
+ *   gw-title-commit    Enter or blur
+ *   gw-title-cancel    Escape
+ *   gw-title-focus
+ *   gw-menu            detail: which menu to show ("none" closes)
+ *   gw-export-selection / gw-export-format   detail: the chosen value
+ *   gw-wordcount
+ *   gw-history-checkout  detail: slider index (Elm maps it to a version)
+ *   gw-history-restore | gw-history-cancel
+ */
+
+import { h, icon, emit } from "./dom";
+import { jsonAttr } from "./modal";
+import { relativeTime } from "./relative-time";
+
+const I = {
+  history: "M3 3v6h6M3.5 13a9 9 0 1 0 2.1-6.4L3 9",
+  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.1a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-3-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.1-3l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 3 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z",
+  export: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 15h6M9 12h6",
+  close: "M18 6L6 18M6 6l12 12",
+  synced: "M20 6L9 17l-5-5",
+  warning: "M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
+  info: "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zM12 16v-4M12 8h.01",
+};
+
+interface Save {
+  dirty: boolean;
+  lastLocalSave: number | null;
+  lastRemoteSave: number | null;
+  now: number;
+}
+
+/** Mirrors the branch structure of Doc.UI.viewSaveIndicator. */
+function saveIndicator(s: Save | null) {
+  if (!s) return h("div", { id: "save-indicator" });
+
+  let label: string, tip: string, state: string, glyph: string;
+  const since = (t: number | null) =>
+    t === null ? "" : relativeTime(t, s.now);
+
+  if (s.dirty) {
+    [label, tip, state, glyph] =
+      ["Unsaved Changes...", `Last saved ${since(s.lastLocalSave)}`, "unsaved", I.info];
+  } else if (s.lastLocalSave === null && s.lastRemoteSave === null) {
+    [label, tip, state, glyph] = ["Loading...", "", "never-saved", I.info];
+  } else if (s.lastRemoteSave === null) {
+    [label, tip, state, glyph] =
+      ["Saved Offline", `Last synced ${since(s.lastLocalSave)}`, "saved-offline", I.warning];
+  } else if (s.lastLocalSave !== null && s.lastLocalSave <= s.lastRemoteSave) {
+    [label, tip, state, glyph] =
+      ["Synced", `Last edit ${since(s.lastLocalSave)}`, "synced", I.synced];
+  } else {
+    [label, tip, state, glyph] =
+      ["Saved Offline", `Last synced ${since(s.lastRemoteSave)}`, "saved-offline", I.warning];
+  }
+
+  return h(
+    "div",
+    { id: "save-indicator", class: `inset ${state}${s.dirty ? " saving" : ""}` },
+    icon(glyph, 16),
+    h("span", { title: tip }, label),
+  );
+}
+
+/**
+ * The container id and the child id prefix differ in the existing stylesheet
+ * (#export-selection holds #export-select-all, …), so both are passed.
+ */
+function toggleGroup(
+  containerId: string,
+  childPrefix: string,
+  current: string,
+  options: Array<[value: string, label: string]>,
+  onPick: (v: string) => void,
+) {
+  return h(
+    "div",
+    { id: containerId, class: "toggle-button" },
+    ...options.map(([value, label]) =>
+      h(
+        "div",
+        {
+          id: `${childPrefix}${value}`,
+          class: value === current ? "selected" : undefined,
+          onclick: () => onPick(value),
+        },
+        label,
+      ),
+    ),
+  );
+}
+
+class Header extends HTMLElement {
+  static observedAttributes = [
+    "doc-title", "owner", "menu", "save", "export-settings", "history",
+  ];
+
+  private titleInput: HTMLInputElement | null = null;
+
+  connectedCallback() {
+    this.render();
+  }
+
+  attributeChangedCallback(name: string) {
+    // The title is the one piece Elm must not write back while it is being
+    // typed into; everything else re-renders freely.
+    if (name === "doc-title" && this.titleInput === document.activeElement) return;
+    if (this.isConnected) this.render();
+  }
+
+  disconnectedCallback() {
+    this.titleInput = null;
+    this.replaceChildren();
+  }
+
+  private menuButton(id: string, glyph: string, menu: string, label: string) {
+    const open = this.getAttribute("menu") === menu;
+    return h(
+      "div",
+      {
+        id,
+        class: `header-button${open ? " open" : ""}`,
+        title: label,
+        onclick: () => emit(this, "gw-menu", open ? "none" : menu),
+      },
+      icon(glyph),
+    );
+  }
+
+  private render() {
+    const menu = this.getAttribute("menu") ?? "none";
+    const owner = this.getAttribute("owner") === "yes";
+    const docTitle = this.getAttribute("doc-title") ?? "Untitled";
+
+    const keepCaret =
+      this.titleInput === document.activeElement
+        ? { start: this.titleInput?.selectionStart, end: this.titleInput?.selectionEnd }
+        : null;
+
+    const input = h("input", {
+      id: "title-rename",
+      type: "text",
+      value: docTitle,
+      size: 1,
+      "data-private": "lipsum",
+      disabled: !owner,
+      style: owner ? undefined : "cursor: not-allowed",
+      oninput: (e: Event) =>
+        emit(this, "gw-title-input", (e.target as HTMLInputElement).value),
+      onfocus: () => emit(this, "gw-title-focus"),
+      onblur: () => emit(this, "gw-title-commit"),
+      onkeyup: (e: Event) => {
+        const k = (e as KeyboardEvent).key;
+        if (k === "Enter") emit(this, "gw-title-commit");
+        if (k === "Escape") emit(this, "gw-title-cancel");
+      },
+    }) as HTMLInputElement;
+
+    const parts: Array<Node | null> = [
+      h(
+        "span",
+        { id: "title" },
+        // .title-grow-wrap + .shadow is how the input sizes itself to its
+        // content; the shadow must carry identical text and typography.
+        h(
+          "div.title-grow-wrap",
+          {},
+          h("div.shadow", {}, docTitle || " "),
+          input,
+        ),
+        saveIndicator(jsonAttr<Save>(this, "save")),
+      ),
+      this.menuButton("history-icon", I.history, "history", "Version history"),
+      menu === "history" ? this.historyMenu() : null,
+      this.menuButton("doc-settings-icon", I.settings, "settings", "Document settings"),
+      menu === "settings" ? this.settingsMenu() : null,
+      this.menuButton("export-icon", I.export, "export", "Export or print"),
+      menu === "export" ? this.exportMenu() : null,
+    ];
+    this.replaceChildren(...parts.filter((n): n is Node => n !== null));
+
+    this.titleInput = input;
+    if (keepCaret) {
+      input.focus();
+      input.setSelectionRange(keepCaret.start ?? null, keepCaret.end ?? null);
+    }
+  }
+
+  private settingsMenu() {
+    return h(
+      "div",
+      { id: "doc-settings-menu", class: "header-menu" },
+      h(
+        "div",
+        { id: "wordcount-menu-item", onclick: () => emit(this, "gw-wordcount") },
+        "Word count...",
+      ),
+    );
+  }
+
+  private exportMenu() {
+    const s = jsonAttr<{ selection: string; format: string }>(this, "export-settings");
+    return h(
+      "div",
+      { id: "export-menu" },
+      toggleGroup("export-selection", "export-select-", s?.selection ?? "all", [
+        ["all", "Everything"],
+        ["subtree", "Current Subtree"],
+        ["leaves", "Leaves-only"],
+        ["column", "Current Column"],
+      ], (v) => emit(this, "gw-export-selection", v)),
+      toggleGroup("export-format", "export-format-", s?.format ?? "word", [
+        ["word", "Word"],
+        ["text", "Plain Text"],
+        ["opml", "OPML"],
+        ["json", "JSON"],
+      ], (v) => emit(this, "gw-export-format", v)),
+      // Download and Print are NOT here: Page/Doc/Export.elm renders them in
+      // the preview pane, and duplicating them would give two of each.
+    );
+  }
+
+  private historyMenu() {
+    const hist = jsonAttr<{ index: number; max: number }>(this, "history");
+    return h(
+      "div",
+      { id: "history-menu" },
+      h("input", {
+        id: "history-slider",
+        type: "range",
+        min: 0,
+        max: hist?.max ?? 0,
+        step: 1,
+        value: hist?.index ?? 0,
+        // Elm owns the index -> version mapping; it only needs the position.
+        oninput: (e: Event) =>
+          emit(this, "gw-history-checkout", (e.target as HTMLInputElement).value),
+      }),
+      h(
+        "button",
+        { id: "history-restore", onclick: () => emit(this, "gw-history-restore") },
+        "Restore this Version",
+      ),
+      h(
+        "div",
+        {
+          id: "history-close-button",
+          title: "Cancel",
+          onclick: () => emit(this, "gw-history-cancel"),
+        },
+        icon(I.close),
+      ),
+    );
+  }
+}
+
+customElements.define("gw-header", Header);
