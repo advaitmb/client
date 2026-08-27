@@ -752,25 +752,11 @@ incoming incomingMsg model =
                         Normal active ->
                             insertBelow active "" ( model, Cmd.none, [] )
 
-                        Editing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( model, Cmd.none, [] )
-                                |> andThen (saveCard { cardId = cardId, field = beforeText })
-                                |> insertBelow activeId afterText
-                                |> setCursorPosition 0
+                        Editing _ ->
+                            splitCard { into = insertBelow, tailToNewCard = True } model
 
-                        FullscreenEditing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( model, Cmd.none, [] )
-                                |> andThen (saveCard { cardId = cardId, field = beforeText })
-                                |> insertBelow activeId afterText
-                                |> setCursorPosition 0
+                        FullscreenEditing _ ->
+                            splitCard { into = insertBelow, tailToNewCard = True } model
 
                 "mod+down" ->
                     normalMode model (insertBelow activeId "")
@@ -780,35 +766,11 @@ incoming incomingMsg model =
                         Normal active ->
                             insertAbove active "" ( model, Cmd.none, [] )
 
-                        Editing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( { model
-                                | viewState =
-                                    { vs | viewMode = Editing { cardId = cardId, field = afterText } }
-                              }
-                            , Cmd.none
-                            , []
-                            )
-                                |> saveCardIfEditing
-                                |> insertAbove activeId beforeText
+                        Editing _ ->
+                            splitCard { into = insertAbove, tailToNewCard = False } model
 
-                        FullscreenEditing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( { model
-                                | viewState =
-                                    { vs | viewMode = FullscreenEditing { cardId = cardId, field = afterText } }
-                              }
-                            , Cmd.none
-                            , []
-                            )
-                                |> saveCardIfEditing
-                                |> insertAbove activeId beforeText
+                        FullscreenEditing _ ->
+                            splitCard { into = insertAbove, tailToNewCard = False } model
 
                 "mod+alt+k" ->
                     case vs.viewMode of
@@ -832,37 +794,11 @@ incoming incomingMsg model =
                         Normal active ->
                             insertChild active "" ( model, Cmd.none, [] )
 
-                        Editing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( { model
-                                | viewState =
-                                    { vs | viewMode = Editing { cardId = cardId, field = beforeText } }
-                              }
-                            , Cmd.none
-                            , []
-                            )
-                                |> saveCardIfEditing
-                                |> insertChild activeId afterText
-                                |> setCursorPosition 0
+                        Editing _ ->
+                            splitCard { into = insertChild, tailToNewCard = True } model
 
-                        FullscreenEditing { cardId } ->
-                            let
-                                ( beforeText, afterText ) =
-                                    model.textCursorInfo.text
-                            in
-                            ( { model
-                                | viewState =
-                                    { vs | viewMode = FullscreenEditing { cardId = cardId, field = beforeText } }
-                              }
-                            , Cmd.none
-                            , []
-                            )
-                                |> saveCardIfEditing
-                                |> insertChild activeId afterText
-                                |> setCursorPosition 0
+                        FullscreenEditing _ ->
+                            splitCard { into = insertChild, tailToNewCard = True } model
 
                 "mod+right" ->
                     normalMode model (insertChild activeId "")
@@ -1393,26 +1329,41 @@ goRight id ( model, prevCmd, prevMsgsToParent ) =
 -- === Card Editing  ===
 
 
-saveCard : { cardId : String, field : String } -> ModelData -> ( ModelData, Cmd Msg, List MsgToParent )
-saveCard { cardId, field } model =
+{-| Write one card's text into the working tree and stage the save.
+
+The one place that decision is made. It was made in three (P4): here, and once
+in each editing limb of `saveCardIfEditing` below, all three the same lines
+apart from where the card's id and text came from.
+
+-}
+stageCardText : { cardId : String, field : String } -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
+stageCardText { cardId, field } ( model, prevCmd, prevMsgsToParent ) =
     let
         newTree =
             TreeStructure.update (TreeStructure.Upd cardId field) model.workingTree
     in
     if newTree.tree /= model.workingTree.tree then
-        ( { model
-            | workingTree = newTree
-          }
-        , Cmd.none
-        , []
+        ( { model | workingTree = newTree }
+        , prevCmd
+        , prevMsgsToParent
         )
             |> localSave (CTUpd cardId field)
 
     else
+        -- Nothing to write, so nothing is unsaved: the editor was opened and
+        -- closed, or the same text typed back.
         ( { model | dirty = False }
-        , send <| SetDirty False
-        , []
+        , Cmd.batch [ prevCmd, send <| SetDirty False ]
+        , prevMsgsToParent
         )
+
+
+{-| `stageCardText` for a caller that has only a model -- `andThen`'s shape,
+which is how `changeMode`'s `saveIfAsked` uses it.
+-}
+saveCard : { cardId : String, field : String } -> ModelData -> ( ModelData, Cmd Msg, List MsgToParent )
+saveCard editData model =
+    ( model, Cmd.none, [] ) |> stageCardText editData
 
 
 toggleEditing : ModelData -> ( ModelData, Cmd Msg, List MsgToParent )
@@ -1461,61 +1412,21 @@ toggleEditing model =
                 model
 
 
+{-| Save the card the editor is open on, if one is: what `mod+s`, an autosave
+and a mode change all want. The editor's own text is in the view mode, which is
+where the field the user is typing into lives.
+-}
 saveCardIfEditing : ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
-saveCardIfEditing ( model, prevCmd, prevParentMsgs ) =
-    let
-        vs =
-            model.viewState
-
-        activeId =
-            getActiveId (Model model)
-    in
-    case vs.viewMode of
+saveCardIfEditing (( model, _, _ ) as prev) =
+    case model.viewState.viewMode of
         Normal _ ->
-            ( model
-            , prevCmd
-            , prevParentMsgs
-            )
+            prev
 
-        Editing { field } ->
-            let
-                newTree =
-                    TreeStructure.update (TreeStructure.Upd activeId field) model.workingTree
-            in
-            if newTree.tree /= model.workingTree.tree then
-                ( { model
-                    | workingTree = newTree
-                  }
-                , prevCmd
-                , prevParentMsgs
-                )
-                    |> localSave (CTUpd activeId field)
+        Editing { cardId, field } ->
+            prev |> stageCardText { cardId = cardId, field = field }
 
-            else
-                ( { model | dirty = False }
-                , Cmd.batch [ prevCmd, send <| SetDirty False ]
-                , prevParentMsgs
-                )
-
-        FullscreenEditing { field } ->
-            let
-                newTree =
-                    TreeStructure.update (TreeStructure.Upd activeId field) model.workingTree
-            in
-            if newTree.tree /= model.workingTree.tree then
-                ( { model
-                    | workingTree = newTree
-                  }
-                , prevCmd
-                , prevParentMsgs
-                )
-                    |> localSave (CTUpd activeId field)
-
-            else
-                ( { model | dirty = False }
-                , Cmd.batch [ prevCmd, send <| SetDirty False ]
-                , prevParentMsgs
-                )
+        FullscreenEditing { cardId, field } ->
+            prev |> stageCardText { cardId = cardId, field = field }
 
 
 openCard : String -> String -> ModelData -> ( ModelData, Cmd Msg, List MsgToParent )
@@ -1775,6 +1686,60 @@ insert pid pos initText ( model, prevCmd, prevMsgsToParent ) =
                 , save = False
                 }
             )
+        |> preventIfBlocked model
+
+
+{-| Split the card the editor is open on at the cursor: one half stays in it,
+the other starts a new card. `mod+j`, `mod+k` and `mod+l` from either editor —
+six limbs before this, differing only in where the new card goes and which half
+it gets, and in two idioms for handing the kept half to the save (P4: `mod+j`
+called `saveCard` with it, while `mod+k` and `mod+l` wrote it into the *view
+mode* first so that `saveCardIfEditing` would find it there).
+
+`into` is `insertAbove`/`insertBelow`/`insertChild`, and `tailToNewCard` says
+which side of the cursor the new card gets.
+
+**The guard is last, and it guards `model` — the model as the keystroke found
+it.** The split writes the truncated half into the working tree before `insert`
+runs, so `insert`'s own guard took that already-mutated model for its
+"original": on a blocked document the keypress inserted nothing and left the card
+truncated (ticket 31's Comments). This guard replaces the whole triple with the
+untouched model, and the inner guard's alert is discarded with it, so a blocked
+split still alerts exactly once.
+
+-}
+splitCard :
+    { into : String -> String -> ( ModelData, Cmd Msg, List MsgToParent ) -> ( ModelData, Cmd Msg, List MsgToParent )
+    , tailToNewCard : Bool
+    }
+    -> ModelData
+    -> ( ModelData, Cmd Msg, List MsgToParent )
+splitCard { into, tailToNewCard } model =
+    let
+        activeId =
+            getActiveId (Model model)
+
+        ( beforeCursor, afterCursor ) =
+            model.textCursorInfo.text
+
+        ( keptInCard, movedToNewCard ) =
+            if tailToNewCard then
+                ( beforeCursor, afterCursor )
+
+            else
+                ( afterCursor, beforeCursor )
+    in
+    ( model, Cmd.none, [] )
+        |> stageCardText { cardId = activeId, field = keptInCard }
+        |> into activeId movedToNewCard
+        -- The new card holds what came after the cursor, so the caret belongs at
+        -- its start. When it holds what came before, the caret is already there.
+        |> (if tailToNewCard then
+                setCursorPosition 0
+
+            else
+                identity
+           )
         |> preventIfBlocked model
 
 

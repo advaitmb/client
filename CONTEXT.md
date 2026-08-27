@@ -127,10 +127,11 @@ Vocabulary used in code, issues, and tests. Full system description:
 11. The document's mode machine (Elm): `Page.Doc.getViewMode` after
     `opaqueIncoming`/`opaqueUpdate` on a document built from the exported
     setters — which mode an event leaves the document in, including the
-    transitions a blocked document must refuse, and (ticket 24) the card text
-    such an event leaves behind, read through `getWorkingTree`. A transition
-    only a DOM event names is reached by simulating that event on
-    `Page.Doc.view`. The `Cmd` is still out of reach, as at seam 10.
+    transitions a blocked document must refuse, and (ticket 24) the cards such
+    an event leaves behind, read through `getWorkingTree` — which makes a
+    guard's ordering over a model change visible here. A transition only a DOM
+    event names is reached by simulating that event on `Page.Doc.view`. The
+    `Cmd` is still out of reach, as at seam 10.
 12. What a failure is worth telling the user (JS, pure):
     `src/shared/ws-errors.js`'s `wsMessageFailure` and
     `src/shared/clipboard.js`'s `clipboardErrorMessage` — what a thrown value

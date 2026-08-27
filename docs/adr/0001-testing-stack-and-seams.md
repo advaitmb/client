@@ -141,6 +141,15 @@
     is the app's own route into the transition, not a side channel: the view
     stays the only thing that names the message.
 
+    Ticket 24 extends the observation from the mode to **the cards the event
+    leaves behind**, read through `getWorkingTree` — the split shortcuts
+    (`mod+j`/`k`/`l`) mutate the open card before inserting, and "the card is
+    still whole" is the behavior a refused split has. That also makes
+    `preventIfBlocked`'s *ordering* visible here, where seam 10 records it as
+    out of reach: a guard placed before a mutation instead of after it leaves
+    the mutation in the model, and the model is plain data. Only the ordering of
+    guards over model changes, though — over a `Cmd` it is still invisible.
+
 12. What a failure is worth telling the user (JS, pure) — the two decisions the
     port layer used to make inline and inconsistently, extracted by ticket 18
     for CODE_REVIEW.md E16: `src/shared/ws-errors.js`'s `wsMessageFailure`, from

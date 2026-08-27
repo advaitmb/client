@@ -1,6 +1,7 @@
-module ViewModeTest exposing (fullscreenOnABlockedDocument)
+module ViewModeTest exposing (fullscreenOnABlockedDocument, splittingACardOnABlockedDocument)
 
-{-| Tests at the ADR-0001 seam 11: which mode a document is in after an event.
+{-| Tests at the ADR-0001 seam 11: which mode a document is in after an event,
+and what the event leaves in its cards.
 
 A blocked document -- one being read in the history view, or a public document
 someone else owns -- may not be edited: `Page.Doc.preventIfBlocked` answers
@@ -21,6 +22,13 @@ test can inspect (ADR-0001 seam 10 records that), but the mode the document is
 left in is plain data, and a fullscreen editor that never opens is exactly what
 this ticket is about.
 
+The second suite is ticket 24's, and reads the *cards* rather than the mode.
+`mod+j` / `mod+k` / `mod+l` split the open card at the cursor, and they used to
+write the truncated half into the working tree *before* calling `insert` — so
+`insert`'s guard took the already-mutated model for its "original", and a blocked
+document kept the truncation while refusing the card (ticket 31's Comments). The
+guard has to see the model as the keystroke found it.
+
 -}
 
 import Expect
@@ -33,7 +41,7 @@ import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
-import Types exposing (Children(..), Tree, ViewMode(..))
+import Types exposing (Children(..), CursorPosition(..), Tree, ViewMode(..))
 
 
 {-| A two-card document as it comes back from storage.
@@ -181,4 +189,127 @@ fullscreenOnABlockedDocument =
                 editing
                     |> modeAfterFullscreenButton
                     |> Expect.equal (Ok (FullscreenEditing { cardId = "1", field = "First card" }))
+        ]
+
+
+
+-- === SPLITTING A CARD (ticket 24) ===
+
+
+{-| The editor open on the first card, with the cursor reported between "First"
+and " card" -- as `gw-textarea` reports it on every keystroke and click.
+-}
+editingMidWord : Page.Doc.Model
+editingMidWord =
+    editing
+        |> fromOutside
+            (Incoming.TextCursor
+                { selected = False, position = Other, text = ( "First", " card" ) }
+            )
+
+
+{-| The same, in the fullscreen editor. -}
+fullscreenMidWord : Page.Doc.Model
+fullscreenMidWord =
+    inFullscreen
+        |> fromOutside
+            (Incoming.TextCursor
+                { selected = False, position = Other, text = ( "First", " card" ) }
+            )
+
+
+{-| Every card of the document, id and content, in tree order. What a split
+leaves behind is the whole point, so they are compared as a list rather than one
+card at a time.
+-}
+cards : Page.Doc.Model -> List ( String, String )
+cards model =
+    Page.Doc.getWorkingTree model
+        |> .tree
+        |> preorder
+        |> List.filter (\( id, _ ) -> id /= "0")
+
+
+preorder : Tree -> List ( String, String )
+preorder tree =
+    case tree.children of
+        Children children ->
+            ( tree.id, tree.content ) :: List.concatMap preorder children
+
+
+{-| The cards a split leaves, with any newly inserted one shown as "(new)" --
+its id is a random string, and what matters is where it is and what is in it.
+-}
+cardsWithNewOne : Page.Doc.Model -> List ( String, String )
+cardsWithNewOne model =
+    cards model
+        |> List.map
+            (\( id, content ) ->
+                if List.member id [ "1", "2" ] then
+                    ( id, content )
+
+                else
+                    ( "(new)", content )
+            )
+
+
+splittingACardOnABlockedDocument : Test
+splittingACardOnABlockedDocument =
+    describe "A blocked document asked to split the card being edited"
+        [ test "leaves the card whole when mod+j is refused" <|
+            \_ ->
+                editingMidWord
+                    |> blocked
+                    |> fromOutside (Incoming.Keyboard "mod+j")
+                    |> cards
+                    |> Expect.equal [ ( "1", "First card" ), ( "2", "Second card" ) ]
+        , test "leaves the card whole when mod+k is refused" <|
+            \_ ->
+                editingMidWord
+                    |> blocked
+                    |> fromOutside (Incoming.Keyboard "mod+k")
+                    |> cards
+                    |> Expect.equal [ ( "1", "First card" ), ( "2", "Second card" ) ]
+        , test "leaves the card whole when mod+l is refused" <|
+            \_ ->
+                editingMidWord
+                    |> blocked
+                    |> fromOutside (Incoming.Keyboard "mod+l")
+                    |> cards
+                    |> Expect.equal [ ( "1", "First card" ), ( "2", "Second card" ) ]
+        , test "leaves the card whole in a fullscreen editor too" <|
+            \_ ->
+                fullscreenMidWord
+                    |> blocked
+                    |> fromOutside (Incoming.Keyboard "mod+j")
+                    |> cards
+                    |> Expect.equal [ ( "1", "First card" ), ( "2", "Second card" ) ]
+        , test "mod+j splits the card in two when nothing is blocked" <|
+            \_ ->
+                editingMidWord
+                    |> fromOutside (Incoming.Keyboard "mod+j")
+                    |> cardsWithNewOne
+                    |> Expect.equal
+                        [ ( "1", "First" ), ( "(new)", " card" ), ( "2", "Second card" ) ]
+        , test "mod+k puts the text before the cursor in a card above" <|
+            \_ ->
+                editingMidWord
+                    |> fromOutside (Incoming.Keyboard "mod+k")
+                    |> cardsWithNewOne
+                    |> Expect.equal
+                        [ ( "(new)", "First" ), ( "1", " card" ), ( "2", "Second card" ) ]
+        , test "mod+l puts the text after the cursor in a new child" <|
+            \_ ->
+                editingMidWord
+                    |> fromOutside (Incoming.Keyboard "mod+l")
+                    |> cardsWithNewOne
+                    |> Expect.equal
+                        [ ( "1", "First" ), ( "(new)", " card" ), ( "2", "Second card" ) ]
+        , test "mod+j splits the card in a fullscreen editor as well" <|
+            \_ ->
+                fullscreenMidWord
+                    |> fromOutside (Incoming.Keyboard "mod+j")
+                    |> cardsWithNewOne
+                    |> Expect.equal
+                        [ ( "1", "First" ), ( "(new)", " card" ), ( "2", "Second card" ) ]
         ]
