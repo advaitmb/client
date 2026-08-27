@@ -24,7 +24,7 @@ import { isExtensionInterference, portMessageFailure } from "../src/shared/port-
 test("a failed database write reaches the user", () => {
   for (const tag of [
     "SaveCardBased",
-    "SaveCardBasedMigration",
+    "SaveImportedTree",
     "InitDocument",
     "LoadDocument",
     "RequestDelete",
@@ -39,7 +39,7 @@ test("a failed database write reaches the user", () => {
 test("a failure that only means the DOM did not move stays in the console", () => {
   for (const tag of [
     "ScrollCards",
-    "SetField",
+    "InsertMarkdownLink",
     "SelectAll",
     "SetCursorPosition",
     "TextSurround",

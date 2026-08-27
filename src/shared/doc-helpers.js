@@ -5,16 +5,6 @@ const { copyText } = require("./clipboard");
 
 /* ==== Utility functions ===== */
 
-function toHex(s) {
-  // utf8 to latin1
-  var s = unescape(encodeURIComponent(s));
-  var h = "";
-  for (var i = 0; i < s.length; i++) {
-    h += s.charCodeAt(i).toString(16);
-  }
-  return h;
-}
-
 function isValidURL(text) {
   try {
       new URL(text);
@@ -317,10 +307,6 @@ const editBlurHandler = (ev) => {
   }
 };
 
-const isEditTextarea = (node) => {
-  return node.nodeName == "TEXTAREA" && node.classList.contains("edit") && node.classList.contains("mousetrap");
-}
-
 var scrollHorizontal = (colIdx, instant) => {
   scrollHorizTo(colIdx, instant, 0)
 };
@@ -573,16 +559,6 @@ const filletScrollHandler = () => {
 
 /* ===== Shared variables ===== */
 
-const errorAlert = (title, msg, err) => {
-  return {
-    title: title,
-    message: msg,
-    detail: err.message.split("\n")[0],
-    type: "error",
-    buttons: ["OK"],
-  };
-};
-
 var shortcuts = [
   "shift+enter",
   "mod+enter",
@@ -824,11 +800,7 @@ module.exports = {
   defineCustomTextarea: defineCustomTextarea,
   scrollHorizontal: scrollHorizontal,
   scrollColumns: scrollColumns,
-  scrollFullscreen: scrollFullscreen,
-  updateFillets: updateFillets,
-  errorAlert: errorAlert,
   shortcuts: shortcuts,
   needOverride: needOverride,
-  toHex: toHex,
   casesShared: casesShared
 };

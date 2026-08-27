@@ -113,10 +113,14 @@ const { resolveUserDbName } = require("./local-db");
 
 /* === Global Variables === */
 
+// The last ten messages Elm sent, for a devtools console. Deliberately kept
+// with no reader in the code: this file boots the app at module load and so is
+// importable by nothing (ADR-0001 seam 4 exists because of it), which makes
+// `window.elmMessages` the only runtime record of what crossed the port. It is
+// what a `console.log` in a handler would have told you, without the handler
+// having to have one (ticket 08 removed such a log on exactly that ground).
 window.elmMessages = [];
 
-let remoteDB;
-let db;
 let gingko;
 let TREE_ID;
 const CLIENT_ID = uuid(12);
@@ -126,11 +130,9 @@ let DATA_TYPE;
 // about it: both files used to declare their own `Symbol.for("cardbased")`
 // (S13).
 const CARD_DATA = helpers.CARD_DATA;
-let userDbName;
 let email = null;
 let ws;
 let wsQueue = [];
-let PULL_LOCK = false;
 let pushErrorCount = 0;
 let loadingDocs = false;
 let viewportWidth = document.documentElement.clientWidth;
@@ -142,7 +144,6 @@ const updateViewportSize = _.debounce(() => {
   viewportHeight = document.documentElement.clientHeight;
 }, 150);
 let sidebarWidth;
-let savedObjectIds = new Set();
 let treeListSubscription = null;
 let metadataSync = null;
 let cardDataSubscription = null;
@@ -261,11 +262,6 @@ async function setUserDbs(eml) {
   openUserDb(eml);
 
   email = eml;
-
-  userDbName = `userdb-${helpers.toHex(email)}`;
-  // remoteDB was the CouchDB replica for legacy documents; there is no CouchDB.
-  remoteDB = null;
-  db = null;  // local PouchDB replica: legacy documents only
 
   // One per session, and before the socket exists: `onopen` asks it for the
   // metadata the server has not acknowledged.
@@ -440,7 +436,11 @@ function initWebSocket () {
           if (data.d.length > 0) {
             await userDb().cards.bulkPut(data.d.map(c => ({ ...c, synced: true })))
 
-            // send encrypted unsynced local cards to Sentry
+            // The rows the server is refusing, in the console beside its
+            // reason: this is a conflict nothing here can resolve, so the only
+            // useful thing to do with them is make them inspectable. (They
+            // used to go to Sentry, which this fork does not have -- the
+            // comment saying so outlived the call by some years.)
             const unsyncedCards = await userDb().cards.where('treeId').equals(TREE_ID).and(c => !c.synced).toArray();
             console.warn('cardsConflict: cards conflict ' + TREE_ID, { unsyncedCards, error: data.e })
           } else {
@@ -766,12 +766,6 @@ const fromElm = (msg, elmData) => {
       toElm(importedTreeId, "importComplete")
     },
 
-    SaveCardBasedMigration : async () => {
-      await userDb().trees.update(TREE_ID, {location: "cardbased", synced: false});
-      await userDb().cards.bulkPut(elmData);
-      loadCardBasedDocument(TREE_ID);
-    },
-
 
 
     // === Collaboration ===
@@ -785,22 +779,6 @@ const fromElm = (msg, elmData) => {
 
 
     // === DOM ===
-
-    ScrollFullscreenCards: () => {
-      helpers.scrollFullscreen(elmData);
-    },
-
-    // Dead on both sides: the elm-dnd view attributes that sent this are never
-    // rendered (CODE_REVIEW.md §6, removed by ticket 22). A card drag is
-    // <gw-tree>'s to report now -- see drag.js -- so this no longer claims one
-    // is in progress.
-    DragStart: () => {
-      let cardElement = elmData.target.parentElement;
-      let cardId = cardElement.id.replace(/^card-/, "");
-      elmData.dataTransfer.setDragImage(cardElement, 0 , 0);
-      elmData.dataTransfer.setData("text", "");
-      toElm(cardId, "docMsgs", "DragStarted");
-    },
 
     CopyToClipboard: () => {
       // Reported rather than an unhandled rejection (E16). The flash below is
@@ -823,32 +801,8 @@ const fromElm = (msg, elmData) => {
       document.getElementById(elmData).select();
     },
 
-    SetField: () => {
-      let id = elmData[0];
-      let field = elmData[1];
-      window.requestAnimationFrame(() => {
-        let tarea = document.getElementById("card-edit-" + id);
-        tarea.value = field;
-      })
-    },
-
-    SetFullscreen: () => {
-      if(screenfull.isEnabled) {
-        if(elmData) {
-          // A refused request (no user gesture, or the browser's own policy)
-          // stays in the console: the user asked for fullscreen and can see
-          // they did not get it. Reported as an error rather than logged,
-          // because that is what it is (ticket 18's leftover list).
-          screenfull.request().catch((e)=> console.error("fullscreen request refused", e));
-        } else {
-          screenfull.exit();
-        }
-      }
-    },
-
 
     // === UI ===
-    UpdateCommits: () => {},
 
     HistorySlider: () => {
       const firstOpen = elmData[0];
@@ -895,31 +849,16 @@ const fromElm = (msg, elmData) => {
       localStore.set("theme", elmData);
     },
 
-    RequestFullscreen: () => {
-      if (!document.fullscreenElement) {
-        document.body.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-      }
-    },
-
     Print: () => {
       window.print();
     },
 
-    // === Misc ===
-
-
     // `EmptyMessageShown` was here, doing nothing: the empty-documents screen
     // fired it from a broken <img>'s error event, and this handler was `() =>
     // {}`. Both ends are gone (S12) -- the honest mechanism for a message
-    // nobody listens to is not to send it.
-
-    InitBeamer: () => {
-
-    },
-
-    SocketSend: () => {},
+    // nobody listens to is not to send it. `InitBeamer`, `SocketSend` and
+    // `UpdateCommits` were three more of the same, and went the same way
+    // (ticket 22).
   };
 
 
@@ -1103,14 +1042,6 @@ function saveBackupToImmortalDB (treeId, cards) {
   }
 }
 
-function treeToHtml (tree) {
-  return "<section>\n"
-    + tree.content
-    + "\n"
-    + tree.children.map(treeToHtml).join("\n")
-    + "</section>";
-}
-
 async function loadDocListAndSend() {
   loadingDocs = true;
   let docList = await userDb().trees.toArray().catch(e => {console.error(e); return []});
@@ -1128,10 +1059,6 @@ function my_uuid(length) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
-}
-
-function pushSuccessHandler (info) {
-  toElm(Date.parse(info.end_time), "appMsgs", "SavedRemotely")
 }
 
 /* === DOM Events and Handlers === */

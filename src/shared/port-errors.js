@@ -42,23 +42,32 @@
  * is what `save.js` and the clipboard paths already do (ticket 18).
  */
 
-/** Tags whose failure the user can do nothing with. See above. */
+/**
+ * Tags whose failure the user can do nothing with. See above.
+ *
+ * Every entry is a tag `Outgoing.elm` can still construct: an entry for one it
+ * cannot is not merely inert, it is a claim about the port contract that has
+ * stopped being true, and the next reader has to check the other side to find
+ * out. Ticket 22 dropped eight such entries along with the handlers they named
+ * (`SetFullscreen`, `RequestFullscreen`, `ScrollFullscreenCards`, `SetField`,
+ * `DragStart`, `UpdateCommits`, `InitBeamer`, `SocketSend`).
+ */
 const BENIGN_MESSAGE_TAGS = [
   // Dialogs and window state: what failed is what the user just asked for and
   // visibly did not get.
-  'Alert', 'Print', 'SetFullscreen', 'RequestFullscreen', 'ConfirmCancelCard',
+  'Alert', 'Print', 'ConfirmCancelCard',
   // Pure DOM — scrolling, selection, the caret, and text edits the user is
   // looking at.
-  'ScrollCards', 'ScrollFullscreenCards', 'SelectAll', 'SetField',
+  'ScrollCards', 'SelectAll',
   'SetCursorPosition', 'TextSurround', 'InsertMarkdownLink',
   // The clipboard reports its own failures (clipboard.js), with the reason.
   'CopyToClipboard', 'CopyCurrentSubtree',
   // Presence and drags: the next message replaces whatever a failed one lost.
-  'SendCollabState', 'DragStart', 'DragDone',
+  'SendCollabState', 'DragDone',
   // The history view: a slider that does not move is the whole of the failure.
   'HistorySlider',
-  // A console line, and the handlers that do nothing at all.
-  'ConsoleLogRequested', 'UpdateCommits', 'InitBeamer', 'SocketSend',
+  // A console line.
+  'ConsoleLogRequested',
 ];
 
 /**
