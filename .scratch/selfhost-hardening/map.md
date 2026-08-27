@@ -563,6 +563,29 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   the code was wrong — 2 of the 6 and 8 of the 9 — then mutation-checked;
   `src/ui/README.md` gains the radio-group standard. Details in
   `issues/34-header-follow-ups.md`.
+- Ticket 25 resolved — P1, P2, P3, P5 (P4 was ticket 24's), all one shape: the
+  version log was read once per card where it only needed reading once per pass.
+  Materializing the tree, grouping the log by card id, generating deltas and
+  walking a subtree now each build one index first — `ChildIndex`
+  (`{ roots, byParentId }`), `groupedByCardId` (a `Dict` fold), a `Set` of ids —
+  and the group orders the old `gatherWith`/`unique` produced are reproduced
+  exactly, because conflict versions, fast-forward stamps, delta ties and a
+  merge's re-parented children all ride on them. **The old code did not merely
+  crawl at this size: `gatherWith` recursed once per card id, so above ~4,000
+  cards `cardDataReceived` threw `RangeError: Maximum call stack size exceeded`
+  on the first card-rows echo — such a document could not be opened at all.**
+  Two more of the same shape found and fixed with it: `pushOkHandler` asked
+  which cards a stamp belonged to *inside* a filter predicate (a full scan per
+  row, per acked stamp), and `src/shared/cards.js` holds `treeHelper`'s JS twin,
+  rebuilding the ImmortalDB backup with a filter per node on every liveQuery
+  emission. Measured on a synthetic document via `tests/DataPerfTest.elm` (the
+  fixture runs the four paths, and compares the indexed tree against a
+  filter-per-node walk): at 3,500 cards ~3,010 ms → ~130 ms, at 5,000 "throws" →
+  ~210 ms, still ~585 ms at 20,000. P2: `UpdatedAt.maximum` is a single pass and
+  the save indicator's two times use it. P3: one `searchFilter` with the regex
+  compiled once per search instead of once per card, twice. P5: `lazy2` on what
+  `treeView` renders. No existing test was modified. Details in
+  `issues/25-perf-data-layer.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
