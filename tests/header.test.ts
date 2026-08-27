@@ -77,6 +77,38 @@ function typeTitle(el: HTMLElement, value: string) {
   return input;
 }
 
+/**
+ * Activate a control the way a keyboard does. jsdom implements no activation
+ * behaviour, so this is the platform's rule written out: the keydown, and then
+ * — only for a control the browser itself activates from the keyboard, and
+ * only if nothing cancelled the keydown — the click that follows it. A
+ * `<div onclick>` gets the keydown and nothing more, which is exactly what a
+ * keyboard user gets from one.
+ */
+function press(node: HTMLElement, key: string) {
+  const live = node.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+  const activates =
+    node instanceof HTMLButtonElement && (key === "Enter" || key === " ");
+  if (live && activates) node.click();
+}
+
+/**
+ * Run `body` with a document-level keydown listener watching for leaks — the
+ * stand-in for Mousetrap, which binds the app's shortcuts there.
+ */
+function withDocumentKeys(body: (escaped: string[]) => void) {
+  const escaped: string[] = [];
+  const watch = (e: Event) => escaped.push((e as KeyboardEvent).key);
+  document.addEventListener("keydown", watch);
+  try {
+    body(escaped);
+  } finally {
+    document.removeEventListener("keydown", watch);
+  }
+}
+
 afterEach(() => {
   document.body.replaceChildren();
 });
@@ -329,29 +361,21 @@ test("the entry chosen with the keyboard still has focus after Elm answers", () 
 
 test("Enter on a menu entry does not also reach the app's shortcuts", () => {
   const [el] = mount({ menu: "settings" });
-  const escaped: string[] = [];
-  const watch = (e: Event) => escaped.push((e as KeyboardEvent).key);
-  document.addEventListener("keydown", watch);
 
-  try {
-    const press = (key: string) =>
-      themeItem(el, "dark").dispatchEvent(
-        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
-      );
+  withDocumentKeys((escaped) => {
+    const entry = themeItem(el, "dark");
     // Mousetrap binds "enter" on `document` and ignores only form fields, so
     // an Enter that got there would open the active card's editor as well as
     // choosing the theme (the reason ticket 24's breadcrumb stops its keydown).
-    press("Enter");
-    press(" ");
+    press(entry, "Enter");
+    press(entry, " ");
     expect(escaped).toEqual([]);
 
     // Narrowly: the app's other keys still get through. Swallowing everything
     // would trap a keyboard user in an open menu.
-    press("Escape");
+    press(entry, "Escape");
     expect(escaped).toEqual(["Escape"]);
-  } finally {
-    document.removeEventListener("keydown", watch);
-  }
+  });
 });
 
 test("the word count entry still opens the word count", () => {
@@ -383,40 +407,11 @@ const ICONS: Array<[id: string, menu: string, label: string]> = [
 const control = (el: HTMLElement, id: string) =>
   el.querySelector<HTMLElement>(`#${id}`)!;
 
-/**
- * Activate a control the way a keyboard does. jsdom implements no activation
- * behaviour, so this is the platform's rule written out: the keydown, and then
- * — only for a control the browser itself activates from the keyboard, and
- * only if nothing cancelled the keydown — the click that follows it. A
- * `<div onclick>` gets the keydown and nothing more, which is exactly what a
- * keyboard user gets from one.
- */
-function press(node: HTMLElement, key: string) {
-  const live = node.dispatchEvent(
-    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
-  );
-  const activates =
-    node instanceof HTMLButtonElement && (key === "Enter" || key === " ");
-  if (live && activates) node.click();
-}
-
 /** Collect what the icons ask Elm for, in order. */
 function watchMenus(el: HTMLElement): unknown[] {
   const asked: unknown[] = [];
   el.addEventListener("gw-menu", (e) => asked.push((e as CustomEvent).detail));
   return asked;
-}
-
-/** Run `body` with a document-level keydown listener watching for leaks. */
-function withDocumentKeys(body: (escaped: string[]) => void) {
-  const escaped: string[] = [];
-  const watch = (e: Event) => escaped.push((e as KeyboardEvent).key);
-  document.addEventListener("keydown", watch);
-  try {
-    body(escaped);
-  } finally {
-    document.removeEventListener("keydown", watch);
-  }
 }
 
 test("each menu icon is a control the keyboard can reach", () => {
@@ -439,16 +434,17 @@ test("each menu icon is a control the keyboard can reach", () => {
 });
 
 test("Enter on an icon asks for the menu that icon owns", () => {
-  for (const [id, menu] of ICONS) {
-    const [el] = mount();
-    const asked = watchMenus(el);
+  const [el] = mount();
+  const asked = watchMenus(el);
 
+  // Nothing sets `menu` in between, so each icon is still closed: three
+  // presses, three requests to open, in the order they were pressed.
+  for (const [id] of ICONS) {
     control(el, id).focus();
     press(control(el, id), "Enter");
-
-    expect([id, asked]).toEqual([id, [menu]]);
-    document.body.replaceChildren();
   }
+
+  expect(asked).toEqual(["history", "settings", "export"]);
 });
 
 test("Space on an open icon closes its menu again", () => {
