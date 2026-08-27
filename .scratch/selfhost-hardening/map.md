@@ -165,6 +165,7 @@ ticket carries `needs-info` any more.
 | 25 | perf-data-layer | P1–P5 | 05 06 12 |
 | 26 | deploy-workflow | (new) | resolved: wontfix |
 | 27 | per-account-local-data | new (from 04) | 04 |
+| 28 | local-snapshot-newest-per-id | new (from 12) | 12 |
 
 ## Not yet specified
 
