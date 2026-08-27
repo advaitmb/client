@@ -698,24 +698,6 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   background: var(--active-bg);
   font-weight: bold;
 }
-#account-menu{
-  position: fixed;
-  left: 40px;
-  bottom: 15px;
-  border-radius: 5px 5px 5px 0;
-  box-shadow: var(--small-shadow);
-  z-index: 2;
-}
-#account-menu::after {
-  content: " ";
-  height: 40px;
-  width: 4px;
-  background: var(--background-sidebar-menu);
-  position: absolute;
-  bottom: 0;
-  left: -2px;
-  z-index: 999;
-}
 
 #loading-overlay {
   grid-area: document;
@@ -1418,12 +1400,6 @@ ul.dropdown > li > span.no-interaction:hover {
 #help-dropdown {
   position: absolute;
   right: 38px;
-  top: 39px;
-}
-
-#account-dropdown {
-  position: absolute;
-  right: 4px;
   top: 39px;
 }
 

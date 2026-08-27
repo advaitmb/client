@@ -114,6 +114,23 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   stamp" write broadcast to every collaborator, which is what made the bug
   self-sustaining. 5 new tests at seam 1. Details in
   `issues/12-history-restore-deltas.md`.
+- Ticket 20 resolved — B4, B5, B7–B13 all closed, nothing deferred: the
+  README quickstart is re-verified from `git clean -xdf` (and now names
+  `scripts/install_elm_pkgs.sh`, without which `elm make` hangs forever behind
+  a zipball-blocking proxy), CONTRIBUTING/ARCHITECTURE §2–§3/§8/CLAUDE.md are
+  re-synced, `esbuild.mjs` runs under Node too, and the Electron/SaaS residue
+  is gone (gpg config blob, 13 static files, electron-builder block, phantom
+  @playwright/test, stale ignores + .DS_Store, .vscode, ~230 lines of payments
+  and account-menu CSS from tickets 03/04). `database-download.html` is
+  **vendored** rather than pinned+SRI — dexie + dexie-export-import bundle as a
+  third esbuild entry point, so it makes no external request like index.html.
+  ADR-0001 gains **seam 6** (build-time gates): `tests/postprocess.test.ts` and
+  ticket 01's `tests/config-check.test.ts` sat outside the pre-agreed list, and
+  `elm-postprocess.mjs` now exposes a pure `substitutePlaceholders(code, conf)`
+  per that seam's rule. `build/` (Electron packaging assets, now unreferenced)
+  and the producerless `#migrate-modal`/`#help-dropdown`/`styles/github.css`
+  are left for a follow-up, flagged in the ticket. Details in
+  `issues/20-build-and-docs-cleanup.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
