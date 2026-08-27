@@ -93,6 +93,7 @@ tests, all green.
 | `node config-check.js` | exit 0 |
 | grep `PaymentStatus|paymentStatus|daysLeft|Upgrade|upgradeModel|updateUpgrade|FlashPrice|CheckoutButtonClicked|CheckoutClicked|elm-money|TrialExpired` over `src/` + `elm.json` | 0 hits (only hits repo-wide are the deliberate stale-field fixtures in `tests/SessionTest.elm`) |
 | grep `-i trial\|stripe` over built `web/elm.js`, `web/doc.js` | 0 hits |
+| CI on `selfhost` | run [33064042736](https://github.com/advaitmb/client/actions/runs/33064042736) green at `c72d409` |
 
 ## Comments
 
