@@ -1,17 +1,11 @@
 elm-stuff
 !elm-kernel-replacements/elm-stuff
 !elm-kernel-replacements/elm-stuff/**
+elm-home/
 dist/*
 src/elm.js
 src/elm-*.js
-src/migration/elm-stuff
-src/migration/*.js
-src/legacy-import/elm-stuff
-src/legacy-import/*.js
-app/*
 /web/*
-!app/package.json
-!app/package-lock.json
 node_modules
 Gingko-*
 *.ps
@@ -20,14 +14,8 @@ Gingko-*
 npm-debug.log
 *.env
 config.js
-hidden-config.js
 .idea
-cypress/screenshots
-cypress/videos
-test-results/
-tests/e2e/.auth/
-playwright-report/
-elm-home/
+.DS_Store
 
 # Claude Code agent worktrees
 .claude/worktrees/

@@ -1523,78 +1523,6 @@ div#video-viewer-container {
   box-shadow: var(--small-shadow);
 }
 
-span.trial {
-  cursor: pointer;
-}
-span.trial:hover {
-  color: #333;
-  text-decoration: underline;
-}
-span.trial-light {
-  color: #ddd;
-}
-span.trial-medium {
-  color: #aaa;
-}
-span.trial-dark {
-  color: #333;
-}
-
-#upgrade-cta {
-  grid-area: doc-header-center;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-self: center;
-}
-#upgrade-cta > *:first-child {
-  margin-right: 15px;
-}
-#upgrade-cta.trial-expired {
-  box-shadow: var(--small-shadow);
-  background-color: var(--ui-2-bg);
-  padding: 0 16px;
-  border-radius: 40px;
-  border: 1px solid var(--emphasis-color);
-  height: 54px;
-}
-#upgrade-cta.trial-expired:hover {
-  background-color: var(--ui-1-bg);
-}
-#upgrade-button {
-  height: 30px;
-  align-self: center;
-  padding: 6px 12px;
-  background: #7439c0;
-  color: white;
-  font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Ubuntu,sans-serif;
-  font-weight: bold;
-  font-size: 90%;
-  border-radius: 4px;
-  cursor: pointer;
-}
-#upgrade-cta:hover #upgrade-button {
-  background: #69409a;
-}
-#upgrade-trial-info {
-  padding: 8px 16px;
-  background: #fff3c9;
-  height: min-content;
-  color: #c3a746;
-  font-size: 14px;
-  text-align: center;
-}
-#upgrade-modal {
-  display: grid;
-  grid-template-columns: 3fr 1fr;
-  grid-template-areas:
-    ". checkout"
-    ". checkout";
-  padding: 0;
-}
-#upgrade-copy {
-  padding: 16px;
-}
 #migrate-modal {
   display: grid;
   padding-bottom: 32px;
@@ -1626,133 +1554,6 @@ span.trial-dark {
 #migrate-modal .bottom {
   grid-area: bottom;
   text-align: center;
-}
-#pwyw {
-  grid-area: pwyw;
-  background: #eaeaea;
-  margin: 16px;
-  border-radius: 6px;
-  color: #555;
-  box-shadow: inset 1px 1px 3px #bdbdbd;
-}
-
-#pwyw-toggle {
-  cursor: pointer;
-  display: flex;
-  align-items: baseline;
-  padding: 10px;
-}
-
-#pwyw-body {
-  padding: 0 16px 16px 16px;
-}
-
-#pwyw-body a {
-  color: #428bca;
-  text-decoration: none;
-}
-#pwyw-body a:hover {
-  color: #2a70a8;
-  text-decoration: underline;
-}
-#pwyw-body ul {
-  margin:0;
-  padding-left: 36px;
-}
-
-#pwyw-toggle h3 {
-  font-weight: normal;
-  color: gray;
-  margin: 0;
-}
-#pwyw-toggle.open h3{
-  color: black;
-  font-weight: bold;
-}
-
-#pwyw-buttons {
-  display: flex;
-  border: 1px solid darkgray;
-  width: max-content;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: inset 1px 1px 4px hsla(0, 0%, 0%, 0.15);
-}
-
-#pwyw-buttons div {
-  padding: 6px;
-  cursor: pointer;
-  border-right: 1px solid darkgray;
-}
-#pwyw-buttons div:last-child {
-  border-right: none;
-}
-#pwyw-buttons div.checked {
-  background: #42A5F5;
-  color: white;
-
-}
-
-.toggle-caret {
-  margin-right: 10px;
-}
-.toggle-caret svg {
-  fill: gray;
-}
-
-#upgrade-checkout {
-  padding: 16px;
-  background-color: #eaeaea;
-  grid-area: checkout;
-}
-
-#upgrade-checkout select {
-  font-size: 90%;
-  padding: 4px;
-}
-
-#upgrade-checkout select.unknown-currency {
-  font-size: 110%;
-  padding: 5px;
-  background: white;
-  box-shadow: 0 0 4px #84b1c7;
-}
-
-#price-display {
-  text-align: center;
-  font-size: 120%;
-}
-
-#price-amount {
-  font-size: 150%;
-}
-#price-amount.flash {
-
-}
-
-.payment-button {
-  width: 100%;
-  font-size: 100%;
-  height: 3rem;
-  outline: 0;
-  cursor: pointer;
-  border-radius: 6px;
-  border-right: 0;
-  border-left: 0;
-  color: white;
-  border-top: 1px solid hsl(77, 100%, 66% );
-  border-bottom: 1px solid hsl(77, 100%,13% );
-  background: linear-gradient(0deg, hsl(77, 100%, 35%), hsl(77, 100%, 40%) 70%, hsl(77, 71%, 56%));
-  font-weight: bold;
-  text-shadow: 0 -1px 0 rgba(0,0,0,0.25);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.2);
-  font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Ubuntu,sans-serif;
-}
-.payment-button:hover {
-  background: hsl(77, 100%, 35% );
-}
-.payment-button:active {
-  margin-top: 1px;
 }
 #fullscreen-button {
   display: none;
@@ -3404,15 +3205,6 @@ pre {
   margin-right: 9px;
 }
 
-@keyframes flash-2 {
-  0% { box-shadow: 0px 0px 10px transparent; z-index: 99999; }
-  30% { box-shadow: 0px 0px 10px #42A5F5; z-index: 99999; }
-  100% { box-shadow: 0px 0px 10px transparent; z-index: 99999; }
-}
-.flash-2 {
-  animation: flash-2 0.4s;
-}
-
 
 /* ======== FONT SELECTOR ======== */
 
@@ -3910,9 +3702,6 @@ ul.changelist {
     display: none;
   }
   #sidebar:not(.open) #brand img {
-    display: none;
-  }
-  #upgrade-button {
     display: none;
   }
   #document-header {
