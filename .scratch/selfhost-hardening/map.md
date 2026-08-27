@@ -86,6 +86,21 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   non-empty exactly for auto-resolved delete conflicts); it is now one named
   check over all four staged lists so a future limb can't fall through it.
   3 new tests at seam 1. Details in `issues/06-conflict-resolution-discard.md`.
+- Ticket 13 resolved — E1/E2/E3 were one defect in three places: a preference
+  written by one path and read back by another with a constant in between. The
+  sidebar's two halves now share one flag (`Page.App.sidebarIsOpen`);
+  `lastDocId` decodes *and* is written (`Session.storeLastDocId`, called when a
+  document opens, cleared when the remembered document turns out to be gone, so
+  `/` can't loop into a 404); a login decodes `shortcutTrayOpen`/`sortBy` and
+  defaults to what the user already had — which is why those two preferences
+  moved into `SessionData`, the client-owned half a guest session carries
+  across a logout. Self-host's own login path (doc.js merging `/me`) had the
+  same defect and now protects client-owned keys (`mergeUserIntoSession`).
+  Review of the diff also found `Session.encode` — the blob `StoreUser`
+  *replaces* — dropping `sidebarOpen`/`lastDocId`, so logging in forgot E1's
+  and E2's preferences too; it is now lossless, pinned by a round trip.
+  ADR-0001 gains seam 5 (`Session`'s stored-blob surface). 12 tests. Details in
+  `issues/13-session-prefs.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
