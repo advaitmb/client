@@ -47,6 +47,7 @@ Elm ───────────────────────▶ gw-
 | `src/elm/` | The Elm application (entry: `Main.elm`) |
 | `src/shared/doc.js` | JS side of the Elm ports: storage, sync, dispatch table |
 | `src/shared/doc-helpers.js` | Shared helpers + the `gw-textarea` custom element |
+| `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
 | `src/static/` | `index.html`, CSS, fonts, images, `templates/*.json`; copied verbatim into `web/` |

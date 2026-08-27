@@ -9,7 +9,7 @@
 
 // Elm encodes `UpdatedAt.zero` as the bare "0", which is also the checkpoint
 // for a document with nothing synced yet.
-export const ZERO_STAMP = "0";
+const ZERO_STAMP = "0";
 
 // Total order over stamps: numeric timestamp, then numeric counter, then hash.
 // Negative if `a` is older than `b`, positive if it is newer, 0 if they are
@@ -21,7 +21,7 @@ export function compareStamps(a, b) {
   // below every real stamp (so it never wins a max) while keeping the
   // comparator a total order, which Array.prototype.sort requires.
   if (pa === null || pb === null) {
-    if (pa === null && pb === null) return compareRaw(a, b);
+    if (pa === null && pb === null) return compareRawStrings(a, b);
     return pa === null ? -1 : 1;
   }
   if (pa.timestamp !== pb.timestamp) return pa.timestamp - pb.timestamp;
@@ -75,6 +75,7 @@ function parseStamp(stamp) {
   return { timestamp: Number(timestamp), counter: Number(counter), hash };
 }
 
-function compareRaw(a, b) {
-  return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+function compareRawStrings(a, b) {
+  const [ra, rb] = [String(a), String(b)];
+  return ra < rb ? -1 : ra > rb ? 1 : 0;
 }
