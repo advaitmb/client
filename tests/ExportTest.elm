@@ -81,13 +81,29 @@ expectOpmlDocument out =
         out
 
 
-{-| Each card of the selection, as its own outline element.
+{-| Each card of the selection, as its own outline element. Matched with the
+element's opening tag so that one card's content cannot be found inside
+another's ("Beetle" inside "Beetle&apos;s first").
 -}
 expectOutlines : List String -> String -> Expect.Expectation
 expectOutlines contents out =
     contents
-        |> List.filter (\c -> not (String.contains ("<outline text=\"" ++ c ++ "\">") out))
+        |> List.filter (\c -> not (String.contains (outlineTag c) out))
         |> Expect.equalLists []
+
+
+{-| Cards the selection does not name, which must not have come along.
+-}
+expectNoOutlines : List String -> String -> Expect.Expectation
+expectNoOutlines contents out =
+    contents
+        |> List.filter (\c -> String.contains (outlineTag c) out)
+        |> Expect.equalLists []
+
+
+outlineTag : String -> String
+outlineTag content =
+    "<outline text=\"" ++ content ++ "\">"
 
 
 leavesAndColumnKeepTheirFormat : Test
@@ -101,6 +117,10 @@ leavesAndColumnKeepTheirFormat =
                 \_ ->
                     exported ExportLeaves OPML
                         |> expectOutlines [ "Aardvark", "Beetle&apos;s first", "Cricket" ]
+            , test "writes no outline for a card that has children: not a leaf" <|
+                \_ ->
+                    exported ExportLeaves OPML
+                        |> expectNoOutlines [ "Beetle" ]
             , test "writes an OPML document for the current column" <|
                 \_ ->
                     exported ExportCurrentColumn OPML |> expectOpmlDocument
@@ -108,6 +128,10 @@ leavesAndColumnKeepTheirFormat =
                 \_ ->
                     exported ExportCurrentColumn OPML
                         |> expectOutlines [ "Aardvark", "Beetle" ]
+            , test "writes no outline for the column's children: a column is flat" <|
+                \_ ->
+                    exported ExportCurrentColumn OPML
+                        |> expectNoOutlines [ "Beetle&apos;s first", "Cricket" ]
             , test "writes an OPML document for the whole tree, as it always did" <|
                 \_ ->
                     exported ExportEverything OPML |> expectOpmlDocument

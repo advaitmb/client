@@ -89,6 +89,25 @@
    `Doc.TreeStructure` because the index it computes is an index into the tree
    `Mov` prunes and re-inserts, which is that module's own rule.
 
+10. What the document's chrome says and writes (Elm, pure) — four small
+    decisions that only ever showed up on screen or in a saved file, so nothing
+    could tell a placeholder from a real answer. Recorded by ticket 15:
+    `Page.Doc.Incoming.fromOutside`, the total function from a `{ tag, data }`
+    message to a `Msg` or an error (extracted from `subscribe`, whose `Sub msg`
+    cannot be run — which is how a tag with no branch at all went unnoticed);
+    `Page.Doc.Export.toString` and `toMimeType`, what an export writes and what
+    it is saved as; `Doc.UI.documentWordcount` with `Page.Doc`'s
+    `getStartingWordcount`, the two halves of the word-count modal's "Session"
+    row; and `Translation.tr` for the shortcut tray's key names. Same reason as
+    seams 5, 7, 8 and 9 for not testing the callers — a page `Model` needs a
+    `Nav.Key`, and `Page.Doc.update` answers in `Cmd`s no test can inspect — but
+    here the *state* `Page.Doc` carries is plain data, so the session-start
+    count is tested through its own setters and getter.
+
+    Out of reach at this seam, and so verified by inspection: whether a port
+    command is sent at all. `preventIfBlocked`'s ordering (E5) and the one-line
+    view wiring that hands the modal its starting count are both of that kind.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context

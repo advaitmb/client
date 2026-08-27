@@ -221,6 +221,29 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   history entry that still had the card. So deleting now leaves a restore point
   of its own. 4 tests at seam 4. Details in
   `issues/28-local-snapshot-newest-per-id.md`.
+- Ticket 15 resolved — five findings and one carried over from 07, each its own
+  commit. E5: `preventIfBlocked` now comes **last** in `changeMode`'s two
+  guarded branches (the order `insert` used), so a blocked document no longer
+  broadcasts `CollabEditing` for an editor it refused to open — a phantom that
+  made the fullscreen view disable the card for whoever really held it. E6:
+  `Incoming`'s tag→`Msg` mapping is a pure total `fromOutside` (a `Sub msg`
+  cannot be run, which is how a tag with *no branch* went unnoticed), and
+  `FullscreenChanged False` lands where the exit button lands. E11: a session
+  start is recorded the first time a document's content reaches `Page.Doc` and
+  never again, so the modal's "Session" row stops being a copy of "Total". E13:
+  the OPML option **stays** and is made to work — a flat selection of cards is a
+  tree of depth one, so leaves/column go through the same `stringFn` as the
+  other selections (JSON and Markdown byte-identical by construction) — and
+  `toMimeType` replaces the list-not-a-type `"application/xml, text/xml,
+  text/x-opml"` with `text/x-opml`. E14: the tray's three placeholder strings
+  now read `Alt` `(1-6)` `to Set Title Level`, in the tray's own voice rather
+  than the help modal's sentence. Plus `gw-textarea` finally watches `disabled`.
+  **E5 is the one fix with no test**: blocked and unblocked differ only in the
+  `Cmd`, which elm-test cannot inspect — ADR-0001 seam 10 (added here) records
+  that limit, and the adjacent hole it exposes (`changeMode`'s
+  `FullscreenEditing` targets ignore `block` entirely, so shift+enter edits a
+  history view) is written up for 24. 51 tests. Details in
+  `issues/15-small-functional-fixes.md`.
 
 - Ticket 30 resolved — the follow-up ticket 29 filed on itself, and a plain
   case-analysis bug: `mergeCards`' merge-down branch cased on the merge-up
