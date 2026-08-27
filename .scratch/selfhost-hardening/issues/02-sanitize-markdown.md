@@ -66,9 +66,15 @@ CriticMarkup (`<ins>`/`<del>`) and task-list checkboxes keep working.
   `npm install --package-lock-only --ignore-scripts` leaves
   `package-lock.json` unchanged, so both CI gates pass.
 
-Local totals: `bun test` 9 + 3 = **12/12** (was 7/7), `bun run test:elm`
-**3/3**, `bun run newbuild` exit 0, `node config-check.js` exit 0 with
-`config.js` copied from `config-example.js`.
+Local totals for this ticket alone: `bun test` 9 + 3 = **12/12** (was 7/7),
+`bun run test:elm` **3/3**, `bun run newbuild` exit 0, `node config-check.js`
+exit 0 with `config.js` copied from `config-example.js`. After rebasing onto
+tickets 03 and 07: `bun test` **19/19** across 3 files (ticket 07's 7
+`gw-textarea` tests pass unchanged under jsdom) and `bun run test:elm`
+**7/7**.
+
+Landed as `89a98bc` on `selfhost`. CI green:
+<https://github.com/advaitmb/client/actions/runs/33064509422>.
 
 ## Comments
 
