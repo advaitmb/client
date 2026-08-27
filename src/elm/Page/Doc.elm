@@ -2325,7 +2325,6 @@ viewCardOther cardId content collabsOnCard isEditing isParent isAncestor isLast 
                     , onDoubleClick (OpenCard cardId content)
                     ]
                     [ lazy2 viewContent cardId content ]
-               , UI.Collaborators.viewOnCard collabsOnCard
                ]
         )
 
@@ -2397,7 +2396,6 @@ viewCardActive cardId content isParent isLast collabsOnCard dragModels =
                     , onDoubleClick (OpenCard cardId content)
                     ]
                     [ lazy2 viewContent cardId content ]
-               , UI.Collaborators.viewOnCard collabsOnCard
                ]
         )
 

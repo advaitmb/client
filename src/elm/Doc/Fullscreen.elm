@@ -172,5 +172,5 @@ viewCard collabsOnCard isActive cardId content =
                         []
                    )
             )
-            [ UI.Collaborators.viewOnCard collabsOnCard ]
+            []
         ]

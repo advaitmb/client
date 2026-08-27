@@ -1,0 +1,452 @@
+/* =============================================================================
+   Manuscript / Slate — the self-host theme.
+
+   Loaded AFTER style.css (see index.html), so it wins the cascade without
+   editing 4,000 lines of upstream CSS. Almost all of it is the token block:
+   style.css already reads 43 custom properties, and upstream never defined
+   them for the Default theme (`applyTheme Default` applies no class at all),
+   which is why the app rendered a hard-coded blue with no body font.
+
+   Light is the default. Dark follows the OS unless a theme class forces one:
+     .manuscript-theme  always light
+     .slate-theme       always dark
+
+   Typography is IBM Plex, self-hosted from ./fonts/IBM_Plex — the app makes
+   no external requests.
+   ========================================================================= */
+
+@import url('./fonts/IBM_Plex/plex-local.css');
+
+/* ---------- Manuscript (light) ---------- */
+
+:root {
+  --body-font:   'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --header-font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono-font:   'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The measure. 62 characters of Plex Serif at 16px — see the note at the
+     foot of this file for how that number was arrived at. */
+  --measure: 29em;
+  --card-pad-x: 1.75em;
+  --card-pad-y: 1.35em;
+
+  /* grounds */
+  --bg-main: #efe9dd;
+  --bg-left: #e8e1d2;
+  --background-sidebar: #f7f3ea;
+  --background-sidebar-menu: #f2ece0;
+
+  /* cards: inactive, active, and the hover lift between them */
+  --tree-bg-2: #fbf7ef;
+  --tree-bg-2-lighter: #fdfbf5;
+  --tree-bg-1: #fcf9f2;
+  --tree-bg-1-lighter: #fdfbf5;
+  --tree-fg-2: #8a8071;
+  --active-bg: #fdfaf3;
+
+  /* ink */
+  --normal-text-color: #3d362d;
+  --normal-text-color-medium: #6f6659;
+  --emphasis-color: #241f19;
+  --card-btn-color: #b3a893;
+  --fullscreen-inactive-text-color: #a0947f;
+
+  /* the one accent, used for the active-card rule and focus */
+  --selection-color: #7d8c4a;
+
+  /* editing surface */
+  --edit-bg: #fdfbf5;
+  --edit-text-color: #2e2822;
+  --edit-border: 1px solid #7d8c4a;
+  --edit-boxshadow: 0 0 0 3px rgba(125, 140, 74, 0.14);
+  --edit-text-shadow: none;
+
+  /* chrome */
+  --ui-1-fg: #3d362d;
+  --ui-1-bg: #f7f3ea;
+  --ui-2-fg: #2e2822;
+  --ui-2-bg: #f7f3ea;
+  --ui-2-border-color: #ddd2bd;
+  --ui-3-fg: #6f6659;
+  --ui-3-bg: #efe9dd;
+  --ui-3-border-color: #ddd2bd;
+  --ui-4-fg: #3d362d;
+
+  --small-shadow: none;
+  --left-col-border-right: 1px solid #ddd2bd;
+  --buffer-bg: rgba(253, 250, 243, 0.6);
+  --buffer-border: 1px solid #e2d7c2;
+  --fullscreen-card-borders: #e2d7c2;
+  --translucent-emphasis-1: rgba(36, 31, 25, 0.06);
+  --translucent-emphasis-2: rgba(36, 31, 25, 0.03);
+
+  --scrollbar-bg-color: transparent;
+  --scrollbar-thumb-color: #d6cbb6;
+  --scrollbar-shadow-color: transparent;
+  --scrollbar-thumb-border-top: transparent;
+  --scrollbar-thumb-border-bottom: transparent;
+
+  --card-border: #e8ded0;
+  --card-border-active: #e2d7c2;
+  --hairline: #ddd2bd;
+}
+
+/* ---------- Slate (dark) ---------- */
+
+/* The same values appear twice on purpose: once for "follow the OS" and once
+   for the forced class. CSS has no way to share a token block between a media
+   query and a class selector without a preprocessor, and theme.css is served
+   raw. Keep the two lists in step. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.manuscript-theme) {
+    --bg-main: #16181c;
+    --bg-left: #131519;
+    --background-sidebar: #1d2026;
+    --background-sidebar-menu: #232830;
+
+    --tree-bg-2: #1c1f25;
+    --tree-bg-2-lighter: #21252c;
+    --tree-bg-1: #1e2228;
+    --tree-bg-1-lighter: #232830;
+    --tree-fg-2: #7d838f;
+    --active-bg: #22262d;
+
+    --normal-text-color: #c2bcb2;
+    --normal-text-color-medium: #9b968e;
+    --emphasis-color: #f1ece2;
+    --card-btn-color: #5d636e;
+    --fullscreen-inactive-text-color: #6d7382;
+
+    --selection-color: #8a9a52;
+
+    --edit-bg: #1a1d22;
+    --edit-text-color: #e7e2d8;
+    --edit-border: 1px solid #8a9a52;
+    --edit-boxshadow: 0 0 0 3px rgba(138, 154, 82, 0.18);
+    --edit-text-shadow: none;
+
+    --ui-1-fg: #d7d3cb;
+    --ui-1-bg: #1d2026;
+    --ui-2-fg: #ece8e0;
+    --ui-2-bg: #1d2026;
+    --ui-2-border-color: #2b2f37;
+    --ui-3-fg: #8b919d;
+    --ui-3-bg: #22262d;
+    --ui-3-border-color: #343a44;
+    --ui-4-fg: #d7d3cb;
+
+    --small-shadow: none;
+    --left-col-border-right: 1px solid #2b2f37;
+    --buffer-bg: rgba(34, 38, 45, 0.6);
+    --buffer-border: 1px solid #343a44;
+    --fullscreen-card-borders: #343a44;
+    --translucent-emphasis-1: rgba(255, 255, 255, 0.07);
+    --translucent-emphasis-2: rgba(255, 255, 255, 0.035);
+
+    --scrollbar-thumb-color: #343a44;
+
+    --card-border: #2b3038;
+    --card-border-active: #343a44;
+    --hairline: #2b2f37;
+  }
+}
+
+/* Forcing dark regardless of OS. Same values as the media query above. */
+:root.slate-theme {
+  --bg-main: #16181c;
+  --bg-left: #131519;
+  --background-sidebar: #1d2026;
+  --background-sidebar-menu: #232830;
+
+  --tree-bg-2: #1c1f25;
+  --tree-bg-2-lighter: #21252c;
+  --tree-bg-1: #1e2228;
+  --tree-bg-1-lighter: #232830;
+  --tree-fg-2: #7d838f;
+  --active-bg: #22262d;
+
+  --normal-text-color: #c2bcb2;
+  --normal-text-color-medium: #9b968e;
+  --emphasis-color: #f1ece2;
+  --card-btn-color: #5d636e;
+  --fullscreen-inactive-text-color: #6d7382;
+
+  --selection-color: #8a9a52;
+
+  --edit-bg: #1a1d22;
+  --edit-text-color: #e7e2d8;
+  --edit-border: 1px solid #8a9a52;
+  --edit-boxshadow: 0 0 0 3px rgba(138, 154, 82, 0.18);
+  --edit-text-shadow: none;
+
+  --ui-1-fg: #d7d3cb;
+  --ui-1-bg: #1d2026;
+  --ui-2-fg: #ece8e0;
+  --ui-2-bg: #1d2026;
+  --ui-2-border-color: #2b2f37;
+  --ui-3-fg: #8b919d;
+  --ui-3-bg: #22262d;
+  --ui-3-border-color: #343a44;
+  --ui-4-fg: #d7d3cb;
+
+  --small-shadow: none;
+  --left-col-border-right: 1px solid #2b2f37;
+  --buffer-bg: rgba(34, 38, 45, 0.6);
+  --buffer-border: 1px solid #343a44;
+  --fullscreen-card-borders: #343a44;
+  --translucent-emphasis-1: rgba(255, 255, 255, 0.07);
+  --translucent-emphasis-2: rgba(255, 255, 255, 0.035);
+
+  --scrollbar-thumb-color: #343a44;
+
+  --card-border: #2b3038;
+  --card-border-active: #343a44;
+  --hairline: #2b2f37;
+}
+
+/* =============================================================================
+   Typography and structure
+   ========================================================================= */
+
+html, body {
+  background: var(--bg-main);
+  color: var(--normal-text-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Chrome is sans; prose is serif. Upstream set neither, so body text was
+   falling through to the browser default. */
+body,
+#document-header,
+#sidebar,
+.sidebar-button,
+#breadcrumbs,
+button, input, select, textarea {
+  font-family: var(--header-font);
+}
+
+.card,
+.card .view,
+.card textarea,
+.card-fullscreen {
+  font-family: var(--body-font);
+}
+
+/* ---------- the measure ---------- */
+
+.column {
+  scrollbar-width: thin;
+}
+
+#column-container {
+  /* Was minmax(min(50ch,100vw), 80ch). `ch` is the width of "0", which in a
+     proportional serif is ~28% wider than the average prose character, so
+     80ch was fitting ~103 characters — well past readable. */
+  grid-template-columns: repeat(auto-fill, minmax(min(26em, 100vw), 33em));
+  grid-auto-columns: minmax(min(26em, 100vw), 33em);
+}
+
+.card .view,
+.card textarea {
+  max-width: var(--measure);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.card {
+  border-radius: 3px;
+  border: 1px solid var(--card-border);
+  border-left: 3px solid transparent;
+  background-color: var(--tree-bg-2);
+  margin-bottom: 6px;
+  box-shadow: none;
+}
+
+.card .view {
+  padding: var(--card-pad-y) var(--card-pad-x);
+}
+
+/* The active card is marked by one rule in the accent, not a rainbow. */
+.group.has-active .card.active,
+.card.active {
+  background-color: var(--active-bg);
+  border-color: var(--card-border-active);
+  border-left-color: var(--selection-color);
+}
+
+/* ---------- prose inside a card ---------- */
+
+.card .view h1,
+.card .view h2,
+.card .view h3,
+.card .view h4,
+.card .view h5,
+.card .view h6 {
+  font-family: var(--body-font);
+  color: var(--emphasis-color);
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  margin: 0 0 0.5em;
+}
+
+.card .view h1 { font-size: 1.5rem;   line-height: 1.28; }
+.card .view h2 { font-size: 1.25rem;  line-height: 1.34; }
+.card .view h3 { font-size: 1.0625rem; line-height: 1.4; }
+.card .view h4,
+.card .view h5,
+.card .view h6 { font-size: 1rem; line-height: 1.45; }
+
+.card .view p { margin: 0 0 0.85em; }
+.card .view p:last-child { margin-bottom: 0; }
+
+.card .view code,
+.card .view pre {
+  font-family: var(--mono-font);
+  font-size: 0.84em;
+}
+
+.card .view code {
+  background: var(--translucent-emphasis-1);
+  border: 1px solid var(--card-border);
+  border-radius: 3px;
+  padding: 0.05em 0.35em;
+}
+
+.card .view pre {
+  background: var(--translucent-emphasis-2);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 0.9em 1.1em;
+  overflow-x: auto;
+}
+.card .view pre code { background: none; border: none; padding: 0; }
+
+.card .view blockquote {
+  margin: 0 0 0.85em;
+  padding-left: 1em;
+  border-left: 2px solid var(--card-border-active);
+  color: var(--normal-text-color-medium);
+  font-style: italic;
+}
+
+.card .view a { color: var(--selection-color); }
+
+/* ---------- chrome ---------- */
+
+#document-header {
+  background: var(--background-sidebar);
+  border-bottom: 1px solid var(--hairline);
+}
+
+#sidebar {
+  background: var(--background-sidebar);
+  border-right: 1px solid var(--hairline);
+}
+
+#title {
+  font-family: var(--body-font);
+  font-weight: 600;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--selection-color) 30%, transparent);
+}
+
+/* =============================================================================
+   How the measure was chosen
+
+   Bringhurst gives 45–75 characters as the satisfactory range for a serif
+   text face, 66 as the ideal, and 40–50 for multi-column work. Gingko is
+   multi-column but you read one card at a time, so the sensible target sits
+   between the two.
+
+   Measured, not estimated: IBM Plex Serif at 16px has a "0" glyph 9.60px
+   wide, while the average character in academic English prose measures
+   7.49px — a ratio of 0.78. So a CSS `ch` is NOT a character, and the old
+   80ch column was carrying about 103 characters per line, roughly 17 words.
+
+   --measure: 29em = 464px = ~62 characters = ~10 words per line, with
+   line-height 1.6. Column max 33em leaves room for the card padding either
+   side and still fits three columns on a 1440px screen.
+   ========================================================================= */
+
+/* =============================================================================
+   Overrides for upstream rules that outrank the plain selectors above.
+   Each one names the rule it is answering, so this stays auditable.
+   ========================================================================= */
+
+/* style.css:2069 — .group painted var(--tree-bg-2) across the full column
+   height, which read as vertical bands behind the cards. Cards should sit on
+   the page ground. */
+.group {
+  background-color: transparent;
+  padding: 10px 10px 10px 0;
+  border-radius: 0;
+}
+
+/* style.css:2160 — the active card dropped its border and took a hard grey
+   drop shadow. Manuscript marks it with the accent rule and a warmer face. */
+.group.has-active .card.active {
+  border: 1px solid var(--card-border-active);
+  border-left: 3px solid var(--selection-color);
+  box-shadow: none;
+  background: var(--active-bg);
+}
+
+/* style.css:2130 and 2955 — the remaining hard-coded shadows. */
+.group.active-descendant .card:hover,
+#document.editing .card {
+  box-shadow: none;
+}
+
+.group.has-active .card:hover,
+.group.active-descendant .card:hover {
+  background: var(--tree-bg-1-lighter);
+}
+
+/* style.css:2143 — .card .view padding: 17px. Prose wants more room at the
+   sides than at the top, and the measure is set on the same element. */
+.card .view,
+.card.active.has-children .view {
+  padding: var(--card-pad-y) var(--card-pad-x);
+}
+
+/* Ancestor cards (the collapsed parents above the active one) read as context,
+   not content: quieter, and no notch. */
+.card.ancestor {
+  background: transparent;
+  border-color: transparent;
+  color: var(--normal-text-color-medium);
+}
+.card.ancestor::after { display: none; }
+
+/* The drag affordance is a hairline, revealed on hover. */
+.handle {
+  background-image: none;
+  background-color: var(--card-border-active);
+  border-radius: 2px;
+  width: 3px;
+}
+
+/* style.css:2087, 2092, 1946 — the remaining painted surfaces behind the cards.
+   .group.has-active and .group.active-descendant each set their own background,
+   and .buffer is a 50vh scroll spacer that was tinted; together they produced
+   full-height bands down the column. */
+.group,
+.group.has-active,
+.group.active-descendant {
+  background: transparent;
+}
+
+.buffer {
+  background: transparent;
+  border: none;
+}
+
+/* style.css:2216, 2254 — collaborator styling. Single-user install: the only
+   collaborator the websocket can report is you, so "someone else is editing"
+   blurred your own card and drew a presence stripe over it. */
+.collab-editing .view { filter: none; }
+.card.collab-active.collab-editing::after { display: none; }
