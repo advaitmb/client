@@ -124,7 +124,9 @@ Vocabulary used in code, issues, and tests. Full system description:
     message's tag → `Msg`), `Page.Doc.Export.toString`/`toMimeType` (what an
     export writes and is saved as), `Doc.UI.documentWordcount` with
     `Page.Doc.getStartingWordcount` (the word-count modal's session row),
-    `Page.Doc.Theme.fromLocalStore` (the theme a document load restores),
+    `Page.Doc.Theme.fromLocalStore` (the theme a document load restores) with
+    `Theme.name`/`fromName` (the one spelling the settings menu's picker, the
+    `theme` attribute and the saved setting share),
     `Translation.tr` for the shortcut tray, and the two views that need no page
     `Model` — `Doc.UI.viewBreadcrumbs` and `Page.DocMessage.viewEmpty` — asked
     what a click or a keystroke on them reports. Whether a port command is sent

@@ -10,6 +10,10 @@
  *
  * What these pin: while the field has focus it belongs to the user, whatever
  * attribute changed, and the rest of the header still updates around it.
+ *
+ * The second half of the file pins the settings menu's theme picker (ticket
+ * 32): what it lists, what a choice reports, and that the mark on the current
+ * theme is Elm's answer rather than the click's.
  */
 import { afterEach, expect, test } from "bun:test";
 import "../src/ui/header";
@@ -28,6 +32,7 @@ function mount(attrs: Record<string, string> = {}): [HTMLElement, string[]] {
     owner: "yes",
     menu: "none",
     save: saveAttr(1000),
+    theme: "default",
   };
   for (const [name, value] of Object.entries({ ...defaults, ...attrs })) {
     el.setAttribute(name, value);
@@ -202,6 +207,161 @@ test("a known non-owner is told the title is not theirs to edit", () => {
   const [el] = mount({ owner: "no" });
 
   expect(titleInput(el).style.cursor).toBe("not-allowed");
+});
+
+/* === The settings menu's theme picker (ticket 32) ===
+ *
+ * The six themes' CSS ships and `SaveThemeSetting` -> `Theme.fromLocalStore`
+ * round-trips (ticket 17), but nothing constructed `ThemeChanged`: the picker
+ * was removed with the rest of the SaaS chrome. These pin the producer.
+ */
+
+const settingsMenu = (el: HTMLElement) =>
+  el.querySelector<HTMLElement>("#doc-settings-menu")!;
+
+/** Every entry of the settings menu, in the order it is offered. */
+const menuLabels = (el: HTMLElement) =>
+  Array.from(settingsMenu(el).querySelectorAll("button")).map((b) => b.textContent);
+
+const themeItem = (el: HTMLElement, name: string) =>
+  el.querySelector<HTMLButtonElement>(`#theme-${name}`)!;
+
+/** Collect what the picker reports, in order. */
+function watchThemes(el: HTMLElement): unknown[] {
+  const picked: unknown[] = [];
+  el.addEventListener("gw-theme", (e) => picked.push((e as CustomEvent).detail));
+  return picked;
+}
+
+test("the settings menu offers every theme whose CSS ships", () => {
+  const [el] = mount({ menu: "settings" });
+
+  // Word count first, then the picker, in the order the removed Elm picker
+  // used (a203a9c's parent: Default, Dark, Classic, Gray, Green, Turquoise).
+  expect(menuLabels(el)).toEqual([
+    "Word count...",
+    "Default",
+    "Dark Mode",
+    "Classic Gingkoapp",
+    "Gray",
+    "Green",
+    "Turquoise",
+  ]);
+  // Real buttons, so Enter and Space activate them without this element
+  // implementing either (S12).
+  expect(settingsMenu(el).querySelectorAll('button[type="button"]').length).toBe(7);
+});
+
+test("choosing a theme reports its name to Elm, exactly once", () => {
+  const [el] = mount({ menu: "settings" });
+  const picked = watchThemes(el);
+
+  themeItem(el, "green").click();
+
+  expect(picked).toEqual(["green"]);
+});
+
+test("the names the picker reports are the ones a saved theme is stored under", () => {
+  const [el] = mount({ menu: "settings" });
+  const picked = watchThemes(el);
+
+  for (const b of settingsMenu(el).querySelectorAll<HTMLButtonElement>('button[id^="theme-"]')) {
+    b.click();
+  }
+
+  // `Theme.toValue`'s strings: what SaveThemeSetting writes into the
+  // document's localStore, and what `Theme.fromLocalStore` reads back.
+  expect(picked).toEqual(["default", "dark", "classic", "gray", "green", "turquoise"]);
+});
+
+test("the current theme is the marked one", () => {
+  const [el] = mount({ menu: "settings", theme: "green" });
+
+  const marked = Array.from(
+    settingsMenu(el).querySelectorAll<HTMLElement>('button[aria-pressed="true"]'),
+  ).map((b) => b.textContent);
+  expect(marked).toEqual(["Green"]);
+  // The stylesheet's hook for the same fact.
+  expect(themeItem(el, "green").className).toBe("selected");
+  // Every entry says where it stands, so a screen reader hears the six as a
+  // set rather than one lone pressed button.
+  expect(settingsMenu(el).querySelectorAll("button[aria-pressed]").length).toBe(6);
+});
+
+test("the mark moves when Elm says so, not when the button is clicked", () => {
+  const [el] = mount({ menu: "settings", theme: "default" });
+
+  themeItem(el, "dark").click();
+
+  // Elm owns the theme (it also has to save it); the element only reports the
+  // click. A mark moved here would show a theme that is not the one applied.
+  expect(themeItem(el, "default").getAttribute("aria-pressed")).toBe("true");
+  expect(themeItem(el, "dark").getAttribute("aria-pressed")).toBe("false");
+
+  el.setAttribute("theme", "dark");
+
+  expect(themeItem(el, "dark").getAttribute("aria-pressed")).toBe("true");
+  expect(themeItem(el, "default").getAttribute("aria-pressed")).toBe("false");
+});
+
+test("a theme arriving does not discard in-progress typing", () => {
+  const [el] = mount({ menu: "settings" });
+  typeTitle(el, "My new title");
+
+  el.setAttribute("theme", "dark");
+
+  // E12's rule, through the attribute this ticket adds: the field belongs to
+  // the user whichever attribute the re-render came from.
+  expect(titleInput(el).value).toBe("My new title");
+  expect(document.activeElement).toBe(titleInput(el));
+});
+
+test("the entry chosen with the keyboard still has focus after Elm answers", () => {
+  const [el] = mount({ menu: "settings", theme: "default" });
+  themeItem(el, "dark").focus();
+
+  // The answer rebuilds the menu, which takes the focused node with it. A
+  // keyboard user who lands back on <body> cannot try the next theme.
+  el.setAttribute("theme", "dark");
+
+  expect(document.activeElement).toBe(themeItem(el, "dark"));
+});
+
+test("Enter on a menu entry does not also reach the app's shortcuts", () => {
+  const [el] = mount({ menu: "settings" });
+  const escaped: string[] = [];
+  const watch = (e: Event) => escaped.push((e as KeyboardEvent).key);
+  document.addEventListener("keydown", watch);
+
+  try {
+    const enter = (key: string) =>
+      themeItem(el, "dark").dispatchEvent(
+        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+      );
+    // Mousetrap binds "enter" on `document` and ignores only form fields, so
+    // an Enter that got there would open the active card's editor as well as
+    // choosing the theme (the reason ticket 24's breadcrumb stops its keydown).
+    enter("Enter");
+    enter(" ");
+    expect(escaped).toEqual([]);
+
+    // Narrowly: the app's other keys still get through. Swallowing everything
+    // would trap a keyboard user in an open menu.
+    enter("Escape");
+    expect(escaped).toEqual(["Escape"]);
+  } finally {
+    document.removeEventListener("keydown", watch);
+  }
+});
+
+test("the word count entry still opens the word count", () => {
+  const [el] = mount({ menu: "settings" });
+  const opened: string[] = [];
+  el.addEventListener("gw-wordcount", () => opened.push("wordcount"));
+
+  el.querySelector<HTMLButtonElement>("#wordcount-menu-item")!.click();
+
+  expect(opened).toEqual(["wordcount"]);
 });
 
 test("the header says when it has rendered, so nothing has to poll its geometry", () => {

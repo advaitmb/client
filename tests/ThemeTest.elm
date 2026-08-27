@@ -1,4 +1,4 @@
-module ThemeTest exposing (appliedTheme, restoredTheme)
+module ThemeTest exposing (appliedTheme, pickedTheme, restoredTheme)
 
 {-| Tests at the ADR-0001 seam 10: the per-document theme, which is saved on
 change and — until now — never read back (E10).
@@ -35,6 +35,23 @@ themes =
     , ( Green, "green-theme" )
     , ( Turquoise, "turquoise-theme" )
     , ( Dark, "dark-theme" )
+    ]
+
+
+{-| The name each theme travels under, in the order the settings menu offers
+them. One spelling serves three journeys: the `theme` attribute `<gw-header>`
+carries, the detail its picker reports back, and the string `SaveThemeSetting`
+has always written into the document's localStore — so a theme chosen in the
+menu is the theme a reload restores.
+-}
+names : List ( Theme, String )
+names =
+    [ ( Default, "default" )
+    , ( Dark, "dark" )
+    , ( Classic, "classic" )
+    , ( Gray, "gray" )
+    , ( Green, "green" )
+    , ( Turquoise, "turquoise" )
     ]
 
 
@@ -82,6 +99,41 @@ restoredTheme =
                         )
                 )
                 themes
+        )
+
+
+pickedTheme : Test
+pickedTheme =
+    describe "the theme the settings menu's picker names"
+        (test "a name no build of this app ever wrote is the default"
+            (\_ ->
+                -- The attribute and the detail are strings from outside Elm,
+                -- so this has to be total, as the stored name is.
+                Theme.fromName "aubergine"
+                    |> Expect.equal Default
+            )
+            :: List.map
+                (\( theme, name ) ->
+                    test (Debug.toString theme ++ " is offered, chosen and reloaded under one name")
+                        (\_ ->
+                            Expect.all
+                                [ \_ ->
+                                    -- What the `theme` attribute says.
+                                    Theme.name theme |> Expect.equal name
+                                , \_ ->
+                                    -- What the picker's `gw-theme` detail means.
+                                    Theme.fromName name |> Expect.equal theme
+                                , \_ ->
+                                    -- And what a reload makes of it, through
+                                    -- the store SaveThemeSetting writes.
+                                    cardDataWith [ ( "theme", Enc.string (Theme.name theme) ) ]
+                                        |> Theme.fromLocalStore Default
+                                        |> Expect.equal theme
+                                ]
+                                ()
+                        )
+                )
+                names
         )
 
 

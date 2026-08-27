@@ -24,6 +24,8 @@
  *                    (epoch ms; lastLocalSave/lastRemoteSave may be null)
  *   export-settings  JSON { selection, format }
  *   history          JSON { index, max }
+ *   theme            the document's theme, by the name Page.Doc.Theme saves it
+ *                    under ("default", "dark", …)
  *
  * Contract — events out
  *   gw-title-input     detail: string
@@ -32,6 +34,7 @@
  *   gw-title-focus
  *   gw-menu            detail: which menu to show ("none" closes)
  *   gw-export-selection / gw-export-format   detail: the chosen value
+ *   gw-theme           detail: the chosen theme's name
  *   gw-wordcount
  *   gw-history-checkout  detail: slider index (Elm maps it to a version)
  *   gw-history-restore | gw-history-cancel
@@ -54,6 +57,20 @@ const I = {
   export: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 15h6M9 12h6",
   close: "M18 6L6 18M6 6l12 12",
 };
+
+/**
+ * The themes the stylesheet has rules for, by the name Elm stores them under
+ * (`Page.Doc.Theme.name`), in the order the picker this restores offered them.
+ * The labels are the interface layer's, as the export menu's are.
+ */
+const THEMES: Array<[value: string, label: string]> = [
+  ["default", "Default"],
+  ["dark", "Dark Mode"],
+  ["classic", "Classic Gingkoapp"],
+  ["gray", "Gray"],
+  ["green", "Green"],
+  ["turquoise", "Turquoise"],
+];
 
 /**
  * The container id and the child id prefix differ in the existing stylesheet
@@ -97,7 +114,7 @@ interface TitleParts {
 
 class Header extends HTMLElement {
   static observedAttributes = [
-    "doc-title", "owner", "menu", "save", "export-settings", "history",
+    "doc-title", "owner", "menu", "save", "export-settings", "history", "theme",
   ];
 
   private titleParts: TitleParts | null = null;
@@ -146,16 +163,45 @@ class Header extends HTMLElement {
     // stays put: detaching it -- which replaceChildren() does even when the
     // same node goes straight back -- takes the focus, the caret and the
     // browser's own undo stack with it.
+    //
+    // For the rest, the control's id is what survives the rebuild, so the
+    // focus is put back on the new node with the same id. Elm answers a theme
+    // choice (and a slider drag) with an attribute, which lands here as a
+    // rebuild, and without this a keyboard user is dropped back on <body>
+    // mid-menu. Nothing inside the kept title span is ever restored: focusing
+    // that input is the select-all loop E12 removed, and it does not need it.
+    const focused = document.activeElement;
+    const restoreId =
+      focused instanceof HTMLElement &&
+      this.contains(focused) &&
+      !title.span.contains(focused)
+        ? focused.id
+        : "";
     for (const child of Array.from(this.children)) {
       if (child !== title.span) child.remove();
     }
     this.append(...parts.filter((n): n is Node => n !== null));
+    if (restoreId) this.refocus(restoreId);
 
     // Elm listens for none of this, and that is the point: the port layer
     // fixed-positions the GitHub sync button against #history-icon, and it
     // polled the header's geometry every 800ms for the whole session to find
     // out when that moved (CODE_REVIEW.md S5). This is the header saying so.
     emit(this, "gw-header-rendered");
+  }
+
+  /**
+   * Focus the rebuilt control that carries this id, if the new markup has one
+   * — a menu that closed on the way through does not, and then the focus is
+   * gone with the control the user was on, which is correct.
+   */
+  private refocus(id: string) {
+    for (const node of this.querySelectorAll<HTMLElement>("[id]")) {
+      if (node.id === id) {
+        node.focus();
+        return;
+      }
+    }
   }
 
   /**
@@ -230,14 +276,62 @@ class Header extends HTMLElement {
     return { span, input, shadow, indicator };
   }
 
+  /**
+   * One entry of a header menu: a real <button>, so Enter and Space activate
+   * it without this element implementing either (S12).
+   *
+   * The keydown stops here for exactly those two keys. Mousetrap binds the
+   * app's shortcuts on `document` and ignores only form fields, so an Enter
+   * that escaped would open the active card's editor as well as activating the
+   * button (ticket 24's breadcrumb, same reason). Everything else still gets
+   * through: swallowing all keys would leave a keyboard user stuck in an open
+   * menu.
+   *
+   * `pressed` is for an entry that is one of a set of choices: every entry of
+   * that set carries `aria-pressed`, so the state is announced and not only
+   * coloured. Omitted, the entry is a plain command and says nothing about
+   * state.
+   */
+  private menuItem(id: string, label: string, act: () => void, pressed?: boolean) {
+    return h(
+      "button",
+      {
+        type: "button",
+        id,
+        class: pressed ? "selected" : undefined,
+        "aria-pressed": pressed === undefined ? undefined : String(pressed),
+        onclick: act,
+        onkeydown: (e: Event) => {
+          const k = (e as KeyboardEvent).key;
+          if (k === "Enter" || k === " ") e.stopPropagation();
+        },
+      },
+      label,
+    );
+  }
+
+  /**
+   * The document's settings: the word count, and the theme picker restored in
+   * ticket 32. The mark on the current theme is Elm's `theme` attribute, not
+   * the last click — Elm applies the theme and saves it, so a mark moved here
+   * would show a theme that may not be the one in effect.
+   */
   private settingsMenu() {
+    const current = this.getAttribute("theme") ?? "default";
     return h(
       "div",
       { id: "doc-settings-menu", class: "header-menu" },
-      h(
-        "div",
-        { id: "wordcount-menu-item", onclick: () => emit(this, "gw-wordcount") },
-        "Word count...",
+      this.menuItem("wordcount-menu-item", "Word count...", () =>
+        emit(this, "gw-wordcount"),
+      ),
+      h("h4", {}, "Document Theme"),
+      ...THEMES.map(([value, label]) =>
+        this.menuItem(
+          `theme-${value}`,
+          label,
+          () => emit(this, "gw-theme", value),
+          value === current,
+        ),
       ),
     );
   }

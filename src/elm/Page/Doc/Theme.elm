@@ -1,4 +1,4 @@
-module Page.Doc.Theme exposing (Theme(..), applyTheme, fromLocalStore, toValue)
+module Page.Doc.Theme exposing (Theme(..), applyTheme, fromLocalStore, fromName, name, toValue)
 
 import Html
 import Html.Attributes exposing (class)
@@ -37,26 +37,61 @@ applyTheme theme =
             class "dark-theme"
 
 
-toValue : Theme -> Enc.Value
-toValue theme =
+{-| The name a theme travels under: what `SaveThemeSetting` stores, what the
+`theme` attribute tells `<gw-header>`, and what its picker reports back. One
+spelling, so a theme chosen in the menu is the theme the next load restores.
+-}
+name : Theme -> String
+name theme =
     case theme of
         Default ->
-            Enc.string "default"
+            "default"
 
         Classic ->
-            Enc.string "classic"
+            "classic"
 
         Gray ->
-            Enc.string "gray"
+            "gray"
 
         Green ->
-            Enc.string "green"
+            "green"
 
         Turquoise ->
-            Enc.string "turquoise"
+            "turquoise"
 
         Dark ->
-            Enc.string "dark"
+            "dark"
+
+
+{-| The theme a name means, and `Default` for one this build does not know —
+an attribute, an event detail and a stored setting are all strings from
+outside, so this has to be total.
+-}
+fromName : String -> Theme
+fromName themeName =
+    case themeName of
+        "classic" ->
+            Classic
+
+        "gray" ->
+            Gray
+
+        "green" ->
+            Green
+
+        "turquoise" ->
+            Turquoise
+
+        "dark" ->
+            Dark
+
+        _ ->
+            Default
+
+
+toValue : Theme -> Enc.Value
+toValue =
+    name >> Enc.string
 
 
 {-| The theme a card-data message names, or the one already in effect.
@@ -78,27 +113,4 @@ fromLocalStore current cardData =
 decoder : Decoder Theme
 decoder =
     Dec.field "theme" Dec.string
-        |> Dec.map
-            (\s ->
-                case s of
-                    "default" ->
-                        Default
-
-                    "classic" ->
-                        Classic
-
-                    "gray" ->
-                        Gray
-
-                    "green" ->
-                        Green
-
-                    "turquoise" ->
-                        Turquoise
-
-                    "dark" ->
-                        Dark
-
-                    _ ->
-                        Default
-            )
+        |> Dec.map fromName

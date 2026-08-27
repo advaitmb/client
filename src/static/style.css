@@ -1050,11 +1050,19 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   width: 100%;
   margin-bottom: 0;
 }
-.header-menu > div {
+/* The entries are real <button>s (S12), so the UA chrome comes off: the box,
+   the type and the colour are the menu's, not the button's. */
+.header-menu > button {
   padding: 6px 20px;
   width: 100%;
   display: block;
   cursor: pointer;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 .header-menu > *:last-child {
   padding-bottom: 10px;
@@ -1064,8 +1072,14 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   padding-top: 10px;
   border-radius: 5px 5px 0 0;
 }
-.header-menu > div:hover {
+.header-menu > button:hover {
   background: white;
+}
+/* The theme in effect, marked the way the export menu marks its choices. */
+.header-menu > button.selected {
+  background: #c8ceef;
+  color: #243586;
+  font-weight: bold;
 }
 #doc-settings-menu:after {
   content: " ";

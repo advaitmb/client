@@ -182,10 +182,13 @@ reloading `/login`: a reload would ask `/me` again.
   help, word count…), toast tray, tooltip, theme.
 
 The view instantiates the custom elements and maps their events to messages:
-`gw-header` (title edit, menus, history slider), `gw-sidebar`,
+`gw-header` (title edit, menus, history slider, theme picker), `gw-sidebar`,
 `gw-switcher-modal`, `gw-template-modal`, `gw-help-modal`,
 `gw-wordcount-modal`. String↔type translators for those attributes/events live
-at `App.elm:2013–2160`.
+in the block after `subscriptions` — `ownershipName`, `headerMenuMsg`,
+`themeMsg`, the export and sort pairs. The theme's two are `Page.Doc.Theme`'s
+own `name`/`fromName`, because the same spelling is what the setting is saved
+under.
 
 History viewing builds `Doc.History` from the data model, blocks editing via
 `Page.Doc.setBlock`, and checkout/restore go through `Data.restore`. Export

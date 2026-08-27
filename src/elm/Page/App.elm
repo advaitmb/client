@@ -1779,6 +1779,7 @@ view ({ documentState } as model) =
                                             , ( "format", Enc.string (exportFormatName (Tuple.second model.exportSettings)) )
                                             ]
                                     )
+                                , attribute "theme" (Theme.name model.theme)
                                 , attribute "history"
                                     (case model.headerMenu of
                                         HistoryView history ->
@@ -1801,6 +1802,7 @@ view ({ documentState } as model) =
                                 , on "gw-export-selection" (Json.map exportSelectionMsg detailString)
                                 , on "gw-export-format" (Json.map exportFormatMsg detailString)
                                 , on "gw-wordcount" (Json.succeed WordcountModalOpened)
+                                , on "gw-theme" (Json.map themeMsg detailString)
                                 , on "gw-history-restore" (Json.succeed Restore)
                                 , on "gw-history-cancel" (Json.succeed CancelHistory)
                                 , on "gw-history-checkout"
@@ -2176,6 +2178,17 @@ headerMenuMsg current wanted =
 
                 NoHeaderMenu ->
                     NoOp
+
+
+{-| The settings menu's picker reports a theme by the name `Theme.name` gives
+it — the same one `SaveThemeSetting` stores, which is why there is no
+translation table here. `ThemeChanged` applies it and saves it; the element is
+told the result through the `theme` attribute rather than marking its own
+choice.
+-}
+themeMsg : String -> Msg
+themeMsg =
+    Theme.fromName >> ThemeChanged
 
 
 exportSelectionName : ExportSelection -> String

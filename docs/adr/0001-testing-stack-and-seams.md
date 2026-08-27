@@ -122,6 +122,13 @@
     *state* `Page.Doc` carries is plain data, so the session-start count is
     tested through its own setters and getter.
 
+    Ticket 32 adds `Theme.name` and `Theme.fromName`, the spelling the
+    settings menu's restored picker, the `theme` attribute and the saved
+    setting all share — one name per theme is what makes "chosen in the menu"
+    and "restored on the next load" the same theme, and it is testable where
+    the view wiring that carries it (`attribute "theme"`, `on "gw-theme"`) is
+    not.
+
     Ticket 24 adds the two chrome *views* that take only a message constructor
     and their content — `Doc.UI.viewBreadcrumbs` and
     `Page.DocMessage.viewEmpty` — driven with `Test.Html.Event` (as ticket 31
