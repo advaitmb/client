@@ -122,7 +122,9 @@ CI green on `selfhost`:
 [33108089594](https://github.com/advaitmb/client/actions/runs/33108089594)
 (`a02e737`, the icons) and
 [33108424724](https://github.com/advaitmb/client/actions/runs/33108424724)
-(`7599f93`, the review pass).
+(`7599f93`, the review pass) and
+[33108663593](https://github.com/advaitmb/client/actions/runs/33108663593)
+(`83c4ee8`, the tracker).
 
 ## Comments
 
