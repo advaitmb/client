@@ -111,7 +111,11 @@ so both the tree and the `PushDeltas` payload are the real ones.
 ### Verification
 
 Rebased on `selfhost` at `e80ac48`: `bun run test:elm` 29/29, `bun test` 49/49
-across 8 files, `bun run newbuild` succeeds, `node config-check.js` exit 0.
+across 8 files, `bun run newbuild` succeeds, `node config-check.js` exit 0. CI
+green on `selfhost`: run
+<https://github.com/advaitmb/client/actions/runs/33068171228> (`0c7cf25`, the
+code) and <https://github.com/advaitmb/client/actions/runs/33068424890>
+(`625e5bb`, the tracker).
 
 ## Comments
 
