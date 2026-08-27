@@ -17,7 +17,8 @@ type TranslationId
     | Loading
     | ConfirmBannerStrong
     | ConfirmBannerBody
-      -- Keyboard Shortcut Help
+      -- The shortcut tray (`Doc.UI.viewShortcuts`) -- not the help modal, which
+      -- is `src/ui/help-modal.ts` and keeps its own copies of these strings
     | KeyboardShortcuts
     | DeleteCard
     | EditCards
@@ -98,7 +99,7 @@ tr trans =
                     { en = "We've sent instructions to "
                     }
 
-                -- Keyboard Shortcut Help
+                -- The shortcut tray
                 KeyboardShortcuts ->
                     { en = "Keyboard Shortcuts"
                     }
