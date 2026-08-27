@@ -1,4 +1,4 @@
-module SessionTest exposing (preferences, suite)
+module SessionTest exposing (preferences, sidebar, suite)
 
 {-| Tests at the ADR-0002 seam: `Session.decode` on the stored user data that
 `StoreUser` persists to localStorage.
@@ -14,6 +14,7 @@ to a guest session, i.e. logs them out).
 
 import Expect
 import Json.Encode as Enc
+import Page.App
 import Session
 import Test exposing (Test, describe, test)
 import Types exposing (SortBy(..))
@@ -121,4 +122,22 @@ preferences =
                 decodeLoggedIn (storedUser [ Session.lastDocIdSetting Nothing ])
                     |> Result.map (\session -> ( Session.name session, Session.lastDocId session ))
                     |> Expect.equal (Ok ( "user@example.com", Nothing ))
+        ]
+
+
+{-| Ticket 13: the sidebar's state is a preference too, but it is written by
+`Page.App` — into the session (which every re-init of the page reads back, and
+the loading spinner with it) and into storage, from this one flag.
+-}
+sidebar : Test
+sidebar =
+    describe "The sidebar's recorded state"
+        [ test "an open sidebar is recorded as open" <|
+            \_ ->
+                Page.App.sidebarIsOpen Page.App.File
+                    |> Expect.equal True
+        , test "a closed sidebar is recorded as closed" <|
+            \_ ->
+                Page.App.sidebarIsOpen Page.App.SidebarClosed
+                    |> Expect.equal False
         ]

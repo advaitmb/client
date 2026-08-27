@@ -1,4 +1,4 @@
-port module Page.App exposing (Model, Msg, getTitle, init, isDirty, navKey, notFound, subscriptions, toGlobalData, toSession, update, updateSession, view)
+port module Page.App exposing (Model, Msg, SidebarState(..), getTitle, init, isDirty, navKey, notFound, sidebarIsOpen, subscriptions, toGlobalData, toSession, update, updateSession, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -101,6 +101,21 @@ from UI/Sidebar.elm when the sidebar became <gw-sidebar>.
 type SidebarState
     = SidebarClosed
     | File
+
+
+{-| Whether a sidebar state counts as open. Both halves of the toggle -- the
+session (which every re-init of this page reads back, and the loading spinner
+with it) and the stored `sidebarOpen` flag -- are set from this one answer, so
+they cannot disagree: closing the sidebar used to record it as open (E1).
+-}
+sidebarIsOpen : SidebarState -> Bool
+sidebarIsOpen state =
+    case state of
+        File ->
+            True
+
+        SidebarClosed ->
+            False
 
 
 type SidebarMenuState
@@ -752,13 +767,8 @@ update msg model =
 
         SidebarStateChanged newSidebarState ->
             let
-                ( newSessionData, maybeSaveSidebarState ) =
-                    case newSidebarState of
-                        File ->
-                            ( Session.setFileOpen True session, send <| SetSidebarState True )
-
-                        _ ->
-                            ( Session.setFileOpen True session, send <| SetSidebarState False )
+                isOpen =
+                    sidebarIsOpen newSidebarState
 
                 newDropdownState =
                     case ( newSidebarState, model.sidebarMenuState ) of
@@ -773,8 +783,8 @@ update msg model =
                 , tooltip = Nothing
                 , sidebarMenuState = newDropdownState
               }
-                |> updateSession newSessionData
-            , maybeSaveSidebarState
+                |> updateSession (Session.setFileOpen isOpen session)
+            , send <| SetSidebarState isOpen
             )
 
         SidebarContextClicked docId ( x, y ) ->
