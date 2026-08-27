@@ -51,7 +51,15 @@
    `container-web.js`'s `localStore`, observed through the real localStorage),
    and the DOM-readiness helper the timing hacks became (`whenReady` in
    `doc-helpers.js`, observed through the jsdom document: what is on the page,
-   and whether the callback has run). These are not pure, so
+   and whether the callback has run). Ticket 27 adds which database an
+   account's documents live in (`src/shared/local-db.js`: the name derived from
+   the email, and the one account that adopts the legacy `"db"` — driven with an
+   in-memory claim store that can also refuse to be read or written, then with
+   the real `localStorage`, and observed through the name it answers with and
+   the claim it is left holding). It is at this seam and not seam 2 for the
+   reason the whole design turns on: adopting is a *write*, so the decision is
+   not pure — and it must never be observed by opening a database, which is why
+   nothing in that module opens one. These are not pure, so
    seam 2 does not cover them: the rule is the same extraction (nothing in
    `doc.js` itself is importable, it boots the app at module load) but they
    are observed through the boundaries they actually cross — a faked `fetch`,

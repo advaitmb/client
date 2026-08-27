@@ -28,12 +28,59 @@ async function initImmortalDB() {
 }
 initImmortalDB();
 
-const dexie = new Dexie("db");
-dexie.version(4).stores({
-  trees: "id,updatedAt",
-  cards: "updatedAt, treeId, [treeId+deleted]",
-  tree_snapshots: "snapshot, treeId"
-});
+/**
+ * The Dexie database holding the logged-in account's documents, or null before
+ * an account is known.
+ *
+ * It used to be one global `new Dexie("db")` created at module load, which is
+ * where the next account to log in found the *previous* account's documents
+ * once ticket 04 made logging out possible (ticket 27). local-db.js names it
+ * per account now, so there is nothing to open until boot has read the session
+ * blob or `/me` has answered — hence `null` here, and `userDb()` at the call
+ * sites, every one of which is reached from an app with an account in it.
+ */
+let userDatabase = null;
+
+function userDb() {
+  if (userDatabase === null) {
+    throw new Error("local data: no account is logged in, so no database is open");
+  }
+  return userDatabase;
+}
+
+/**
+ * Open the logged-in account's database, unless it is already open.
+ *
+ * Idempotent by name: boot calls it as soon as it knows the email (before the
+ * first `trees` read) and `setUserDbs` calls it again on the same email, which
+ * is a no-op. A call naming a *different* account replaces the instance — only
+ * reachable via a logout, since the login page cannot be reached while an
+ * account is live, so `stopSyncing` here is a belt on the braces: it takes the
+ * departing account's liveQueries off the instance about to be closed rather
+ * than leaving them to error, and closes the socket that would otherwise
+ * reconnect as that account.
+ *
+ * The schema stays here, beside the queries that depend on it
+ * (docs/ARCHITECTURE.md §5.1 and §6.2); local-db.js only answers which name.
+ */
+function openUserDb(eml) {
+  const name = resolveUserDbName(eml);
+  if (userDatabase !== null && userDatabase.name === name) { return; }
+
+  if (userDatabase !== null) {
+    stopSyncing();
+    userDatabase.close();
+  }
+
+  console.log("Opening local database:", name);
+  const dexie = new Dexie(name);
+  dexie.version(4).stores({
+    trees: "id,updatedAt",
+    cards: "updatedAt, treeId, [treeId+deleted]",
+    tree_snapshots: "snapshot, treeId"
+  });
+  userDatabase = dexie;
+}
 
 const helpers = require("./doc-helpers");
 const { logoutUser, mergeUserIntoSession, readSessionData, writeSessionData } = require("./session");
@@ -59,6 +106,9 @@ const { isExtensionInterference, portMessageFailure } = require("./port-errors")
 const { backupSnapshotText, rootCardId } = require("./cards");
 // Renaming a document, once, however many times Elm asks (S5).
 const { renameDocument } = require("./documents");
+// Which database this account's documents live in, and which single account
+// adopts the one global "db" every install had before (ticket 27).
+const { resolveUserDbName } = require("./local-db");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -128,8 +178,15 @@ async function initElmAndPorts() {
   // Seeding matters because `gingko <project>` opens /<treeId> directly: with an
   // empty cache the router resolves the id against nothing and renders
   // "document not found" before the websocket tree sync arrives.
+  //
+  // The cache is per account (ticket 27), so there is nothing to count until the
+  // stored session has named one. A boot with no stored account goes straight to
+  // /me, whose answer is what says which database to open.
   let treeCount = 0;
-  try { treeCount = await dexie.trees.count(); } catch (e) { console.error(e); }
+  if (flags.email) {
+    openUserDb(flags.email);
+    try { treeCount = await userDb().trees.count(); } catch (e) { console.error(e); }
+  }
 
   if (!flags.email || treeCount === 0) {
     try {
@@ -137,10 +194,17 @@ async function initElmAndPorts() {
       if (res.ok) {
         const me = await res.json();
         writeSessionData(mergeUserIntoSession(readSessionData(), me), "AutoLogin");
-        if (Array.isArray(me.documents) && me.documents.length > 0) {
-          await dexie.trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
-        }
         flags = getFlags();
+        // /me may have named an account this client had not stored, or a
+        // different one: its database has to be open before the seed writes a
+        // row into it. (No account, no database — and no app either: Elm boots
+        // to the login page.)
+        if (flags.email) {
+          openUserDb(flags.email);
+          if (Array.isArray(me.documents) && me.documents.length > 0) {
+            await userDb().trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
+          }
+        }
       } else {
         console.error("auto-login: /me returned", res.status);
       }
@@ -189,6 +253,13 @@ function getFlags() {
 
 
 async function setUserDbs(eml) {
+  // This account's own database, before anything can read a row out of it or a
+  // liveQuery can subscribe to one (ticket 27). First, so that a login as a
+  // different account tears the previous one's sync down before this one's is
+  // built -- and so that an account nobody can name fails here rather than
+  // sharing a database with everybody.
+  openUserDb(eml);
+
   email = eml;
 
   userDbName = `userdb-${helpers.toHex(email)}`;
@@ -209,7 +280,7 @@ async function setUserDbs(eml) {
 
   let firstLoad = true;
 
-  treeListSubscription = Dexie.liveQuery(() => dexie.trees.toArray()).subscribe((trees) => {
+  treeListSubscription = Dexie.liveQuery(() => userDb().trees.toArray()).subscribe((trees) => {
     const docMetadatas = trees.filter(t => t.deletedAt == null).map(treeDocToMetadata);
     if (!loadingDocs && !firstLoad) {
       toElm(docMetadatas, "documentListChanged");
@@ -227,6 +298,12 @@ async function setUserDbs(eml) {
  * out. pws reconnects on its own until it is closed explicitly, and the
  * liveQueries would keep feeding a document that is no longer on screen.
  * Local data itself is untouched (see session.js).
+ *
+ * The database *connection* is left open too, deliberately: it holds the
+ * departing account's rows, so a write still in flight has somewhere correct to
+ * land, and nothing can read it into the next session anyway — the next account
+ * to log in opens a database of its own (local-db.js), and `openUserDb` closes
+ * this one when it does.
  */
 function stopSyncing() {
   if (ws) {
@@ -355,20 +432,20 @@ function initWebSocket () {
 
         case 'cards':
           if (data.d.length > 0) {
-            await dexie.cards.bulkPut(data.d.map(c => ({ ...c, synced: true })))
+            await userDb().cards.bulkPut(data.d.map(c => ({ ...c, synced: true })))
           }
           break
 
         case 'cardsConflict':
           if (data.d.length > 0) {
-            await dexie.cards.bulkPut(data.d.map(c => ({ ...c, synced: true })))
+            await userDb().cards.bulkPut(data.d.map(c => ({ ...c, synced: true })))
 
             // send encrypted unsynced local cards to Sentry
-            const unsyncedCards = await dexie.cards.where('treeId').equals(TREE_ID).and(c => !c.synced).toArray();
+            const unsyncedCards = await userDb().cards.where('treeId').equals(TREE_ID).and(c => !c.synced).toArray();
             console.warn('cardsConflict: cards conflict ' + TREE_ID, { unsyncedCards, error: data.e })
           } else {
             console.warn('cardsConflict: no cards ' + TREE_ID, { error: data.e })
-            const numberUnsynced = await dexie.cards.where('treeId').equals(TREE_ID).and(c => !c.synced).count();
+            const numberUnsynced = await userDb().cards.where('treeId').equals(TREE_ID).and(c => !c.synced).count();
             const msg = `Error syncing ${numberUnsynced} change${numberUnsynced == 1 ? "" : "s"}. Try refreshing the page.\n\nIf this error persists, please contact support!`;
             toElm(msg, 'appMsgs', 'ErrorAlert');
           }
@@ -383,7 +460,7 @@ function initWebSocket () {
         case 'pushError':
           pushErrorCount++;
           if (pushErrorCount >= 4) {
-            let numberUnsynced = await dexie.cards.where('treeId').equals(TREE_ID).and(c => !c.synced).count();
+            let numberUnsynced = await userDb().cards.where('treeId').equals(TREE_ID).and(c => !c.synced).count();
             const msg = `Error syncing ${numberUnsynced} change${numberUnsynced == 1 ? "" : "s"}. Try refreshing the page.\n\nIf this error persists, please contact support!`;
             toElm(msg, 'appMsgs', 'ErrorAlert');
           }
@@ -394,25 +471,25 @@ function initWebSocket () {
         case 'doPull':
           // Server says this tree has changes
           if (data.d === TREE_ID) {
-            let cards = await dexie.cards.where('treeId').equals(TREE_ID).toArray()
+            let cards = await userDb().cards.where('treeId').equals(TREE_ID).toArray()
             pull(TREE_ID, computeCheckpoint(cards))
           }
           break
 
 
         case 'trees':
-          await dexie.trees.bulkPut(data.d.map(t => ({ ...t, synced: true })))
+          await userDb().trees.bulkPut(data.d.map(t => ({ ...t, synced: true })))
           break
 
         case 'treesOk':
-          await dexie.trees.where('updatedAt').belowOrEqual(data.d).modify({ synced: true })
+          await userDb().trees.where('updatedAt').belowOrEqual(data.d).modify({ synced: true })
           break
 
         case 'historyMeta': {
           const { tr, d } = data
           const snapshotData = d.map(hmd => ({ snapshot: hmd.id, treeId: tr, data: null }))
           try {
-            await dexie.tree_snapshots.bulkAdd(snapshotData)
+            await userDb().tree_snapshots.bulkAdd(snapshotData)
           } catch (e) {
             // A snapshot this client already has is the expected case: the
             // server re-announces the whole history, and `bulkAdd` reports one
@@ -442,7 +519,7 @@ function initWebSocket () {
             treeId: tr,
             data: hd.d.map(d => ({ ...d, synced: true }))
           }))
-          await dexie.tree_snapshots.bulkPut(snapshotData)
+          await userDb().tree_snapshots.bulkPut(snapshotData)
           break
         }
 
@@ -459,7 +536,7 @@ function initWebSocket () {
           break;
 
         case 'removedFrom':
-          await dexie.trees.delete(data.d);
+          await userDb().trees.delete(data.d);
           if (data.d === TREE_ID) {
             location.assign('/');
           }
@@ -595,8 +672,8 @@ const fromElm = (msg, elmData) => {
       const treeDoc = {...treeDocDefaults, id: TREE_ID, location: "cardbased", owner: email, createdAt: now, updatedAt: now};
       const cardDoc = {...cardDefaults, id: my_uuid(24), treeId: TREE_ID, updatedAt: hlc.nxt()};
 
-      await dexie.trees.add(treeDoc);
-      await dexie.cards.add(cardDoc);
+      await userDb().trees.add(treeDoc);
+      await userDb().cards.add(cardDoc);
 
       // Set localStore db
       localStore.db(elmData);
@@ -612,7 +689,7 @@ const fromElm = (msg, elmData) => {
 
       wsSend('rt:join', { tr: TREE_ID, uid: CLIENT_ID, m: COLLAB_STATE || null}, true);
       // Load title
-      const treeDoc = await dexie.trees.get(elmData);
+      const treeDoc = await userDb().trees.get(elmData);
       if (treeDoc) {
         toElm(treeDocToMetadata(treeDoc), "appMsgs", "MetadataUpdate")
       } else {
@@ -636,7 +713,7 @@ const fromElm = (msg, elmData) => {
 
     RequestDelete: async () => {
       if (confirm(`Are you sure you want to delete the document '${elmData[1]}'?`)) {
-        await dexie.trees.update(elmData[0], {deletedAt: Date.now(), synced: false});
+        await userDb().trees.update(elmData[0], {deletedAt: Date.now(), synced: false});
       }
     },
 
@@ -645,7 +722,7 @@ const fromElm = (msg, elmData) => {
     // guarded by a "renaming" flag that dropped whichever message lost the race
     // (S5, and documents.js for why by-value is the difference).
     RenameDocument: async () => {
-      await renameDocument({ db: dexie, treeId: TREE_ID, name: elmData, now: Date.now });
+      await renameDocument({ db: userDb(), treeId: TREE_ID, name: elmData, now: Date.now });
     },
 
     PushDeltas : () => {
@@ -656,7 +733,7 @@ const fromElm = (msg, elmData) => {
 
     SaveCardBased : async () => {
       await applyCardBasedSave(elmData, {
-        db: dexie,
+        db: userDb(),
         nextStamp: () => hlc.nxt(),
         newDeleteHash: uuid,
         now: Date.now,
@@ -685,13 +762,13 @@ const fromElm = (msg, elmData) => {
       const now = Date.now();
       const [importedTreeId, treeName] = elmData;
       const treeDoc = {...treeDocDefaults, name: treeName, id: importedTreeId, location: "cardbased", owner: email, createdAt: now, updatedAt: now};
-      await dexie.trees.add(treeDoc);
+      await userDb().trees.add(treeDoc);
       toElm(importedTreeId, "importComplete")
     },
 
     SaveCardBasedMigration : async () => {
-      await dexie.trees.update(TREE_ID, {location: "cardbased", synced: false});
-      await dexie.cards.bulkPut(elmData);
+      await userDb().trees.update(TREE_ID, {location: "cardbased", synced: false});
+      await userDb().cards.bulkPut(elmData);
       loadCardBasedDocument(TREE_ID);
     },
 
@@ -917,7 +994,7 @@ async function loadCardBasedDocument (treeId) {
   let store = localStore.load();
 
   // Load local document data.
-  let loadedCards = await dexie.cards.where("treeId").equals(treeId).toArray();
+  let loadedCards = await userDb().cards.where("treeId").equals(treeId).toArray();
   const chk = computeCheckpoint(loadedCards);
   if (loadedCards.length > 0) {
     loadedCards.localStore = store;
@@ -927,7 +1004,7 @@ async function loadCardBasedDocument (treeId) {
   let firstLoad = true;
 
   // Setup Dexie liveQuery for local document data.
-  cardDataSubscription = Dexie.liveQuery(() => dexie.cards.where("treeId").equals(treeId).toArray()).subscribe((cards) => {
+  cardDataSubscription = Dexie.liveQuery(() => userDb().cards.where("treeId").equals(treeId).toArray()).subscribe((cards) => {
     //console.log("LiveQuery update", cards);
     if (cards.length > 0) {
       // Preserve textarea field and cursor position.
@@ -961,7 +1038,7 @@ async function loadCardBasedDocument (treeId) {
   });
 
   // Setup Dexie liveQuery for local history data, after initial pull.
-  historyDataSubscription = Dexie.liveQuery(() => dexie.tree_snapshots.where("treeId").equals(treeId).toArray()).subscribe((history) => {
+  historyDataSubscription = Dexie.liveQuery(() => userDb().tree_snapshots.where("treeId").equals(treeId).toArray()).subscribe((history) => {
     if (history.length > 0) {
       const historyWithTs = history.map(h => ({
         ...h,
@@ -1036,7 +1113,7 @@ function treeToHtml (tree) {
 
 async function loadDocListAndSend() {
   loadingDocs = true;
-  let docList = await dexie.trees.toArray().catch(e => {console.error(e); return []});
+  let docList = await userDb().trees.toArray().catch(e => {console.error(e); return []});
   toElm(docList.filter(d => d.deletedAt == null).map(treeDocToMetadata),  "documentListChanged");
   loadingDocs = false;
 }

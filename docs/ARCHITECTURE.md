@@ -51,6 +51,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/session.js` | The session blob: its key, reading it back (a corrupt one is a guest, not a blank page), and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/shared/cards.js` | Reading the card log: one row per id, the newest, deletions dropped — the document's cards, its root card, and the ImmortalDB backup text |
 | `src/shared/documents.js` | Document-level writes: renaming, once, however many times Elm asks |
+| `src/shared/local-db.js` | Which Dexie database this account's documents live in: the name derived from the email, and the single account that adopts the legacy `"db"` |
 | `src/shared/port-errors.js` | What a failed message *from Elm* is worth telling the user, per tag; and whether an uncaught error is a browser extension rewriting the DOM |
 | `src/shared/save.js` | The local half of a save: apply a `SaveCardBased` payload to the document it names (cards, snapshot, tree timestamp) |
 | `src/shared/drag.js` | The drag lifecycle: which drag is in progress (a card, or text from outside the app), what Elm is told about it, and drag auto-scroll |
@@ -356,20 +357,27 @@ next/prev in column, descendants, scroll-position calculation, `sha1` ids).
    `seed`, `isMac`, `currentTime`). A value that is missing, unparseable or not
    an object is a guest session (`readSessionData`): this is the first step of
    boot, so an unguarded parse here was a blank page (CODE_REVIEW.md S8).
-2. **Auto-login**: if there is no stored email or the local `trees` table is
-   empty, fetch `/me`, merge the response into the session blob, and seed
-   Dexie with the server's document list.
-3. `setUserDbs(email)`: start the session's metadata sync
+2. **Open this account's database**, if the blob named one: `openUserDb(email)`
+   in `doc.js`, whose name comes from `src/shared/local-db.js` (§6.2). There is
+   no database before an account is known, so the `trees` count in step 3 is
+   skipped when there is no stored email.
+3. **Auto-login**: if there is no stored email or the local `trees` table is
+   empty, fetch `/me`, merge the response into the session blob, open the
+   database of the account it names, and seed it with the server's document
+   list.
+4. `setUserDbs(email)`: open this account's database (again — idempotent by
+   name, and the switch point when the account has changed), start the
+   session's metadata sync
    (`src/shared/metadata.js`), open the WebSocket, and subscribe a Dexie
    `liveQuery` on `trees` that pushes `documentListChanged` to Elm and hands
    each snapshot to that sync, which sends the unsynced rows (§6.3).
-4. `Elm.Main.init({flags})`, then subscribe `gingko.ports.infoForOutside` to
+5. `Elm.Main.init({flags})`, then subscribe `gingko.ports.infoForOutside` to
    the `fromElm(tag, data)` dispatch table. A tag with no handler is reported as
    an unexpected message; a handler that fails — including the `async` ones,
    whose rejections used to reach nobody — is reported by tag, and reaches the
    user when the failure means a change did not persist
    (`src/shared/port-errors.js`).
-5. Global listeners: `window.checkboxClicked` (used by rendered markdown),
+6. Global listeners: `window.checkboxClicked` (used by rendered markdown),
    a `beforeunload` dirty guard, fullscreen-change, and print.
 
 `ui.js` (`src/ui/index.ts`) registers the custom elements; `gw-textarea` is
@@ -380,11 +388,33 @@ registered from `doc-helpers.js`.
 | Store | Key/Table | Contents |
 |---|---|---|
 | localStorage | `gingko-session-storage` | session blob (email, sidebar, sortBy, …) — read as Elm flags |
+| localStorage | `gingko-local-db-owner` | which account owns the legacy Dexie database `"db"` (its email hash), see below |
 | localStorage | `gingko-local-store/<treeId>/settings` | per-document settings (`last-actives`, `theme`) |
 | Dexie `trees` (PK `id`) | | document metadata rows (`name`, `owner`, timestamps, `synced`) |
 | Dexie `cards` (PK `updatedAt`) | | append-only card version rows (§5.1) |
 | Dexie `tree_snapshots` (PK `snapshot`) | | local + pulled history snapshots |
 | ImmortalDB | `backup-snapshot:<treeId>` | write-only plain-text backup of newest card versions |
+
+**One Dexie database per account** (`src/shared/local-db.js`). The name is
+`db-<hash>`, where the hash is a 64-bit non-cryptographic hash (cyrb64) of the
+lower-cased address: the whole database, not a per-row filter, so nothing an
+account did not write can be read back, and each account's unsynced offline rows
+survive a switch away and back. The address is hashed rather than spelled
+because the name is readable through devtools and `indexedDB.databases()`, and
+`database-download.js` puts it in the filename of an export a user attaches to a
+bug report. `crypto.subtle` is not an option: it is undefined outside a secure
+context, which a self-host on plain HTTP is.
+
+Before ticket 27 there was one database called `"db"` for everyone, which was
+harmless until logging out existed (ticket 04) and a leak the moment it did. The
+migration is **adoption**: the first account to log in takes `"db"` as its own
+and records its hash under `gingko-local-db-owner`; that account keeps opening
+`"db"`, every other account opens `db-<hash>`. No rows are copied, so no upgrade
+can be half-done, and an account that cannot record the claim (denied storage)
+opens its own database rather than adopting on faith. The two treeId-keyed
+stores above are *not* per account, deliberately: they hold per-document view
+state and a backup nothing reads back, and a document id is legitimately shared
+between accounts when a document is (ticket 27's Comments has the reasoning).
 
 ### 6.3 WebSocket protocol
 
@@ -521,6 +551,6 @@ Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
 `*.test.ts` for bun test (custom elements against jsdom, the extracted
 sequences in `src/shared/stamps.js`, `src/shared/session.js`,
 `src/shared/save.js`, `src/shared/drag.js`, `src/shared/metadata.js`,
-`src/shared/cards.js`, `src/shared/documents.js`, `src/shared/port-errors.js`
-and `doc-helpers.js`'s `whenReady`, and the build's `config-check` /
-`elm-postprocess` seams). The pre-agreed seams are ADR-0001's.
+`src/shared/cards.js`, `src/shared/documents.js`, `src/shared/port-errors.js`,
+`src/shared/local-db.js` and `doc-helpers.js`'s `whenReady`, and the build's
+`config-check` / `elm-postprocess` seams). The pre-agreed seams are ADR-0001's.

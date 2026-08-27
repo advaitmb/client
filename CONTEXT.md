@@ -64,6 +64,14 @@ Vocabulary used in code, issues, and tests. Full system description:
   `pushOk` or reports `cardsConflict`.
 - **Snapshot** — a full non-deleted card set stored in `tree_snapshots` on
   every content save; powers the history slider and restore.
+- **The account's local database** — the Dexie database the logged-in account's
+  documents live in, named `db-<hash of the email>` (`src/shared/local-db.js`).
+  One per account, not one per browser: logging in as somebody else opens a
+  different database rather than clearing this one, so each account's unsynced
+  offline rows are still there when it comes back. The **claim**
+  (`gingko-local-db-owner`) is the one exception, and the whole of the
+  migration: the single account that has adopted `"db"`, the name every install
+  used before there was any way to log out.
 - **Document metadata** — the `trees` row behind a document: name, `deletedAt`,
   location, timestamp. It syncs on its own channel (the `trees` message), not
   as cards — a rename or a delete produces no card. Unsynced rows are
@@ -104,9 +112,11 @@ Vocabulary used in code, issues, and tests. Full system description:
    logout, adopting the server's account on boot; `src/shared/save.js`:
    applying a save; `src/shared/drag.js`: the drag lifecycle;
    `src/shared/metadata.js`: which document rows the server has not
-   acknowledged, and when they go out) — faked `fetch`, real `localStorage`,
-   injected callbacks, an injected fake socket and, for a database writer, an
-   injected in-memory fake of the tables.
+   acknowledged, and when they go out; `src/shared/local-db.js`: which database
+   an account's documents live in, and which single account adopts the legacy
+   one) — faked `fetch`, real `localStorage`, injected callbacks, an injected
+   fake socket and, for a database writer, an injected in-memory fake of the
+   tables.
 5. `Session`'s stored-blob surface (Elm, pure): `decode`/`encode` of the
    session blob and `responseDecoder` for a login answer — the preferences
    this client persists.
