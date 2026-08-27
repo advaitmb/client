@@ -20,6 +20,12 @@ orphaned scripts, and stale `.vscode` configs go; Tailwind `content` scans
 `src/ui/**/*.ts`; `elm-watch.json` target is named, and dev builds don't show
 raw `{%SUPPORT_EMAIL%}` placeholders.
 
+**Added scope (from ticket 03's resolution):** `src/static/style.css` still
+carries the dead payments-modal selectors (`#upgrade-*`, `#pwyw*`,
+`#price-*`, `.payment-button`, the `flash-2` keyframes — ~170 lines,
+interleaved with live `#migrate-modal` rules). Remove them with the other
+static residue; the producers were deleted in ticket 03.
+
 ## Acceptance criteria
 
 - [ ] `bun run newbuild` still produces a working `web/` (CI proves it).
