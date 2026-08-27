@@ -1,12 +1,10 @@
-module Utils exposing (delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, onClickStopStyled, ternary, text, textElmCss, textNoTr)
+module Utils exposing (delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, ternary, text, textNoTr)
 
 {--import DebugToJson exposing (pp)--}
 
 import Hex
 import Html exposing (Html)
 import Html.Events exposing (stopPropagationOn)
-import Html.Styled
-import Html.Styled.Events
 import Json.Decode as Dec
 import Murmur3 exposing (hashString)
 import Process
@@ -26,11 +24,6 @@ ternary condition trueValue falseValue =
 onClickStop : msg -> Html.Attribute msg
 onClickStop msg =
     stopPropagationOn "click" (Dec.succeed ( msg, True ))
-
-
-onClickStopStyled : msg -> Html.Styled.Attribute msg
-onClickStopStyled msg =
-    Html.Styled.Events.stopPropagationOn "click" (Dec.succeed ( msg, True ))
 
 
 hash : Int -> String -> String
@@ -53,18 +46,12 @@ gravatar _ _ =
     "/leaf128.png"
 
 
-
 -- Debugging
 
 
 text : TranslationId -> Html msg
 text tid =
     Html.text <| tr tid
-
-
-textElmCss : TranslationId -> Html.Styled.Html msg
-textElmCss tid =
-    Html.Styled.text <| tr tid
 
 
 textNoTr : String -> Html msg
