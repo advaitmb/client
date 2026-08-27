@@ -1,6 +1,6 @@
 # 13: Session preferences persist correctly (sidebar, last doc, tray/sort)
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
