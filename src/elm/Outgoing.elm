@@ -98,7 +98,7 @@ send info =
             dataToSend "SaveCardBased" data
 
         SaveImportedTree ( docId, name ) ->
-            dataToSend "SaveCardBasedTree" (tupleToValue string ( docId, name ))
+            dataToSend "SaveImportedTree" (tupleToValue string ( docId, name ))
 
         SaveCardBasedMigration data ->
             dataToSend "SaveCardBasedMigration" data

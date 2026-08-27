@@ -123,7 +123,7 @@ async function applyCardBasedSave(payload, deps) {
       await db.tree_snapshots.put(snapshot);
     }
     // An import's two port messages are unordered, so this can run before
-    // `SaveCardBasedTree` has added the row. Dexie's `update` on a key that is
+    // `SaveImportedTree` has added the row. Dexie's `update` on a key that is
     // not there writes nothing, and there is nothing to write: the row that
     // message adds carries its own `updatedAt` and is unsynced from birth.
     await db.trees.update(treeId, {updatedAt: timestamp, synced: false});

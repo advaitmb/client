@@ -630,7 +630,13 @@ const fromElm = (msg, elmData) => {
     // document now, and claiming the global early only pointed the socket
     // handlers at a document with no subscriptions while the one still on
     // screen kept receiving rows.
-    SaveCardBasedTree: async () => {
+    //
+    // Named `SaveCardBasedTree` here until ticket 24: Elm sent it as
+    // `Outgoing.SaveImportedTree`, so grep for either name missed this side
+    // (CODE_REVIEW.md S2). Both are `SaveImportedTree` now -- it names the
+    // operation rather than the storage format, and stops colliding with
+    // `SaveCardBased`, which is a different message entirely.
+    SaveImportedTree: async () => {
       const now = Date.now();
       const [importedTreeId, treeName] = elmData;
       const treeDoc = {...treeDocDefaults, name: treeName, id: importedTreeId, location: "cardbased", owner: email, createdAt: now, updatedAt: now};

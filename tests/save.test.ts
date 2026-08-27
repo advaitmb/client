@@ -9,7 +9,7 @@
  *
  * The case that matters here is a JSON import (CODE_REVIEW.md D5): the save it
  * hands over is for a document that is *not* the one on screen, and it travels
- * alongside a second port message (`SaveCardBasedTree`) whose order relative to
+ * alongside a second port message (`SaveImportedTree`) whose order relative to
  * this one `Cmd.batch` does not specify. So a save has to say which document it
  * is for, and touch nothing else.
  */
@@ -214,7 +214,7 @@ test("stamps the named document's row unsynced and leaves every other one alone"
 
 // An import can be the first thing a session does: nothing has been opened, so
 // there is no current document at all. It has to work anyway, and the tree row
-// may not be there yet either -- `SaveCardBasedTree` writes that, and the two
+// may not be there yet either -- `SaveImportedTree` writes that, and the two
 // port messages arrive in whichever order `Cmd.batch` chose.
 
 test("an import on a fresh session reports no error and snapshots the new document", async () => {

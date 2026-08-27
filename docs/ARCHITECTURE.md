@@ -448,12 +448,19 @@ incoming ones (`docMsgs`, `appMsgs`, `documentListChanged`, `importComplete`,
 **Live Elm → JS tags:** `StoreUser`, `SaveUserSetting`, `Alert`, `SetDirty`,
 `DragDone`, `ConfirmCancelCard`, `InitDocument`, `LoadDocument`,
 `GetDocumentList`, `RequestDelete`, `RenameDocument`, `SaveCardBased`,
-`SaveImportedTree` (JS tag `SaveCardBasedTree`), `PushDeltas`,
+`SaveImportedTree`, `PushDeltas`,
 `SendCollabState`, `ScrollCards`, `ScrollFullscreenCards`, `DragStart`,
 `CopyCurrentSubtree`, `CopyToClipboard`, `SelectAll`, `TextSurround`,
 `InsertMarkdownLink`, `SetCursorPosition`, `HistorySlider`,
 `SetSidebarState`, `SaveThemeSetting`, `Print`, `EmptyMessageShown`,
 `ConsoleLogRequested`, `LogoutUser`.
+
+**Every tag is spelled the same on both sides.** It was not: Elm's
+`Outgoing.SaveImportedTree` sent the JS tag `SaveCardBasedTree`, so a grep for
+either name found only one end of the message (CODE_REVIEW.md S2). Ticket 24
+made both `SaveImportedTree` — the name says what the message does, and no
+longer reads as a variant of `SaveCardBased`, which is a different message. A
+new tag that disagrees with its constructor is the same bug again.
 
 `SaveCardBased` carries `{ treeId, toAdd, toMarkSynced, toMarkDeleted,
 toRemove }` — the document it saves into is part of the payload, not the port
