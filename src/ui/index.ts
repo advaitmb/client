@@ -11,10 +11,16 @@
  * a surface can be moved (or moved back) without touching anything else.
  *
  * Moved so far:
- *   gw-help-modal   Doc/HelpScreen.elm
+ *   gw-help-modal        Doc/HelpScreen.elm
+ *   gw-wordcount-modal   Doc/UI.viewWordCount
+ *   gw-switcher-modal    Doc/Switcher.view + Doc/List.viewSwitcher
+ *   gw-template-modal    Doc/UI.viewTemplateSelector
  *
  * Still in Elm: the card tree, the header and sidebar, the document list,
  * and the remaining modals.
  */
 
 import "./help-modal";
+import "./wordcount-modal";
+import "./switcher-modal";
+import "./template-modal";

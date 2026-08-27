@@ -1,4 +1,4 @@
-module Doc.UI exposing (countWords, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTemplateSelector, viewTooltip, viewWordCount)
+module Doc.UI exposing (countWords, encodeStats, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTooltip)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -13,6 +13,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
 import Html.Extra exposing (viewIf)
 import Import.Template exposing (Template(..))
+import Json.Encode as Enc
 import Markdown.Block
 import Markdown.Html
 import Markdown.Parser
@@ -190,103 +191,33 @@ viewDocumentLoadingSpinner =
 -- MODALS
 
 
-viewTemplateSelector :
-    LoggedIn
-    ->
-        { modalClosed : msg
-        , importJSONRequested : msg
-        }
-    -> List (Html msg)
-viewTemplateSelector session msgs =
-    [ div [ id "templates-block" ]
-        [ h2 [] [ text New ]
-        , div [ class "template-row" ]
-            [ a [ id "template-new", class "template-item", href (Route.toString Route.DocNew) ]
-                [ div [ classList [ ( "template-thumbnail", True ), ( "new", True ) ] ] []
-                , div [ class "template-title" ] [ text HomeBlank ]
-                ]
-            ]
-        , h2 [] [ text ImportSectionTitle ]
-        , div [ class "template-row" ]
-            [ div [ id "template-import", class "template-item", onClick msgs.importJSONRequested ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ Icon.fileCode (Icon.defaultOptions |> Icon.size 48) ]
-                , div [ class "template-title" ] [ text HomeImportJSON ]
-                , div [ class "template-description" ]
-                    [ text HomeJSONFrom ]
-                ]
-            ]
-        , h2 [] [ text TemplatesAndExamples ]
-        , div [ class "template-row" ]
-            [ a [ id "template-timeline", class "template-item", href <| Route.toString (Route.Import Timeline) ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.calendarOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text TimelineTemplate ]
-                , div [ class "template-description" ]
-                    [ text TimelineTemplateDesc ]
-                ]
-            , a [ id "template-academic", class "template-item", href <| Route.toString (Route.Import AcademicPaper) ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.experimentOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text AcademicPaperTemplate ]
-                , div [ class "template-description" ]
-                    [ text AcademicPaperTemplateDesc ]
-                ]
-            , a [ id "template-project", class "template-item", href <| Route.toString (Route.Import ProjectBrainstorming) ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.bulbOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text ProjectBrainstormingTemplate ]
-                , div [ class "template-description" ]
-                    [ text ProjectBrainstormingTemplateDesc ]
-                ]
-            , a [ id "template-heros-journey", class "template-item", href <| Route.toString (Route.Import HerosJourney) ]
-                [ div [ classList [ ( "template-thumbnail", True ) ] ] [ AntIcons.thunderboltOutlined [ width 48, height 48 ] ]
-                , div [ class "template-title" ] [ text HerosJourneyTemplate ]
-                , div [ class "template-description" ]
-                    [ text HerosJourneyTemplateDesc ]
-                ]
-            ]
-        ]
-    ]
-        |> modalWrapper msgs.modalClosed Nothing Nothing (tr NewDocument)
 
 
-viewWordCount :
+encodeStats :
     { activeCardId : String
     , workingTree : TreeStructure.Model
     , startingWordcount : Int
-    , globalData : GlobalData
     }
-    -> { modalClosed : msg }
-    -> List (Html msg)
-viewWordCount model msgs =
+    -> Enc.Value
+encodeStats model =
     let
         stats =
             getStats model
-
-        current =
-            stats.documentWords
-
-        session =
-            current - model.startingWordcount
     in
-    [ div [ id "word-count-table" ]
-        [ div [ class "word-count-column" ]
-            [ span [] [ text (WordCountCard stats.cardWords) ]
-            , span [] [ text (WordCountSubtree stats.subtreeWords) ]
-            , span [] [ text (WordCountGroup stats.groupWords) ]
-            , span [] [ text (WordCountColumn stats.columnWords) ]
-            , span [] [ text (WordCountSession session) ]
-            , span [] [ text (WordCountTotal current) ]
-            ]
-        , div [ class "word-count-column" ]
-            [ span [] [ text (CharacterCountCard stats.cardChars) ]
-            , span [] [ text (CharacterCountSubtree stats.subtreeChars) ]
-            , span [] [ text (CharacterCountGroup stats.groupChars) ]
-            , span [] [ text (CharacterCountColumn stats.columnChars) ]
-            , span [] [ text (CharacterCountTotal stats.documentChars) ]
-            ]
+    Enc.object
+        [ ( "cardWords", Enc.int stats.cardWords )
+        , ( "subtreeWords", Enc.int stats.subtreeWords )
+        , ( "groupWords", Enc.int stats.groupWords )
+        , ( "columnWords", Enc.int stats.columnWords )
+        , ( "sessionWords", Enc.int (stats.documentWords - model.startingWordcount) )
+        , ( "documentWords", Enc.int stats.documentWords )
+        , ( "cardChars", Enc.int stats.cardChars )
+        , ( "subtreeChars", Enc.int stats.subtreeChars )
+        , ( "groupChars", Enc.int stats.groupChars )
+        , ( "columnChars", Enc.int stats.columnChars )
+        , ( "documentChars", Enc.int stats.documentChars )
+        , ( "cards", Enc.int stats.cards )
         ]
-    , span [ style "text-align" "center" ] [ text (WordCountTotalCards stats.cards) ]
-    ]
-        |> modalWrapper msgs.modalClosed Nothing Nothing "Word & Character Counts"
-
 
 
 -- DOCUMENT

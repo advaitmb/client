@@ -10,11 +10,22 @@
 type Child = Node | string | null | undefined | false;
 type Attrs = Record<string, string | number | boolean | EventListener | null | undefined>;
 
-/** h("div.modal", {id: "x"}, child, child) — the tag may carry .classes. */
+/**
+ * h("div.modal", {…}, …children) — the spec may carry #id and .classes,
+ * in either order: "input#switcher-input.mousetrap".
+ */
+const SPEC = /^([a-z][a-z0-9-]*)?(#[A-Za-z0-9_-]+)?((?:\.[A-Za-z0-9_-]+)*)$/;
+
 export function h(spec: string, attrs: Attrs = {}, ...children: Child[]): HTMLElement {
-  const [tag, ...classes] = spec.split(".");
+  const m = SPEC.exec(spec);
+  // Loud on purpose: an unparsed spec used to reach createElement as a bogus
+  // tag name and produce an element that silently matched no selector.
+  if (!m) throw new Error(`h(): malformed spec ${JSON.stringify(spec)}`);
+  const [, tag, id, classSpec] = m;
+
   const el = document.createElement(tag || "div");
-  if (classes.length) el.className = classes.join(" ");
+  if (id) el.id = id.slice(1);
+  if (classSpec) el.className = classSpec.slice(1).split(".").join(" ");
 
   for (const [k, v] of Object.entries(attrs)) {
     if (v === null || v === undefined || v === false) continue;

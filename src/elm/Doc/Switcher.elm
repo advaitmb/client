@@ -1,10 +1,8 @@
-module Doc.Switcher exposing (Model, down, search, up, view)
+module Doc.Switcher exposing (Model, currentId, down, encodeDocs, search, selectedId, up)
 
 import Doc.List as DocList
 import Doc.Metadata as Metadata exposing (Metadata)
-import Html exposing (Html, div, input, span, text)
-import Html.Attributes exposing (attribute, class, id, placeholder, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Json.Encode as Enc
 import List.Extra as ListExtra
 
 
@@ -103,40 +101,35 @@ search term model =
 -- VIEW
 
 
-view : msg -> (String -> msg) -> Model -> List (Html msg)
-view closeClicked searchInput { currentDocument, selectedDocument, searchField, docList } =
-    let
-        filteredList =
-            docList
-                |> DocList.switchListSort currentDocument
-                |> DocList.filter searchField
-    in
-    [ div [ class "modal-container" ]
-        [ div [ class "modal-overlay", onClick closeClicked ] []
-        , div [ id "switcher-modal" ]
-            [ input
-                [ id "switcher-input"
-                , type_ "search"
-                , value searchField
-                , onInput searchInput
-                , class "mousetrap"
-                , placeholder "Type file name to select"
-                , attribute "data-private" "lipsum"
-                ]
-                []
-            , DocList.viewSwitcher currentDocument
-                { docList = filteredList
-                , selected = selectedDocument |> Maybe.withDefault (Metadata.getDocId currentDocument)
-                }
-            , div [ class "switcher-instructions" ]
-                [ div [ class "switcher-instruction" ] [ span [ class "shortcut-key" ] [ text "↓ ↑" ], text " to select" ]
-                , div [ class "switcher-instruction" ] [ span [ class "shortcut-key" ] [ text "Enter" ], text " to open" ]
-                , div [ class "switcher-instruction" ] [ span [ class "shortcut-key" ] [ text "Esc" ], text " to dismiss" ]
-                ]
-            ]
-        ]
-    ]
+{-| The filtered, sorted list the switcher shows, as JSON for
+<gw-switcher-modal>. Filtering and sort order stay here; only the markup
+moved to src/ui/switcher-modal.ts.
+-}
+encodeDocs : Model -> Enc.Value
+encodeDocs ({ currentDocument, searchField, docList } as model) =
+    filteredDocs model
+        |> Maybe.withDefault []
+        |> Enc.list
+            (\md ->
+                Enc.object
+                    [ ( "id", Enc.string (Metadata.getDocId md) )
+                    , ( "name"
+                      , Metadata.getDocName md
+                            |> Maybe.map Enc.string
+                            |> Maybe.withDefault Enc.null
+                      )
+                    ]
+            )
 
+
+selectedId : Model -> String
+selectedId { selectedDocument, currentDocument } =
+    selectedDocument |> Maybe.withDefault (Metadata.getDocId currentDocument)
+
+
+currentId : Model -> String
+currentId { currentDocument } =
+    Metadata.getDocId currentDocument
 
 
 -- HELPERS

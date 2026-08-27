@@ -352,8 +352,6 @@ type Msg
       -- Account menu
     | ToggledAccountMenu Bool
       -- Import
-    | ImportJSONRequested
-    | ImportJSONSelected File
     | ImportJSONLoaded String String
     | ImportJSONIdGenerated Tree String String
     | ImportSingleCompleted String
@@ -1073,12 +1071,6 @@ update msg model =
             )
 
         -- Import
-        ImportJSONRequested ->
-            ( model, Select.file [ "application/json", "text/plain" ] ImportJSONSelected )
-
-        ImportJSONSelected file ->
-            ( model, Task.perform (ImportJSONLoaded (File.name file)) (File.toString file) )
-
         ImportJSONLoaded fileName jsonString ->
             let
                 ( importTreeDecoder, newSeed ) =
@@ -1762,7 +1754,17 @@ viewModal globalData session modalState =
             []
 
         FileSwitcher switcherModel ->
-            Doc.Switcher.view SwitcherClosed FileSearchChanged switcherModel
+            -- Filtering, sorting and the up/down selection stay in
+            -- Doc.Switcher; src/ui/switcher-modal.ts renders the result.
+            [ node "gw-switcher-modal"
+                [ attribute "docs" (Doc.Switcher.encodeDocs switcherModel |> Enc.encode 0)
+                , attribute "current" (Doc.Switcher.currentId switcherModel)
+                , attribute "selected" (Doc.Switcher.selectedId switcherModel)
+                , on "gw-search" (Json.map FileSearchChanged (Json.at [ "detail" ] Json.string))
+                , on "gw-close" (Json.succeed SwitcherClosed)
+                ]
+                []
+            ]
 
         SidebarContextMenu docId ( x, y ) ->
             let
@@ -1787,10 +1789,18 @@ viewModal globalData session modalState =
             ]
 
         TemplateSelector ->
-            UI.viewTemplateSelector session
-                { modalClosed = ModalClosed
-                , importJSONRequested = ImportJSONRequested
-                }
+            -- Pure presentation: src/ui/template-modal.ts. Every tile is a
+            -- link to a route Elm already owns, bar the JSON import action.
+            [ node "gw-template-modal"
+                [ on "gw-close" (Json.succeed ModalClosed)
+                , on "gw-import-json"
+                    (Json.map2 ImportJSONLoaded
+                        (Json.at [ "detail", "name" ] Json.string)
+                        (Json.at [ "detail", "text" ] Json.string)
+                    )
+                ]
+                []
+            ]
 
         HelpScreen ->
             -- Rendered by src/ui/help-modal.ts. Elm decides when it is on
@@ -1804,13 +1814,21 @@ viewModal globalData session modalState =
             ]
 
         Wordcount docModel ->
-            UI.viewWordCount
-                { activeCardId = Page.Doc.getActiveId docModel
-                , workingTree = Page.Doc.getWorkingTree docModel
-                , startingWordcount = 0
-                , globalData = globalData
-                }
-                { modalClosed = ModalClosed }
+            -- Counting stays in Elm (Doc.UI.getStats walks the tree); the table
+            -- is rendered by src/ui/wordcount-modal.ts.
+            [ node "gw-wordcount-modal"
+                [ attribute "stats"
+                    (UI.encodeStats
+                        { activeCardId = Page.Doc.getActiveId docModel
+                        , workingTree = Page.Doc.getWorkingTree docModel
+                        , startingWordcount = 0
+                        }
+                        |> Enc.encode 0
+                    )
+                , on "gw-close" (Json.succeed ModalClosed)
+                ]
+                []
+            ]
 
         UpgradeModal ->
             let
