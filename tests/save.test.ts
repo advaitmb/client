@@ -201,7 +201,7 @@ test("stamps the named document's row unsynced and leaves every other one alone"
 // may not be there yet either -- `SaveCardBasedTree` writes that, and the two
 // port messages arrive in whichever order `Cmd.batch` chose.
 
-test("an import on a fresh session succeeds", async () => {
+test("an import on a fresh session reports no error and snapshots the new document", async () => {
   const db = fakeDexie();
 
   await applyCardBasedSave(importPayload(IMPORTED_DOC), deps(db));

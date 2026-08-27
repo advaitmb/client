@@ -2,18 +2,18 @@
  * The local half of a save — the port layer's side of `SaveCardBased`
  * (ADR-0001 seam 4).
  *
- * Elm decides *what* a save changes (`Doc.Data.localSave`, `restore`,
- * `resolveConflicts`, `pushOkHandler`, `importTree`) and hands the change
- * lists over the port; this is everything that happens next locally: the card
- * rows are applied in one transaction, a local history snapshot is written
- * when the document's content changed, and the document's row is stamped
- * unsynced so the trees liveQuery pushes the new timestamp.
+ * Elm decides *what* a save changes (`Doc.Data.localSave`, `cardDataReceived`,
+ * `restore`, `resolveConflicts`, `pushOkHandler`, `importTree`) and hands the
+ * change lists over the port; this is everything that happens next locally:
+ * the card rows are applied in one transaction, a local history snapshot is
+ * written when the document's content changed, and the document's row is
+ * stamped unsynced so the trees liveQuery pushes the new timestamp.
  *
  * It lives here rather than inline in `doc.js`'s dispatch table because
  * `doc.js` starts the whole app at module load (`initElmAndPorts`), so nothing
  * in it can be imported by a test. Its collaborators are passed in: the Dexie
- * database, the two id/clock sources, and the two callbacks for what only the
- * port layer owns (the dirty flag and telling the user).
+ * database, the three clock/id sources, and the two callbacks for what only
+ * the port layer owns (the dirty flag and telling the user).
  */
 
 /**
@@ -111,5 +111,4 @@ async function applyCardBasedSave(payload, deps) {
 
 module.exports = {
   applyCardBasedSave: applyCardBasedSave,
-  cardBasedSaveError: cardBasedSaveError,
 };
