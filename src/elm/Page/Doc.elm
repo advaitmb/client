@@ -1193,26 +1193,30 @@ changeMode { to, instant, save } model =
                             )
 
                 ( Normal _, Editing newEditData ) ->
+                    -- The guard comes last, as it does in `insert`: it answers
+                    -- for everything above it, so a blocked document is left
+                    -- alone with its alert and no collaborator is told about an
+                    -- editor that was never opened (E5).
                     ( newModel to
                     , Cmd.batch [ focus newEditData.cardId, scrollCmd ]
                     , []
                     )
-                        |> preventIfBlocked model
                         |> andThen
                             (updateCollabState True
                                 (CollabEditing newEditData.cardId)
                             )
+                        |> preventIfBlocked model
 
                 ( Editing oldEditData, Editing newEditData ) ->
                     ( newModel to
                     , Cmd.batch [ focus newEditData.cardId, scrollCmd ]
                     , []
                     )
-                        |> preventIfBlocked model
                         |> andThen
                             (updateCollabState (oldEditData.cardId /= newEditData.cardId)
                                 (CollabEditing newEditData.cardId)
                             )
+                        |> preventIfBlocked model
 
                 ( FullscreenEditing oldEditData, Editing newEditData ) ->
                     ( newModel to
