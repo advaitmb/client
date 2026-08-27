@@ -15,6 +15,10 @@ port dispatch reports the real error and catches async handler rejections
 white-screening (S8); the duplicated `CARD_DATA` symbol and other hidden
 couplings in S13 are consolidated where cheap.
 
+**Added scope (from ticket 07's resolution):** `doc-helpers.js`'s
+`editBlurHandler` is one module-level handler shared by all `gw-textarea`
+instances — per-instance state is the S13-style fix.
+
 ## Acceptance criteria
 
 - [ ] No anonymous-listener accumulation on `ScrollCards` (verifiable by

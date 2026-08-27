@@ -21,6 +21,11 @@ session:
 - E14 — the edit-mode shortcut tray renders real strings instead of literal
   "AltKey ParenNumber SetHeadingLevel" (mirror the TS help-modal fix).
 
+**Added scope (from ticket 07's resolution):** `gw-textarea`'s
+`observedAttributes` omits `disabled`, so its `attributeChangedCallback`
+branch for it is dead — reachable via fullscreen's `editingByCollab`. Fix
+alongside E5/E6.
+
 ## Acceptance criteria
 
 - [ ] Each fix has a test where a seam exists (E5/E11/E13 via Elm tests; E6
