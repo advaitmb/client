@@ -1,6 +1,6 @@
 module CodecTest exposing (metadataRoundTrip, updatedAtRoundTrip)
 
-{-| Tests at the ADR-0001 seam 12: a value this client writes decodes back to
+{-| Tests at the ADR-0001 seam 13: a value this client writes decodes back to
 itself.
 
 Both subjects here are encoder/decoder pairs whose halves had drifted apart
