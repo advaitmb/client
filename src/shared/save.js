@@ -92,6 +92,11 @@ async function applyCardBasedSave(payload, deps) {
         return;
       }
 
+      // KNOWN GAP, moved here unchanged: these are raw rows, not the newest
+      // row per card id, so a deleted card still contributes its stale
+      // pre-deletion row and restoring this snapshot undeletes it. ADR-0005 §1
+      // applies to the JS side too; `.scratch/selfhost-hardening/issues/
+      // 28-local-snapshot-newest-per-id.md` owns the fix.
       const cards = await db.cards.where({ treeId: treeId, deleted: 0 }).toArray();
       const lastUpdatedTime = cards.map((c) => c.updatedAt.split(':')[0]).reduce((a, b) => Math.max(a, b));
       const snapshotId = `${lastUpdatedTime}:${treeId}`;
