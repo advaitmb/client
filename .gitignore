@@ -28,3 +28,6 @@ test-results/
 tests/e2e/.auth/
 playwright-report/
 elm-home/
+
+# Claude Code agent worktrees
+.claude/worktrees/
