@@ -570,17 +570,6 @@ update msg model =
                         DocNotFound _ _ ->
                             ( model, Cmd.none )
 
-                SavedRemotely saveTime ->
-                    case model.documentState of
-                        Doc docState ->
-                            ( { model | documentState = Doc { docState | lastRemoteSave = Just saveTime } }, Cmd.none )
-
-                        Empty _ _ ->
-                            ( model, Cmd.none )
-
-                        DocNotFound _ _ ->
-                            ( model, Cmd.none )
-
                 ErrorAlert alertMsg ->
                     ( { model | errorState = True }, delay 0 (AddToast Persistent (Toast Error alertMsg)) )
 
@@ -1945,7 +1934,6 @@ type IncomingAppMsg
     | PushOk (List String)
     | PushError
     | MetadataUpdate Metadata
-    | SavedRemotely Time.Posix
     | ErrorAlert String
     | NotFound String
 
@@ -1979,14 +1967,6 @@ subscribe tagger onError =
                     case decodeValue Metadata.decoder outsideInfo.data of
                         Ok metadata ->
                             tagger (MetadataUpdate metadata)
-
-                        Err err ->
-                            onError (errorToString err)
-
-                "SavedRemotely" ->
-                    case decodeValue (Json.map Time.millisToPosix Json.int) outsideInfo.data of
-                        Ok posix ->
-                            tagger (SavedRemotely posix)
 
                         Err err ->
                             onError (errorToString err)
