@@ -222,6 +222,24 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   of its own. 4 tests at seam 4. Details in
   `issues/28-local-snapshot-newest-per-id.md`.
 
+- Ticket 30 resolved — the follow-up ticket 29 filed on itself, and a plain
+  case-analysis bug: `mergeCards`' merge-down branch cased on the merge-up
+  branch's pair with the roles swapped but kept its limbs in the old order, so
+  a merge down into a *childless* card staged no re-parenting rows for the
+  merged card's children while the same save deleted their parent — and
+  `toTree` builds from the root down, so the whole subtree left the document
+  (recoverable only from history). Its mirror limb was wrong the same way and
+  harmless by luck: it mapped a list that is empty exactly when that limb is
+  taken. Whether the children come over is not directional — they always do;
+  only where they land is. So the eight limbs became one offset (past the
+  survivor's last child going down, before its first going up, zero when
+  either card is childless and there is nothing to clear) applied to every
+  child of the merged card, which preserves their gaps per ticket 11. 8 tests
+  at seam 1, 2 red first (the dropped rows, and the tree the user is left
+  with); the other 6 pin both directions of the cases that already worked.
+  `CONTEXT.md` gains **Merge**. Details in
+  `issues/30-merge-down-orphans-children.md`.
+
 ## Owner decisions (answered 2026-08-27)
 
 All four questionnaire answers in
