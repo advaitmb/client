@@ -145,6 +145,20 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   minting position 0 onto the first sibling. Sibling sorts are `(position, id)`
   as defence against ties another client writes. 7 new tests at seam 1. Details
   in `issues/11-position-rebalancing.md`.
+- Ticket 19 resolved — A1-A4 closed: the auth pages no longer speak for a
+  hosted service. The forgot-password link and its two zero-caller request
+  functions are **removed**, not implemented (owner's decision; the ticket
+  records what to restore when the deployment can send email). Login dropped
+  the 7-character minimum — whether a password is acceptable is the server's
+  answer, and the rule locked out any account whose password predates it —
+  which also ended the two-messages-for-one-blank-field stacking; the length
+  rule stays on signup, where a password is chosen. Signup's labels point at
+  their real input ids, its 409 talks about the email address it actually
+  collects, and the mailing-list opt-in is gone end to end (checkbox, `Msg`,
+  model field, request parameter, POST field — the server assigned
+  `req.body.subscribed` to a variable it never read). `Session.fromLegacy`
+  stayed: only its copy named gingkoapp.com. ADR-0001 gains seam 7 (auth
+  forms, Elm, pure); 6 tests. Details in `issues/19-auth-pages.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
