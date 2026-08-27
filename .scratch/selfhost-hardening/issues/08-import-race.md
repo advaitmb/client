@@ -124,6 +124,12 @@ Rebased on `selfhost` at `3a56472` (over tickets 11 and 19, which landed
 mid-work): `bun run test:elm` 43/43, `bun test` 58/58 across 9 files,
 `bun run newbuild` succeeds, `node config-check.js` exit 0.
 
+CI green on `selfhost` for both:
+run <https://github.com/advaitmb/client/actions/runs/33070921474> (`e0b0646`,
+the code) and
+<https://github.com/advaitmb/client/actions/runs/33071370803> (`0810fc5`,
+covering the two self-review commits and the tracker).
+
 ## Comments
 
 - **Red-first evidence.** The handler was first extracted verbatim, with the
