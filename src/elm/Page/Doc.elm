@@ -11,7 +11,7 @@ import Html exposing (Html, div, node, text)
 import Html.Attributes as Attributes exposing (attribute, id, style)
 import Html.Events exposing (on)
 import Html.Keyed as Keyed
-import Html.Lazy exposing (lazy3)
+import Html.Lazy exposing (lazy2)
 import Json.Decode as Json
 import Json.Encode as Enc
 import List.Extra as ListExtra
@@ -2027,7 +2027,7 @@ viewLoaded ({ docMsg } as appMsg) model =
                 Nothing ->
                     []
     in
-    [ lazy3 treeView (GlobalData.isMac model.globalData) model.viewState model.workingTree |> Html.map docMsg
+    [ lazy2 treeView model.viewState model.workingTree |> Html.map docMsg
     , if (not << List.isEmpty) cardTitles then
         UI.viewBreadcrumbs Activate cardTitles |> Html.map docMsg
 
@@ -2065,9 +2065,13 @@ cards and every keyboard shortcut; src/ui/tree.ts renders them.
 The two attributes are separate on purpose. `tree` changes when the document
 changes; `view-state` changes on every arrow keypress. Combining them would
 mean re-encoding the whole document on every cursor move.
+
+Those two are also the whole of what it renders, so those two are what the
+`lazy2` above keys on. It used to be handed `isMac` as a third key and ignore
+it (CODE_REVIEW.md P5).
 -}
-treeView : Bool -> ViewState -> TreeStructure.Model -> Html Msg
-treeView _ vstate model =
+treeView : ViewState -> TreeStructure.Model -> Html Msg
+treeView vstate model =
     let
         activeId =
             getActiveIdFromViewState vstate
