@@ -44,6 +44,14 @@
    was already here. Test through `Session`'s exported functions, plus the
    `Page.App` helpers that decide what gets stored (`sidebarIsOpen`) — never
    `Page.App.update` itself, which needs a `Nav.Key` no test can make.
+6. Build-time gates — the scripts `newbuild` and CI depend on:
+   `config-check.js` (ticket 01, run as a subprocess against fabricated
+   `config.js` files in a temp dir) and `elm-postprocess.mjs`'s placeholder
+   substitution (ticket 20). Same rule as seam 2: expose the decision as a
+   pure function taking its inputs (`substitutePlaceholders(code, conf)`) and
+   test that, not the ambient `config.js`. These are in scope because a
+   silently-passing gate is indistinguishable from a missing one — exactly
+   the B1 and B13 failures.
 
 No test is written at a seam outside this list without updating this ADR.
 
