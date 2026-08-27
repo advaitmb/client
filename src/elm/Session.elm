@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestForgotPassword, requestLogin, requestResetPassword, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -24,47 +24,35 @@ type Session
     | LoggedInSession LoggedIn
 
 
-{-| A guest carries the preferences of the user who was last logged in here,
-so that logging back in cannot reset them (E3): the login response is decoded
-against them, and only what the server actually says overrides them.
--}
 type Guest
-    = Guest SessionData UserPrefs
+    = Guest SessionData
 
 
 type LoggedIn
     = LoggedIn SessionData UserData
 
 
+{-| What this browser knows about the session, whether or not anyone is logged
+in: the preferences the user set here, and where they were. All of it is
+persisted (in the session blob Elm's flags are decoded from) and none of it
+comes from the server, which is why it survives a logout and a login -- the
+guest session carries it across, so logging back in cannot reset it (E3).
+-}
 type alias SessionData =
     { fileMenuOpen : Bool
     , lastDocId : Maybe String
+    , shortcutTrayOpen : Bool
+    , sortBy : SortBy
     , fromLegacy : Bool
     , firstRun : Bool
     }
 
 
-{-| The preferences a login must preserve. They live in `UserData` for a
-logged-in session; this is how they cross the guest boundary.
+{-| Who is logged in, as the server describes them.
 -}
-type alias UserPrefs =
-    { shortcutTrayOpen : Bool
-    , sortBy : SortBy
-    }
-
-
-defaultPrefs : UserPrefs
-defaultPrefs =
-    { shortcutTrayOpen = False
-    , sortBy = ModifiedAt
-    }
-
-
 type alias UserData =
     { email : String
     , confirmedAt : Maybe Time.Posix
-    , shortcutTrayOpen : Bool
-    , sortBy : SortBy
     , documents : DocList.Model
     , features : List Feature
     }
@@ -75,13 +63,8 @@ type alias UserData =
 
 
 guestSessionData : Guest -> SessionData
-guestSessionData (Guest sessionData _) =
+guestSessionData (Guest sessionData) =
     sessionData
-
-
-guestPrefs : Guest -> UserPrefs
-guestPrefs (Guest _ prefs) =
-    prefs
 
 
 getFromLoggedInSession : (SessionData -> a) -> LoggedIn -> a
@@ -100,7 +83,7 @@ lastDocId session =
 
 
 fromLegacy : Guest -> Bool
-fromLegacy (Guest sessionData _) =
+fromLegacy (Guest sessionData) =
     sessionData.fromLegacy
 
 
@@ -130,13 +113,13 @@ isNotConfirmed (LoggedIn _ data) =
 
 
 shortcutTrayOpen : LoggedIn -> Bool
-shortcutTrayOpen (LoggedIn _ data) =
-    data.shortcutTrayOpen
+shortcutTrayOpen session =
+    getFromLoggedInSession .shortcutTrayOpen session
 
 
 sortBy : LoggedIn -> SortBy
-sortBy (LoggedIn _ data) =
-    data.sortBy
+sortBy session =
+    getFromLoggedInSession .sortBy session
 
 
 documents : LoggedIn -> DocList.Model
@@ -256,18 +239,18 @@ confirmEmail currentTime (LoggedIn key data) =
 
 
 setShortcutTrayOpen : Bool -> LoggedIn -> LoggedIn
-setShortcutTrayOpen isOpen (LoggedIn key data) =
-    LoggedIn key { data | shortcutTrayOpen = isOpen }
+setShortcutTrayOpen isOpen (LoggedIn sessData userData) =
+    LoggedIn { sessData | shortcutTrayOpen = isOpen } userData
 
 
 setSortBy : SortBy -> LoggedIn -> LoggedIn
 setSortBy newSort (LoggedIn sessData userData) =
-    LoggedIn sessData { userData | sortBy = newSort }
+    LoggedIn { sessData | sortBy = newSort } userData
 
 
 updateDocuments : DocList.Model -> LoggedIn -> LoggedIn
 updateDocuments docList (LoggedIn sessData userData) =
-    LoggedIn sessData { userData | documents = DocList.update userData.sortBy docList userData.documents }
+    LoggedIn sessData { userData | documents = DocList.update sessData.sortBy docList userData.documents }
 
 
 
@@ -276,13 +259,18 @@ updateDocuments docList (LoggedIn sessData userData) =
 
 public : Session
 public =
-    GuestSession (Guest emptySessionData defaultPrefs)
+    GuestSession (Guest emptySessionData)
 
 
+{-| A session nobody has set anything in yet: the defaults every decoder falls
+back to, in one place.
+-}
 emptySessionData : SessionData
 emptySessionData =
     { fileMenuOpen = False
     , lastDocId = Nothing
+    , shortcutTrayOpen = False
+    , sortBy = ModifiedAt
     , fromLegacy = False
     , firstRun = False
     }
@@ -300,7 +288,7 @@ decode json =
                     GuestSession session
 
                 Err _ ->
-                    GuestSession (Guest emptySessionData defaultPrefs)
+                    GuestSession (Guest emptySessionData)
 
 
 decoderGuestSession : Dec.Decoder Guest
@@ -310,18 +298,17 @@ decoderGuestSession =
             Guest
                 { fileMenuOpen = side
                 , lastDocId = lastDoc_
+                , shortcutTrayOpen = trayOpen
+                , sortBy = sortCriteria
                 , fromLegacy = legacy
                 , firstRun = False
                 }
-                { shortcutTrayOpen = trayOpen
-                , sortBy = sortCriteria
-                }
         )
         |> optional "fromLegacy" Dec.bool False
-        |> optional "sidebarOpen" Dec.bool False
-        |> optional "lastDocId" (Dec.maybe Dec.string) Nothing
-        |> optional "shortcutTrayOpen" Dec.bool defaultPrefs.shortcutTrayOpen
-        |> optional "sortBy" sortByDecoder defaultPrefs.sortBy
+        |> optional "sidebarOpen" Dec.bool emptySessionData.fileMenuOpen
+        |> optional "lastDocId" (Dec.maybe Dec.string) emptySessionData.lastDocId
+        |> optional "shortcutTrayOpen" Dec.bool emptySessionData.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder emptySessionData.sortBy
 
 
 decoderLoggedIn : Dec.Decoder LoggedIn
@@ -331,18 +318,20 @@ decoderLoggedIn =
             LoggedIn
                 { fileMenuOpen = side
                 , lastDocId = lastDoc_
+                , shortcutTrayOpen = trayOpen
+                , sortBy = sortCriteria
                 , fromLegacy = legacy
                 , firstRun = False
                 }
-                (UserData email confirmTime trayOpen sortCriteria DocList.init featList)
+                (UserData email confirmTime DocList.init featList)
         )
         |> required "email" Dec.string
         |> optional "fromLegacy" Dec.bool False
-        |> optional "sidebarOpen" Dec.bool False
+        |> optional "sidebarOpen" Dec.bool emptySessionData.fileMenuOpen
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
-        |> optional "shortcutTrayOpen" Dec.bool defaultPrefs.shortcutTrayOpen
-        |> optional "sortBy" sortByDecoder defaultPrefs.sortBy
-        |> optional "lastDocId" (Dec.maybe Dec.string) Nothing
+        |> optional "shortcutTrayOpen" Dec.bool emptySessionData.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder emptySessionData.sortBy
+        |> optional "lastDocId" (Dec.maybe Dec.string) emptySessionData.lastDocId
         |> optional "features" Features.decoder []
 
 
@@ -383,37 +372,35 @@ responseDecoder usrSrc session =
                                 data
                    )
 
-        storedPrefs =
-            guestPrefs session
-
         builder : String -> Maybe Time.Posix -> Bool -> SortBy -> List Metadata -> List Feature -> LoggedIn
         builder email confAt trayOpen sortCriteria docs feats =
             LoggedIn
-                sessionData
-                (UserData email confAt trayOpen sortCriteria (DocList.fromList docs) feats)
+                { sessionData | shortcutTrayOpen = trayOpen, sortBy = sortCriteria }
+                (UserData email confAt (DocList.fromList docs) feats)
     in
     Dec.succeed builder
         |> required "email" Dec.string
         |> optional "confirmedAt" decodeConfirmedStatus (Just (Time.millisToPosix 0))
-        |> optional "shortcutTrayOpen" Dec.bool storedPrefs.shortcutTrayOpen
-        |> optional "sortBy" sortByDecoder storedPrefs.sortBy
+        |> optional "shortcutTrayOpen" Dec.bool sessionData.shortcutTrayOpen
+        |> optional "sortBy" sortByDecoder sessionData.sortBy
         |> optional "documents" Metadata.responseDecoder []
         |> optional "features" Features.decoder []
 
 
-encodeUserData : UserData -> Enc.Value
-encodeUserData userData =
+{-| The stored session blob, as `StoreUser` writes it. That write replaces the
+blob wholesale, so every preference `decoderLoggedIn` reads has to be here or
+logging in would forget it.
+-}
+encode : LoggedIn -> Enc.Value
+encode (LoggedIn sessData userData) =
     Enc.object
         [ ( "email", Enc.string userData.email )
         , ( "confirmedAt", userData.confirmedAt |> Maybe.map Time.posixToMillis |> Coders.maybeToValue Enc.int )
-        , ( "shortcutTrayOpen", Enc.bool userData.shortcutTrayOpen )
-        , ( "sortBy", Coders.sortByEncoder userData.sortBy )
+        , ( "shortcutTrayOpen", Enc.bool sessData.shortcutTrayOpen )
+        , ( "sortBy", Coders.sortByEncoder sessData.sortBy )
+        , ( "sidebarOpen", Enc.bool sessData.fileMenuOpen )
+        , lastDocIdSetting sessData.lastDocId
         ]
-
-
-encode : LoggedIn -> Enc.Value
-encode (LoggedIn _ userData) =
-    encodeUserData userData
 
 
 
@@ -508,11 +495,8 @@ logout =
 
 
 toGuest : LoggedIn -> Guest
-toGuest (LoggedIn sessionData userData) =
+toGuest (LoggedIn sessionData _) =
     Guest sessionData
-        { shortcutTrayOpen = userData.shortcutTrayOpen
-        , sortBy = userData.sortBy
-        }
 
 
 

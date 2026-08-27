@@ -123,7 +123,60 @@ preferences =
                 decodeLoggedIn (storedUser [ Session.lastDocIdSetting Nothing ])
                     |> Result.map (\session -> ( Session.name session, Session.lastDocId session ))
                     |> Expect.equal (Ok ( "user@example.com", Nothing ))
+        , test "storing the whole session, as logging in does, keeps every preference" <|
+            \_ ->
+                expectSurvivesStoring
+                    (storedUser
+                        [ ( "shortcutTrayOpen", Enc.bool False )
+                        , ( "sortBy", Enc.string "Alphabetical" )
+                        , ( "sidebarOpen", Enc.bool True )
+                        , Session.lastDocIdSetting (Just "tree-abc")
+                        ]
+                    )
         ]
+
+
+{-| Everything about a session that the user chose, and that reading the stored
+blob back therefore has to return.
+-}
+chosenPreferences :
+    Session.LoggedIn
+    ->
+        { shortcutTrayOpen : Bool
+        , sortBy : SortBy
+        , sidebarOpen : Bool
+        , lastDocId : Maybe String
+        }
+chosenPreferences session =
+    { shortcutTrayOpen = Session.shortcutTrayOpen session
+    , sortBy = Session.sortBy session
+    , sidebarOpen = Session.fileMenuOpen session
+    , lastDocId = Session.lastDocId session
+    }
+
+
+{-| `StoreUser` — which `storeLogin` and `storeSignup` send — replaces the
+stored blob with `Session.encode`'s output, so a preference the encoder leaves
+out is a preference logging in forgets.
+-}
+expectSurvivesStoring : Enc.Value -> Expect.Expectation
+expectSurvivesStoring stored =
+    let
+        reStored =
+            decodeLoggedIn stored
+                |> Result.map Session.encode
+                |> Result.andThen decodeLoggedIn
+    in
+    case ( decodeLoggedIn stored, reStored ) of
+        ( Ok asStored, Ok asReStored ) ->
+            chosenPreferences asReStored
+                |> Expect.equal (chosenPreferences asStored)
+
+        ( Err err, _ ) ->
+            Expect.fail err
+
+        ( _, Err err ) ->
+            Expect.fail err
 
 
 {-| Ticket 13: the sidebar's state is a preference too, but it is written by
