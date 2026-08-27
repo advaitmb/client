@@ -1,6 +1,6 @@
 # 34: Header follow-ups — history-close semantics, export radio group, slider name
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 33 (resolved)
 
