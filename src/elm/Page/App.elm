@@ -1804,7 +1804,7 @@ viewModal globalData session modalState =
                     (UI.encodeStats
                         { activeCardId = Page.Doc.getActiveId docModel
                         , workingTree = Page.Doc.getWorkingTree docModel
-                        , startingWordcount = 0
+                        , startingWordcount = Page.Doc.getStartingWordcount docModel
                         }
                         |> Enc.encode 0
                     )

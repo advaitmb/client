@@ -1,4 +1,4 @@
-module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTree, getCollaborators, getGlobalData, getTextCursorInfo, getViewMode, getWorkingTree, init, isDirty, isFullscreen, isNormalMode, lastActives, maybeActivate, opaqueIncoming, opaqueUpdate, publicTreeLoaded, setBlock, setDirty, setGlobalData, setLoading, setTree, setWorkingTree, subscriptions, toggleEditing, view)
+module Page.Doc exposing (Model, Msg, MsgToParent(..), getActiveId, getActiveTree, getCollaborators, getGlobalData, getStartingWordcount, getTextCursorInfo, getViewMode, getWorkingTree, init, isDirty, isFullscreen, isNormalMode, lastActives, maybeActivate, opaqueIncoming, opaqueUpdate, publicTreeLoaded, setBlock, setDirty, setGlobalData, setLoading, setTree, setWorkingTree, subscriptions, toggleEditing, view)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -50,6 +50,11 @@ type alias ModelData =
     , textCursorInfo : TextCursorInfo
     , fileSearchField : String
 
+    -- The word count this writing session started from: what the document held
+    -- when it was opened, so the word-count modal's "Session" row can be the
+    -- difference. Nothing until the document's content arrives (E11).
+    , startingWordcount : Maybe Int
+
     -- Settings
     , uid : String
     }
@@ -87,17 +92,45 @@ init isNew globalData =
         , dirty = False
         , textCursorInfo = { selected = False, position = End, text = ( "", "" ) }
         , fileSearchField = ""
+        , startingWordcount =
+            if isNew then
+                -- Nothing was written before this session: every word in a
+                -- document being created is this session's.
+                Just 0
+
+            else
+                Nothing
         }
 
 
 publicTreeLoaded : Tree -> Model -> Model
 publicTreeLoaded newTree (Model model) =
+    let
+        newWorkingTree =
+            TreeStructure.setTree newTree model.workingTree
+    in
     Model
         { model
-            | workingTree = TreeStructure.setTree newTree model.workingTree
+            | workingTree = newWorkingTree
             , loading = False
             , block = Just "Cannot edit or add cards to a public document."
+            , startingWordcount = recordSessionStart newWorkingTree model.startingWordcount
         }
+
+
+{-| A writing session starts the first time a document's content is in hand:
+the word count then is what the modal's "Session" row counts up from. Every
+later tree -- a sync push, the user's own edits, a restored version -- has to
+leave it alone, so this only ever fills a count that is missing (E11).
+-}
+recordSessionStart : TreeStructure.Model -> Maybe Int -> Maybe Int
+recordSessionStart workingTree startingWordcount =
+    case startingWordcount of
+        Just _ ->
+            startingWordcount
+
+        Nothing ->
+            Just (UI.documentWordcount workingTree)
 
 
 
@@ -2402,8 +2435,13 @@ subscriptions (Model model) =
 
 setTree : Tree -> Model -> ( Model, Cmd Msg, List MsgToParent )
 setTree tree (Model model) =
+    let
+        newWorkingTree =
+            TreeStructure.setTree tree model.workingTree
+    in
     { model
-        | workingTree = TreeStructure.setTree tree model.workingTree
+        | workingTree = newWorkingTree
+        , startingWordcount = recordSessionStart newWorkingTree model.startingWordcount
     }
         |> (\m -> ( m, Cmd.none, [] ))
         |> activate (getActiveId (Model model)) False
@@ -2413,7 +2451,10 @@ setTree tree (Model model) =
 setWorkingTree : TreeStructure.Model -> Model -> Model
 setWorkingTree workingTree (Model model) =
     Model
-        { model | workingTree = workingTree }
+        { model
+            | workingTree = workingTree
+            , startingWordcount = recordSessionStart workingTree model.startingWordcount
+        }
 
 
 
@@ -2590,6 +2631,14 @@ getWorkingTree : Model -> TreeStructure.Model
 getWorkingTree (Model model) =
     model
         |> .workingTree
+
+
+{-| The word count this session started from. Zero until the document's content
+has arrived -- before that there is nothing to have written since.
+-}
+getStartingWordcount : Model -> Int
+getStartingWordcount (Model model) =
+    model.startingWordcount |> Maybe.withDefault 0
 
 
 getCollaborators : Model -> List Collaborator

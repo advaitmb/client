@@ -1,4 +1,4 @@
-module Doc.UI exposing (countWords, encodeStats, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTooltip)
+module Doc.UI exposing (countWords, documentWordcount, encodeStats, fillet, renderToast, viewAppLoadingSpinner, viewBreadcrumbs, viewDocumentLoadingSpinner, viewMobileButtons, viewSaveIndicator, viewSearchField, viewShortcuts, viewTooltip)
 
 import Ant.Icons.Svg as AntIcons
 import Browser.Dom exposing (Element)
@@ -643,6 +643,15 @@ getStats { activeCardId, workingTree } =
         treeWords
         treeChars
         cardsTotal
+
+
+{-| The whole document's word count: the number the modal shows as "Total",
+and the number a writing session starts from (`Page.Doc`'s
+`startingWordcount`), so that "Session" can be the difference between them.
+-}
+documentWordcount : TreeStructure.Model -> Int
+documentWordcount { tree } =
+    countWords (treeToMarkdownString False tree)
 
 
 countWords : String -> Int
