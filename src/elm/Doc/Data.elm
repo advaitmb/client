@@ -1628,19 +1628,29 @@ through, while `cardDelta` can emit an op-less delta from either of two limbs.
 toDelta : String -> List (Card UpdatedAt) -> List Delta
 toDelta treeId cards =
     cards
-        |> List.map .id
-        |> ListExtra.unique
-        |> List.concatMap (cardDelta treeId cards)
+        |> groupedByCardId
+        |> List.concatMap (cardDelta treeId)
         |> List.filter (not << List.isEmpty << .ops)
         |> UpdatedAt.sortOldestFirst .ts
 
 
-cardDelta : String -> List (Card UpdatedAt) -> String -> List Delta
-cardDelta treeId allCards cardId =
+{-| One card's rows -- every version of it in the log -- turned into the deltas
+that push it.
+
+The caller hands over the card's rows already grouped: re-filtering the whole
+log per card id made a push quadratic in the size of the document
+(CODE_REVIEW.md P1). An empty group cannot come out of the grouping, and there
+is no card to describe without one.
+
+-}
+cardDelta : String -> List (Card UpdatedAt) -> List Delta
+cardDelta treeId cardRows =
     let
+        cardId =
+            cardRows |> List.head |> Maybe.map .id |> Maybe.withDefault ""
+
         cardVersions =
-            allCards
-                |> List.filter (\c -> c.id == cardId)
+            cardRows
                 |> UpdatedAt.sortNewestFirst .updatedAt
 
         unsyncedCards =
