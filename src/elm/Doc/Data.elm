@@ -8,7 +8,7 @@ import List.Extra as ListExtra
 import Outgoing exposing (Msg(..))
 import RemoteData exposing (WebData)
 import Result.Extra
-import Set
+import Set exposing (Set)
 import Time
 import Types exposing (CardTreeOp(..), Children(..), ConflictSelection(..), Tree)
 import UpdatedAt exposing (UpdatedAt)
@@ -786,8 +786,12 @@ the lesser of the two.
 -}
 unwrittenStaged : CardData -> StagedRows -> StagedRows
 unwrittenStaged cards staged =
+    let
+        idsEchoed =
+            cards |> List.map .id |> Set.fromList
+    in
     staged
-        |> List.filter (\row -> not (List.any (\card -> card.id == row.id) cards))
+        |> List.filter (\row -> not (Set.member row.id idsEchoed))
 
 
 {-| The newest version row of one card id (ADR-0005 §1).
@@ -1025,10 +1029,10 @@ visibleWithStaged : StagedRows -> CardData -> List (Card ())
 visibleWithStaged staged data =
     let
         stagedIds =
-            staged |> List.map .id
+            staged |> List.map .id |> Set.fromList
 
         notStaged card =
-            not (List.member card.id stagedIds)
+            not (Set.member card.id stagedIds)
     in
     ((data |> newestPerId |> List.map asUnsynced |> List.filter notStaged) ++ staged)
         |> List.filter (not << .deleted)
@@ -1532,20 +1536,28 @@ pushOkHandler treeId chkValStrings model =
             case chkValsAsUpdatedAt of
                 Ok chkVals ->
                     let
-                        cardIdsFromUpdatedAt : UpdatedAt -> List String
+                        cardIdsFromUpdatedAt : UpdatedAt -> Set String
                         cardIdsFromUpdatedAt chkVal =
                             data
                                 |> List.filter (\card -> UpdatedAt.areEqual card.updatedAt chkVal)
                                 |> List.map .id
+                                |> Set.fromList
 
                         markVersionSynced : UpdatedAt -> List (Card UpdatedAt)
                         markVersionSynced chkVal =
+                            let
+                                -- Read once per acknowledged stamp. Asking for
+                                -- it inside the filter below read the whole
+                                -- version log once per row in it, which is P1's
+                                -- shape in the push acknowledgement.
+                                ackedCardIds =
+                                    cardIdsFromUpdatedAt chkVal
+                            in
                             data
                                 |> List.filter
                                     (\card ->
-                                        card.synced
-                                            == False
-                                            && List.member card.id (cardIdsFromUpdatedAt chkVal)
+                                        not card.synced
+                                            && Set.member card.id ackedCardIds
                                             && UpdatedAt.isLTE card.updatedAt chkVal
                                     )
                                 |> List.map (\card -> { card | synced = True })
