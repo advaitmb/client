@@ -1,4 +1,4 @@
-port module Session exposing (Guest, LoggedIn, Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, isOwner, lastDocId, lastDocIdSetting, logout, name, public, requestLogin, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, signupBody, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
+port module Session exposing (Guest, LoggedIn, Ownership(..), Session(..), UserSource(..), confirmEmail, copyNaming, decode, documents, endFirstRun, features, fileMenuOpen, fromLegacy, getDocName, getMetadata, isFirstRun, isNotConfirmed, encode, lastDocId, lastDocIdSetting, logout, name, ownership, public, requestLogin, requestSignup, responseDecoder, setFileOpen, setShortcutTrayOpen, setSortBy, shortcutTrayOpen, signupBody, sortBy, storeLastDocId, storeLogin, storeSignup, sync, toGuest, updateDocuments, userLoggedIn, userLoggedOut, userSettingsChange)
 
 import Coders exposing (sortByDecoder)
 import Doc.List as DocList exposing (Model(..))
@@ -10,7 +10,7 @@ import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Enc
 import List.Extra as ListExtra
 import Outgoing exposing (Msg(..), send)
-import Regex
+import Set exposing (Set)
 import Time
 import Types exposing (SortBy(..))
 
@@ -127,35 +127,56 @@ documents (LoggedIn _ data) =
     data.documents
 
 
+{-| The name to give a copy of a document called `originalName`: the name
+itself if no document has it, and otherwise the first `originalName (n)` that no
+document has, counting from 2.
+
+This asks whether a *name is taken*, and it asks it by comparing names. It used
+to ask a regex built from `originalName` itself, which got the question wrong
+three ways (S4): a name with a metacharacter in it made `Regex.fromString` fail,
+and `Regex.never` matched nothing, so the copy kept the exact name it was copied
+from; the pattern was anchored only at the end, so copying `"Doc"` also counted
+`"My Doc"`; and it *counted* matches instead of looking for a free number, so
+copying `"Doc"` beside a lone `"Doc (3)"` handed out `"Doc (3)"` again.
+
+With the list still loading there is nothing to compare against, so the name is
+left alone -- as before.
+
+-}
 copyNaming : LoggedIn -> String -> String
 copyNaming (LoggedIn _ data) originalName =
-    let
-        copyNameRegex =
-            Maybe.withDefault Regex.never <|
-                Regex.fromString (originalName ++ "\\s*(\\(\\d+\\))?$")
-    in
     case data.documents of
         Success docList ->
-            docList
-                |> List.filter
-                    (\d ->
-                        d
-                            |> Metadata.getDocName
-                            |> Maybe.withDefault ""
-                            |> Regex.find copyNameRegex
-                            |> (not << List.isEmpty)
-                    )
-                |> List.length
-                |> (\n ->
-                        if n > 0 then
-                            originalName ++ " (" ++ String.fromInt (n + 1) ++ ")"
+            let
+                taken =
+                    docList
+                        |> List.filterMap Metadata.getDocName
+                        |> Set.fromList
+            in
+            if Set.member originalName taken then
+                firstFreeCopyName originalName taken 2
 
-                        else
-                            originalName
-                   )
+            else
+                originalName
 
         _ ->
             originalName
+
+
+{-| The first `base (n)`, from `n` upwards, that nothing in `taken` is called.
+Terminates: each step rules out one member of a finite set.
+-}
+firstFreeCopyName : String -> Set String -> Int -> String
+firstFreeCopyName base taken n =
+    let
+        candidate =
+            base ++ " (" ++ String.fromInt n ++ ")"
+    in
+    if Set.member candidate taken then
+        firstFreeCopyName base taken (n + 1)
+
+    else
+        candidate
 
 
 getMetadata : LoggedIn -> String -> Maybe Metadata
@@ -175,12 +196,48 @@ getDocName session docId =
         |> Maybe.andThen Metadata.getDocName
 
 
-isOwner : LoggedIn -> String -> Bool
-isOwner session docId =
-    getMetadata session docId
-        |> Maybe.map Metadata.getCollaborators
-        |> Maybe.map (not << List.member (name session))
-        |> Maybe.withDefault False
+{-| What this client knows about who owns a document.
+
+`Unknown` is neither a guess nor a `False`: ownership is only ever learned from
+the document list, and that list is still on its way for the first moments of
+every boot. Answering "not the owner" there is what made the owner-only chrome
+flap into place a moment later (S3), so the answer says so instead and each
+caller decides what to do with not knowing — withhold, not guess.
+
+-}
+type Ownership
+    = Owner
+    | NotOwner
+    | Unknown
+
+
+{-| Who owns `docId`, as far as the session can tell.
+
+The server tells this client who a document's *collaborators* are and never who
+its owner is (`treeDocToMetadata` in `doc.js` drops the `trees` row's `owner`
+column), so "mine" is "in my list, and not there as a collaborator". That is a
+double negative, and it used to be written as one — `not << List.member` under
+two `Maybe.map`s; it is spelled in steps here because it read as its own
+opposite.
+
+-}
+ownership : LoggedIn -> String -> Ownership
+ownership session docId =
+    case ( documents session, getMetadata session docId ) of
+        ( Success _, Just metadata ) ->
+            if List.member (name session) (Metadata.getCollaborators metadata) then
+                NotOwner
+
+            else
+                Owner
+
+        ( Success _, Nothing ) ->
+            -- The list has answered and this document is not in it: someone
+            -- else's public document, or one that has just been deleted.
+            NotOwner
+
+        _ ->
+            Unknown
 
 
 

@@ -16,7 +16,8 @@
  *
  * Contract — attributes in
  *   doc-title        current document name
- *   owner            "yes" when the title may be edited
+ *   owner            "yes" | "no" | "unknown" — whether the title may be
+ *                    edited, or that the document list has yet to say
  *   menu             "none" | "history" | "settings" | "export"
  *   save             JSON { dirty, lastLocalSave, lastRemoteSave, now }
  *                    (epoch ms; lastLocalSave/lastRemoteSave may be null)
@@ -191,7 +192,13 @@ class Header extends HTMLElement {
    * once the rename is committed.
    */
   private renderTitle(): TitleParts {
-    const owner = this.getAttribute("owner") === "yes";
+    // Three values, not two (S3): Elm answers "unknown" while the document
+    // list -- the only thing that knows who owns a document -- is still on its
+    // way. The field is inert until the answer arrives, so a non-owner never
+    // gets a rename window, but it is marked forbidden only for a *known*
+    // non-owner: the not-allowed cursor is the whole of what the user sees
+    // here, and showing it and taking it back is the flap.
+    const owner = this.getAttribute("owner");
     const docTitle = this.getAttribute("doc-title") ?? "Untitled";
 
     const title =
@@ -200,8 +207,8 @@ class Header extends HTMLElement {
         : (this.titleParts = this.buildTitle());
 
     if (title.input !== document.activeElement) title.input.value = docTitle;
-    title.input.disabled = !owner;
-    title.input.style.cursor = owner ? "" : "not-allowed";
+    title.input.disabled = owner !== "yes";
+    title.input.style.cursor = owner === "no" ? "not-allowed" : "";
     // The shadow sizes the input, so it follows what the input shows.
     title.shadow.textContent = title.input.value || " ";
 

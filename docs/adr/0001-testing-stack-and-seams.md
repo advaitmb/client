@@ -154,6 +154,26 @@
     Out of reach at this seam, and so verified by inspection: the `switch` in
     `ws.onmessage` itself (Dexie, a live socket and `doc.js`'s module state) and
     the three call sites that hand these decisions their arguments.
+13. What the session says about a document, and the codecs behind it (Elm,
+    pure) — recorded by ticket 24. Two halves of one subject: decisions taken
+    over the document list a session holds, and whether a value this client
+    writes decodes back to itself.
+
+    The first is `Session.ownership` and `Session.copyNaming`, tested through a
+    session built the way a real one is — `Session.responseDecoder` over a
+    `documents` array for a list that has arrived, and `Session.decode` for one
+    still loading, which is the state both functions were getting wrong.
+    Adjacent to seam 5 but not it: seam 5 is what the session *persists*, this
+    is what it *answers* about a document, and the answers depend on the list
+    rather than on the stored blob.
+
+    The second is round trips: `Doc.Metadata.encode |> Doc.Metadata.decoder`
+    and `UpdatedAt.encode |> UpdatedAt.fromString`. Both are total functions
+    over plain data, so the test is the composition — an encoder that drops a
+    field its own decoder requires, or a string its own parser rejects, is
+    invisible from either side alone (S10). `UpdatedAt`'s wire format is shared
+    with `src/shared/stamps.js`, so the zero stamp is pinned as the literal
+    `"0"` on both sides rather than only as a round trip.
 
 No test is written at a seam outside this list without updating this ADR.
 

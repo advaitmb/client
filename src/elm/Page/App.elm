@@ -1707,8 +1707,8 @@ view ({ documentState } as model) =
                 globalData =
                     Page.Doc.getGlobalData docModel
 
-                isOwner =
-                    Session.isOwner session docId
+                ownership =
+                    Session.ownership session docId
             in
             if isFullscreen then
                 div [ id "app-root", classList [ ( "loading", model.loading ) ], applyTheme model.theme ]
@@ -1766,7 +1766,7 @@ view ({ documentState } as model) =
                            , node "gw-header"
                                 [ id "document-header"
                                 , attribute "doc-title" (Session.getDocName session docId |> Maybe.withDefault "Untitled")
-                                , attribute "owner" (ternary isOwner "yes" "no")
+                                , attribute "owner" (ownershipName ownership)
                                 , attribute "menu" (headerMenuName model.headerMenu)
                                 , attribute "save"
                                     (Enc.encode 0 <|
@@ -1881,10 +1881,6 @@ viewModal globalData session modalState =
             ]
 
         SidebarContextMenu docId ( x, y ) ->
-            let
-                isOwner =
-                    Session.isOwner session docId
-            in
             [ div [ onClick ModalClosed, id "sidebar-context-overlay" ] []
             , div
                 [ id "sidebar-context-menu"
@@ -1893,7 +1889,10 @@ viewModal globalData session modalState =
                 ]
                 -- "Duplicate" is gone with Page/Copy: it copied a legacy
                 -- CouchDB database, so it hung on "Duplicating..." forever.
-                [ if isOwner then
+                -- Delete is offered only for a document the session *says* is
+                -- ours: `Session.Unknown` withholds it, which costs nothing
+                -- here (a context menu opens long after the list has arrived).
+                [ if Session.ownership session docId == Session.Owner then
                     div [ onClick (DeleteDoc docId), class "context-menu-item" ]
                         [ AntIcons.deleteOutlined [ Svg.Attributes.class "icon" ], text DeleteDocument ]
 
@@ -2122,6 +2121,25 @@ detailString =
 encodeMaybePosix : Maybe Time.Posix -> Enc.Value
 encodeMaybePosix t_ =
     t_ |> Maybe.map (Time.posixToMillis >> Enc.int) |> Maybe.withDefault Enc.null
+
+
+{-| Who owns the document, for `<gw-header>`'s `owner` attribute. Three values,
+not two: "unknown" is the answer while the document list is still on its way,
+and the element renders it as an inert title field that is *not* marked as
+forbidden -- saying "you may not rename this" and taking it back a moment later
+is the flap S3 is about.
+-}
+ownershipName : Session.Ownership -> String
+ownershipName owner =
+    case owner of
+        Session.Owner ->
+            "yes"
+
+        Session.NotOwner ->
+            "no"
+
+        Session.Unknown ->
+            "unknown"
 
 
 headerMenuName : HeaderMenuState -> String

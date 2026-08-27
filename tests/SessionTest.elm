@@ -1,4 +1,4 @@
-module SessionTest exposing (loginResponse, preferences, sidebar, suite)
+module SessionTest exposing (copyNaming, loginResponse, ownership, preferences, sidebar, suite)
 
 {-| Tests at the ADR-0002 seam: `Session.decode` on the stored user data that
 `StoreUser` persists to localStorage.
@@ -250,4 +250,176 @@ loginResponse =
                     , ( "sortBy", Enc.string "CreatedAt" )
                     ]
                     |> Expect.equal (Ok ( True, CreatedAt ))
+        ]
+
+
+
+-- === WHAT THE SESSION SAYS ABOUT A DOCUMENT (ADR-0001 seam 13) ===
+
+
+{-| One row of the document list, in the shape the server answers with
+(`Doc.Metadata.responseDecoder`).
+-}
+docRow : { id : String, name : String, collaborators : List String } -> Enc.Value
+docRow { id, name, collaborators } =
+    Enc.object
+        [ ( "id", Enc.string id )
+        , ( "name", Enc.string name )
+        , ( "collaborators", Enc.list Enc.string collaborators )
+        , ( "createdAt", Enc.int bootTimeMillis )
+        , ( "updatedAt", Enc.int bootTimeMillis )
+        ]
+
+
+{-| A logged-in session whose document list has arrived, holding these
+documents. Built through `responseDecoder`, which is how a real list reaches the
+session — `Session.updateDocuments` takes the same `DocList.Success`.
+-}
+withDocuments :
+    List { id : String, name : String, collaborators : List String }
+    -> Result String Session.LoggedIn
+withDocuments docs =
+    sessionStillLoading
+        |> Result.map Session.toGuest
+        |> Result.andThen
+            (\guest ->
+                Enc.object
+                    [ ( "email", Enc.string "user@example.com" )
+                    , ( "documents", Enc.list docRow docs )
+                    ]
+                    |> Dec.decodeValue (Session.responseDecoder Session.Other guest)
+                    |> Result.mapError Dec.errorToString
+            )
+
+
+{-| A session as it is for the first moments of every boot: logged in, document
+list still on its way (`DocList.init`).
+-}
+sessionStillLoading : Result String Session.LoggedIn
+sessionStillLoading =
+    decodeLoggedIn (storedUser [])
+
+
+{-| Named documents, with no collaborators — the shape every copy-naming case
+below only cares about the names of.
+-}
+named : List String -> Result String Session.LoggedIn
+named names =
+    names
+        |> List.indexedMap
+            (\i docName ->
+                { id = "doc-" ++ String.fromInt i, name = docName, collaborators = [] }
+            )
+        |> withDocuments
+
+
+{-| The copy name a session hands out for a document called `originalName`. -}
+copyOf : String -> Result String Session.LoggedIn -> Result String String
+copyOf originalName =
+    Result.map (\session -> Session.copyNaming session originalName)
+
+
+{-| What a session says about who owns `docId`. -}
+ownerOf : String -> Result String Session.LoggedIn -> Result String Session.Ownership
+ownerOf docId =
+    Result.map (\session -> Session.ownership session docId)
+
+
+{-| S4: the name a copy of a document gets. It used to be decided by a regex
+built from the document's own name — unescaped, and anchored only at the end —
+so a name with a metacharacter in it fell back to `Regex.never` (the copy kept
+the colliding name), `"Doc"` also counted `"My Doc"`, and counting matches
+rather than looking for a free number handed out a name that was already taken.
+-}
+copyNaming : Test
+copyNaming =
+    describe "Naming the copy of a document"
+        [ test "a name nothing in the list holds is used as it is" <|
+            \_ ->
+                named [ "Some other document" ]
+                    |> copyOf "Report"
+                    |> Expect.equal (Ok "Report")
+        , test "the first copy of a document is numbered 2" <|
+            \_ ->
+                named [ "Report" ]
+                    |> copyOf "Report"
+                    |> Expect.equal (Ok "Report (2)")
+        , test "the next copy takes the next number" <|
+            \_ ->
+                named [ "Report", "Report (2)" ]
+                    |> copyOf "Report"
+                    |> Expect.equal (Ok "Report (3)")
+        , test "a name with a regex metacharacter in it is still copied" <|
+            \_ ->
+                -- An unbalanced paren made `Regex.fromString` fail, and
+                -- `Regex.never` matched nothing: the copy kept the exact name
+                -- of the document it was copied from.
+                named [ "Notes (draft" ]
+                    |> copyOf "Notes (draft"
+                    |> Expect.equal (Ok "Notes (draft (2)")
+        , test "a metacharacter matches itself, not any character" <|
+            \_ ->
+                -- `.` in an unescaped regex matched the space in "My Doc", so a
+                -- name nobody had used was numbered as though it were taken.
+                named [ "My Doc" ]
+                    |> copyOf "My.Doc"
+                    |> Expect.equal (Ok "My.Doc")
+        , test "a document whose name ends with the copied one is not a copy of it" <|
+            \_ ->
+                named [ "My Doc", "Doc" ]
+                    |> copyOf "Doc"
+                    |> Expect.equal (Ok "Doc (2)")
+        , test "a gap in the numbering is filled rather than collided with" <|
+            \_ ->
+                named [ "Doc", "Doc (3)" ]
+                    |> copyOf "Doc"
+                    |> Expect.equal (Ok "Doc (2)")
+        , test "a full run of numbers is continued past the end" <|
+            \_ ->
+                named [ "Doc", "Doc (2)", "Doc (3)" ]
+                    |> copyOf "Doc"
+                    |> Expect.equal (Ok "Doc (4)")
+        , test "with the list still loading the name is left alone" <|
+            \_ ->
+                sessionStillLoading
+                    |> copyOf "Report"
+                    |> Expect.equal (Ok "Report")
+        ]
+
+
+{-| S3: who owns the document on screen. The client learns this only from the
+document list, so for the first moments of every boot there is no answer — and
+answering "not the owner" there made the owner-only chrome (the title field, the
+sidebar's Delete) flap into place a moment later.
+-}
+ownership : Test
+ownership =
+    describe "Who owns a document"
+        [ test "a document in my list that I am not a collaborator on is mine" <|
+            \_ ->
+                withDocuments [ { id = "doc-1", name = "Report", collaborators = [] } ]
+                    |> ownerOf "doc-1"
+                    |> Expect.equal (Ok Session.Owner)
+        , test "a document I am a collaborator on is not mine" <|
+            \_ ->
+                withDocuments
+                    [ { id = "doc-1", name = "Report", collaborators = [ "user@example.com" ] } ]
+                    |> ownerOf "doc-1"
+                    |> Expect.equal (Ok Session.NotOwner)
+        , test "someone else being a collaborator says nothing about me" <|
+            \_ ->
+                withDocuments
+                    [ { id = "doc-1", name = "Report", collaborators = [ "someone@example.com" ] } ]
+                    |> ownerOf "doc-1"
+                    |> Expect.equal (Ok Session.Owner)
+        , test "a document my list has answered and does not hold is not mine" <|
+            \_ ->
+                withDocuments [ { id = "doc-1", name = "Report", collaborators = [] } ]
+                    |> ownerOf "someone-elses-doc"
+                    |> Expect.equal (Ok Session.NotOwner)
+        , test "while the list is still loading there is no answer, not a no" <|
+            \_ ->
+                sessionStillLoading
+                    |> ownerOf "doc-1"
+                    |> Expect.equal (Ok Session.Unknown)
         ]

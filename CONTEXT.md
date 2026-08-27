@@ -125,6 +125,16 @@ Vocabulary used in code, issues, and tests. Full system description:
 11. The document's mode machine (Elm): `Page.Doc.getViewMode` after
     `opaqueIncoming`/`opaqueUpdate` on a document built from the exported
     setters — which mode an event leaves the document in, including the
-    transitions a blocked document must refuse. A transition only a DOM event
-    names is reached by simulating that event on `Page.Doc.view`. The `Cmd` is
-    still out of reach, as at seam 10.
+    transitions a blocked document must refuse, and (ticket 24) the card text
+    such an event leaves behind, read through `getWorkingTree`. A transition
+    only a DOM event names is reached by simulating that event on
+    `Page.Doc.view`. The `Cmd` is still out of reach, as at seam 10.
+12. What a failure is worth telling the user (JS, pure):
+    `src/shared/ws-errors.js`'s `wsMessageFailure` and
+    `src/shared/clipboard.js`'s `clipboardErrorMessage` — what a thrown value
+    becomes on the console and on screen, or that it becomes nothing.
+13. What the session says about a document, and the codecs behind it (Elm,
+    pure): `Session.ownership` and `Session.copyNaming` over a document list
+    that has arrived (`responseDecoder`) or is still loading (`decode`), and
+    the `Doc.Metadata` / `UpdatedAt` encoder→decoder round trips — a value this
+    client writes has to decode back to itself.

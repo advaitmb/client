@@ -185,3 +185,21 @@ test("the field is disabled for a non-owner and enabled when ownership arrives",
 
   expect(titleInput(el).disabled).toBe(false);
 });
+
+test("an unknown owner leaves the field inert but not marked as forbidden", () => {
+  // The first moments of a boot: the document list has not answered yet (S3).
+  const [el] = mount({ owner: "unknown" });
+
+  // Inert, so a document that turns out not to be ours cannot be renamed in
+  // the meantime...
+  expect(titleInput(el).disabled).toBe(true);
+  // ...but nothing on screen says so, so nothing is taken back when the answer
+  // arrives. `not-allowed` is what a known non-owner gets.
+  expect(titleInput(el).style.cursor).toBe("");
+});
+
+test("a known non-owner is told the title is not theirs to edit", () => {
+  const [el] = mount({ owner: "no" });
+
+  expect(titleInput(el).style.cursor).toBe("not-allowed");
+});
