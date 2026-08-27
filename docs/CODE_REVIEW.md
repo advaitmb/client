@@ -9,6 +9,51 @@ Severity legend — **CRITICAL**: security or guaranteed loss of core function;
 hit; **SMELL**: dead code, drift, fragility; **IMPROVEMENT**: performance or
 maintainability.
 
+> ## Status: every finding below is resolved
+>
+> This document is kept as the **historical catalog** — the text of each
+> finding describes the code as it was on 2026-08-27, and file:line references
+> are to that state, not to the current branch. Do not read it as an open bug
+> list.
+>
+> The findings were worked as tickets under
+> `.scratch/selfhost-hardening/` (see `map.md` for the index and the
+> decision log; each ticket's `## Answer` records what actually changed and
+> why, including where a fix went deeper than the finding). The binding
+> decisions taken along the way are ADRs in `docs/adr/`.
+>
+> | Findings | Ticket |
+> |---|---|
+> | C1 | 02 · sanitize rendered markdown |
+> | C2 | 03 · remove the trial/payments ring |
+> | C3 | 04 · a working logout path |
+> | D1 D2 D10 S9 | 05 · newest-version-per-id everywhere |
+> | D3 | 06 · conflict resolution discards the whole unsynced line |
+> | D4 | 07 · the editor survives re-parenting |
+> | D5 | 08 · self-describing save payloads (import race) |
+> | D6 | 09 · offline metadata re-sent on reconnect |
+> | D7 | 10 · numeric HLC stamp comparison |
+> | D8 | 11 · position rebalancing |
+> | D9 | 12 · history restore writes only what changes |
+> | E1 E2 E3 | 13 · session preferences persist |
+> | E4 | 14 · cold-loading any URL runs its commands |
+> | E5 E6 E11 E13 E14 | 15 · small functional fixes |
+> | E7 E8 E9 E15 | 16 · drag-drop correctness |
+> | E10 E12 | 17 · theme restore, title input |
+> | E16 | 18 · swallowed errors surface |
+> | A1 A2 A3 A4 | 19 · auth pages |
+> | B1 B2 B3 B6 | 01 · test infrastructure and CI |
+> | B4 B5 B7–B13 | 20 · build scripts and docs match reality |
+> | §6 (Elm) | 21 · dead-code purge, Elm (−2,201 lines) |
+> | §6 (JS/TS) | 22 · dead-code purge, JS/TS; port contract made symmetric |
+> | S5 S6 S7 S8 S13 | 23 · JS robustness |
+> | S1 S2 S3 S4 S10 S12 | 24 · Elm consistency |
+> | P1 P2 P3 P4 P5 | 25 · data-layer performance |
+>
+> Ticket 26 (a deploy workflow) was closed `wontfix` by the repo owner.
+> Tickets 27–35 are **new** bugs found while fixing these — each traceable to
+> the ticket whose work exposed it; see `map.md`.
+
 ---
 
 ## 1. Critical
