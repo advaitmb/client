@@ -57,7 +57,6 @@ type Msg
     | RequestFullscreen
     | Print
       -- === Misc ===
-    | EmptyMessageShown
     | ConsoleLogRequested String
 
 
@@ -218,9 +217,6 @@ send info =
 
 
         -- === Misc ===
-        EmptyMessageShown ->
-            dataToSend "EmptyMessageShown" null
-
         ConsoleLogRequested err ->
             dataToSend "ConsoleLogRequested" (string err)
 

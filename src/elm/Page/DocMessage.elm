@@ -1,25 +1,39 @@
 module Page.DocMessage exposing (..)
 
 import Ant.Icons.Svg as AntIcons
-import Html exposing (Html, br, div, h1, img, p, text)
-import Html.Attributes exposing (class, id, src)
-import Html.Events exposing (on, onClick)
-import Json.Decode as Dec
+import Html exposing (Html, br, button, div, h1, p, text)
+import Html.Attributes exposing (class, id, type_)
+import Html.Events exposing (onClick)
 
 
 
 -- VIEW
 
 
-viewEmpty : { newClicked : msg, emptyMessage : msg } -> List (Html msg)
+{-| The screen for an account with no documents yet.
+
+There used to be an `<img src="" onerror>` here, whose broken-image event fired
+an `EmptyMessage` msg — a way of getting a callback out of Elm's view when this
+screen appeared. Nothing was listening: it reached `Outgoing.EmptyMessageShown`,
+whose `doc.js` handler was `() => {}`. Both are gone (S12). If this screen ever
+does need to announce itself, `Page.App` knows it is in the `Empty` state and
+can say so from `update`, where a command belongs — a view has no business
+sending one, and a load error is a strange thing to hang it on.
+
+-}
+viewEmpty : { newClicked : msg } -> List (Html msg)
 viewEmpty msgs =
     [ div [ id "document-header" ] []
     , div [ id "empty-message" ]
         [ h1 [] [ text "You don't have any documents" ]
         , p [] [ text "Click to create one:" ]
         , br [] []
-        , div [ id "new-button", onClick msgs.newClicked ] [ AntIcons.fileAddOutlined [] ]
-        , img [ src "", on "error" (Dec.succeed msgs.emptyMessage) ] []
+        , button
+            [ id "new-button"
+            , type_ "button"
+            , onClick msgs.newClicked
+            ]
+            [ AntIcons.fileAddOutlined [] ]
         ]
     ]
 

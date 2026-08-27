@@ -1,10 +1,11 @@
-module Utils exposing (delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, ternary, text, textNoTr)
+module Utils exposing (asButton, delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, ternary, text, textNoTr)
 
 {--import DebugToJson exposing (pp)--}
 
 import Hex
 import Html exposing (Html)
-import Html.Events exposing (stopPropagationOn)
+import Html.Attributes exposing (attribute)
+import Html.Events exposing (custom, onClick, stopPropagationOn)
 import Json.Decode as Dec
 import Murmur3 exposing (hashString)
 import Process
@@ -24,6 +25,49 @@ ternary condition trueValue falseValue =
 onClickStop : msg -> Html.Attribute msg
 onClickStop msg =
     stopPropagationOn "click" (Dec.succeed ( msg, True ))
+
+
+{-| What makes an element that cannot *be* a `<button>` behave like one:
+reachable with Tab, announced as a button, and activated by Enter or Space (S12
+— a clickable `div` is none of those).
+
+Use a real `<button>` wherever the content allows it. This exists for the
+breadcrumbs, whose label is rendered markdown and so may contain a link, which a
+`<button>` may not contain.
+
+The keydown is `stopPropagation`ed because the app's global shortcuts are bound
+on `document` by Mousetrap, which only ignores keystrokes inside form fields: a
+focused `div` is not one, so Enter would both activate this element and fire the
+global `enter` shortcut (opening the active card's editor). Space is
+`preventDefault`ed, or activating scrolls the page as well.
+
+-}
+asButton : msg -> List (Html.Attribute msg)
+asButton msg =
+    [ attribute "role" "button"
+    , attribute "tabindex" "0"
+    , onClick msg
+    , custom "keydown" (activationKey msg)
+    ]
+
+
+activationKey : msg -> Dec.Decoder { message : msg, stopPropagation : Bool, preventDefault : Bool }
+activationKey msg =
+    Dec.field "key" Dec.string
+        |> Dec.andThen
+            (\key ->
+                case key of
+                    "Enter" ->
+                        Dec.succeed { message = msg, stopPropagation = True, preventDefault = False }
+
+                    " " ->
+                        Dec.succeed { message = msg, stopPropagation = True, preventDefault = True }
+
+                    _ ->
+                        -- Every other key: no message, and nothing prevented or
+                        -- stopped, so the global shortcuts still see it.
+                        Dec.fail "not an activation key"
+            )
 
 
 hash : Int -> String -> String

@@ -119,9 +119,11 @@ Vocabulary used in code, issues, and tests. Full system description:
     message's tag → `Msg`), `Page.Doc.Export.toString`/`toMimeType` (what an
     export writes and is saved as), `Doc.UI.documentWordcount` with
     `Page.Doc.getStartingWordcount` (the word-count modal's session row),
-    `Page.Doc.Theme.fromLocalStore` (the theme a document load restores), and
-    `Translation.tr` for the shortcut tray. Whether a port command is sent at
-    all is out of reach here.
+    `Page.Doc.Theme.fromLocalStore` (the theme a document load restores),
+    `Translation.tr` for the shortcut tray, and the two views that need no page
+    `Model` — `Doc.UI.viewBreadcrumbs` and `Page.DocMessage.viewEmpty` — asked
+    what a click or a keystroke on them reports. Whether a port command is sent
+    at all is out of reach here.
 11. The document's mode machine (Elm): `Page.Doc.getViewMode` after
     `opaqueIncoming`/`opaqueUpdate` on a document built from the exported
     setters — which mode an event leaves the document in, including the

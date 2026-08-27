@@ -452,7 +452,7 @@ incoming ones (`docMsgs`, `appMsgs`, `documentListChanged`, `importComplete`,
 `SendCollabState`, `ScrollCards`, `ScrollFullscreenCards`, `DragStart`,
 `CopyCurrentSubtree`, `CopyToClipboard`, `SelectAll`, `TextSurround`,
 `InsertMarkdownLink`, `SetCursorPosition`, `HistorySlider`,
-`SetSidebarState`, `SaveThemeSetting`, `Print`, `EmptyMessageShown`,
+`SetSidebarState`, `SaveThemeSetting`, `Print`,
 `ConsoleLogRequested`, `LogoutUser`.
 
 **Every tag is spelled the same on both sides.** It was not: Elm's

@@ -420,7 +420,6 @@ type Msg
     | TooltipRequested String TooltipPosition TranslationId
     | TooltipReceived Element TooltipPosition TranslationId
     | TooltipClosed
-    | EmptyMessage
     | ModalClosed
 
 
@@ -1303,9 +1302,6 @@ update msg model =
         TooltipClosed ->
             ( { model | tooltip = Nothing }, Cmd.none )
 
-        EmptyMessage ->
-            ( model, send <| EmptyMessageShown )
-
         ModalClosed ->
             case model.modalState of
                 _ ->
@@ -1837,7 +1833,7 @@ view ({ documentState } as model) =
 
             else
                 div [ id "app-root", classList [ ( "loading", model.loading ) ] ]
-                    (Page.DocMessage.viewEmpty { newClicked = TemplateSelectorOpened, emptyMessage = EmptyMessage }
+                    (Page.DocMessage.viewEmpty { newClicked = TemplateSelectorOpened }
                         ++ [ viewSidebarElement model session ""
                            , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                            , viewTooltip

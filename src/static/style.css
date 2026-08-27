@@ -140,9 +140,33 @@ body {
 #form-page span.alt-action {
   color: #888;
 }
+/* The password label and its show/hide control share a row. The control is a
+   real <button> (S12), which cannot live inside the <label> whose control it is
+   not, so the row that used to be the label's own flex box is its own element
+   and the label sits in it. */
+#form-page .label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+  /* What the button used to inherit from the label it sat in. */
+  color: #808080;
+  font-size: 14px;
+}
+#form-page .label-row label {
+  margin-bottom: 0;
+}
 #show-hide-password {
   display: flex;
   cursor: pointer;
+  align-items: center;
+  /* A <button>'s own chrome, gone: this is a label-row control, not a form
+     control. */
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
 }
 #show-hide-password .icon {
   width: 16px;
@@ -772,6 +796,11 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   background: var(--background-sidebar);
   box-shadow: var(--small-shadow);
   cursor: pointer;
+  /* A real <button> (S12), so its own chrome goes: the box above is the whole
+     of the intended appearance. */
+  border: 0;
+  font: inherit;
+  color: inherit;
 }
 #empty-message #new-button:hover {
   background: var(--background-sidebar-menu);

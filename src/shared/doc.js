@@ -778,7 +778,10 @@ const fromElm = (msg, elmData) => {
     // === Misc ===
 
 
-    EmptyMessageShown: () => {},
+    // `EmptyMessageShown` was here, doing nothing: the empty-documents screen
+    // fired it from a broken <img>'s error event, and this handler was `() =>
+    // {}`. Both ends are gone (S12) -- the honest mechanism for a message
+    // nobody listens to is not to send it.
 
     InitBeamer: () => {
 

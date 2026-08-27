@@ -203,12 +203,19 @@ view model =
         fromLegacy =
             Session.fromLegacy model.session
 
+        -- A real `<button type="button">`, and outside the `<label>` rather than
+        -- inside it (S12): it is not the field's label, and a `<label>` may not
+        -- contain a labelable element other than its own control. `type_` is
+        -- explicit because a button in a form submits it by default.
         showHidePassword =
-            if model.showPassword then
-                div [ id "show-hide-password", onClick ToggleShowPassword ] [ AntIcons.eyeInvisibleOutlined [ Svg.Attributes.class "icon" ], text "Hide" ]
+            button
+                [ id "show-hide-password", type_ "button", onClick ToggleShowPassword ]
+                (if model.showPassword then
+                    [ AntIcons.eyeInvisibleOutlined [ Svg.Attributes.class "icon" ], text "Hide" ]
 
-            else
-                div [ id "show-hide-password", onClick ToggleShowPassword ] [ AntIcons.eyeOutlined [ Svg.Attributes.class "icon" ], text "Show" ]
+                 else
+                    [ AntIcons.eyeOutlined [ Svg.Attributes.class "icon" ], text "Show" ]
+                )
     in
     div [ id "form-page" ]
         [ div [ class "page-backdrop" ] []
@@ -231,7 +238,10 @@ view model =
                     ]
                     []
                 , viewIf (not <| List.isEmpty emailErrors) <| div [ class "input-errors" ] [ text (String.join "\n" emailErrors) ]
-                , label [ for "password-input" ] [ text "Password", showHidePassword ]
+                , div [ class "label-row" ]
+                    [ label [ for "password-input" ] [ text "Password" ]
+                    , showHidePassword
+                    ]
                 , input
                     [ onInput EnteredPassword
                     , id "password-input"

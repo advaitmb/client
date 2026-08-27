@@ -194,12 +194,17 @@ view model =
         passwordErrors =
             getFieldErrors Password model.errors
 
+        -- As on the login page (S12): a real button, and outside the label,
+        -- which may not contain a labelable element other than its control.
         showHidePassword =
-            if model.showPassword then
-                div [ id "show-hide-password", onClick ToggleShowPassword ] [ AntIcons.eyeInvisibleOutlined [ Svg.Attributes.class "icon" ], text "Hide" ]
+            button
+                [ id "show-hide-password", type_ "button", onClick ToggleShowPassword ]
+                (if model.showPassword then
+                    [ AntIcons.eyeInvisibleOutlined [ Svg.Attributes.class "icon" ], text "Hide" ]
 
-            else
-                div [ id "show-hide-password", onClick ToggleShowPassword ] [ AntIcons.eyeOutlined [ Svg.Attributes.class "icon" ], text "Show" ]
+                 else
+                    [ AntIcons.eyeOutlined [ Svg.Attributes.class "icon" ], text "Show" ]
+                )
     in
     div [ id "form-page" ]
         [ div [ class "page-backdrop" ] []
@@ -223,7 +228,10 @@ view model =
                     ]
                     []
                 , viewErrors Email model.errors
-                , label [ for "signup-password" ] [ text "Password (7+ characters)", showHidePassword ]
+                , div [ class "label-row" ]
+                    [ label [ for "signup-password" ] [ text "Password (7+ characters)" ]
+                    , showHidePassword
+                    ]
                 , input
                     [ id "signup-password"
                     , onInput EnteredPassword

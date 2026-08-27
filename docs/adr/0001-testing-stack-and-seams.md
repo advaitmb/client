@@ -112,6 +112,15 @@
     *state* `Page.Doc` carries is plain data, so the session-start count is
     tested through its own setters and getter.
 
+    Ticket 24 adds the two chrome *views* that take only a message constructor
+    and their content — `Doc.UI.viewBreadcrumbs` and
+    `Page.DocMessage.viewEmpty` — driven with `Test.Html.Event` (as ticket 31
+    drives `Page.Doc.view`) and asked what they render and what a click or a
+    keystroke on them reports. That is the seam a mouse-only control is
+    invisible at: a `div` that reports nothing looks exactly like a view nobody
+    touched. Every other view of this kind takes a page `Model`, and so a
+    `Nav.Key`, which is why only these two are here.
+
     Out of reach at this seam, and so verified by inspection: whether a port
     command is sent at all. `preventIfBlocked`'s ordering (E5) and the one-line
     view wiring that hands the modal its starting count are both of that kind.

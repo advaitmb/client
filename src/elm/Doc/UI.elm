@@ -29,7 +29,7 @@ import Time exposing (posixToMillis)
 import Toast
 import Translation exposing (TranslationId(..), tr)
 import Types exposing (Children(..), CursorPosition(..), SortBy(..), TextCursorInfo, Toast, ToastRole(..), TooltipPosition(..), ViewMode(..), ViewState)
-import Utils exposing (emptyText, ternary, text, textNoTr)
+import Utils exposing (asButton, emptyText, ternary, text, textNoTr)
 
 
 {-| The save state of the document, as `<gw-save-indicator>`
@@ -128,8 +128,13 @@ viewBreadcrumbs clickedCrumbMsg cardIdsAndTitles =
                 |> List.map Markdown.Parser.deadEndToString
                 |> String.join "\n"
 
+        -- A `div` rather than a `button`, and keyboard-operable by hand: the
+        -- crumb's label is the card's title rendered as markdown, which can
+        -- contain a link, and a `<button>` may not contain one. `Utils.asButton`
+        -- carries the reasoning, including why the keystroke is stopped from
+        -- reaching the global shortcuts.
         viewCrumb ( id, content ) =
-            div [ onClick <| clickedCrumbMsg id ] [ span [] (renderedContent content) ]
+            div (asButton (clickedCrumbMsg id)) [ span [] (renderedContent content) ]
     in
     div [ id "breadcrumbs", attribute "data-private" "lipsum" ] (List.map viewCrumb cardIdsAndTitles)
 
@@ -500,16 +505,13 @@ viewToast toastAttr toast =
         toastRenderedMarkdown
 
 
-viewToastFrame : List (Html.Attribute msg) -> Toast.Info Toast -> Html msg
-viewToastFrame toastAttrs toast =
-    div
-        []
-        [ viewToast toastAttrs toast ]
-
-
 renderToast : (Toast.Msg -> msg) -> Toast.Tray Toast -> Html msg
 renderToast msg tray =
-    Toast.render viewToastFrame tray (toastConfig msg)
+    -- `viewToast` is handed to `Toast.render` directly. There used to be a
+    -- `viewToastFrame` between them whose whole body was `div [] [ viewToast … ]`
+    -- (S12): an attribute-less wrapper carrying nothing, which only kept each
+    -- toast from being a flex item of the tray it is laid out in.
+    Toast.render viewToast tray (toastConfig msg)
 
 
 viewTooltip : ( Element, TooltipPosition, TranslationId ) -> Html msg
