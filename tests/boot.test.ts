@@ -5,9 +5,9 @@
  * could survive being garbage. The session blob is boot's *first* step
  * (`getFlags` → Elm's flags), and it was `JSON.parse`d with no guard, so one
  * corrupted value meant a blank page and no way back except clearing site data
- * by hand. The per-document store is read the same way by `localStore.get`,
- * which additionally indexed the parse result before checking it — so a `get`
- * before anything had ever been written threw on `null`.
+ * by hand. The per-document store was read the same way by `localStore.load`,
+ * which Elm receives whole alongside a document's cards, so a corrupted one
+ * cost the theme and the focused card as well as throwing.
  *
  * Observed through the boundary they actually cross: the real localStorage.
  */
@@ -88,12 +88,14 @@ test("a storage that refuses the write does not fail the message that asked", ()
 
 /* ===== the per-document store ===== */
 
-test("a per-document setting read before anything is written is the fallback", () => {
+test("a per-document store read before anything is written is empty, not null", () => {
   expect(localStore.isReady()).toBe(false);
 
   localStore.db("tree-abc");
 
-  expect(localStore.get("last-actives", ["root"])).toEqual(["root"]);
+  // Elm gets this blob as `loadedCards.localStore` and decodes optional fields
+  // out of it, so an empty object is a document with no settings yet; `null`
+  // was a throw on the way there.
   expect(localStore.load()).toEqual({});
 });
 
@@ -101,12 +103,11 @@ test("a per-document setting survives a corrupted store", () => {
   localStore.db("tree-abc");
   localStorage.setItem("gingko-local-store/tree-abc/settings", "}{");
 
-  expect(localStore.get("theme", "default")).toBe("default");
   expect(localStore.load()).toEqual({});
 
   localStore.set("theme", "dark");
 
-  expect(localStore.get("theme", "default")).toBe("dark");
+  expect(localStore.load()).toEqual({ theme: "dark" });
 });
 
 test("per-document settings round-trip", () => {
@@ -115,5 +116,4 @@ test("per-document settings round-trip", () => {
   localStore.set("theme", "gray");
 
   expect(localStore.load()).toEqual({ "last-actives": ["a", "b"], theme: "gray" });
-  expect(localStore.get("last-actives", [])).toEqual(["a", "b"]);
 });

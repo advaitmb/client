@@ -19,8 +19,16 @@
  *   current           id of the open document
  *   sort              "alpha" | "modified" | "created"
  *   docs              JSON [{ id, name }], already filtered and sorted
- *   context-target    id of the document whose context menu is open
  *   switcher-enabled  "no" disables the quick-switcher button
+ *
+ * There was a `context-target` attribute here — the id of the document whose
+ * context menu is open, which marked its row — documented, styled, observed,
+ * and never set by Elm: `SidebarContextClicked` puts the id in
+ * `ModalState.SidebarContextMenu` and Elm renders the menu itself, over an
+ * overlay, without telling the rail anything. So the mark never appeared.
+ * Removed by ticket 22 rather than wired up, because giving it a producer is a
+ * UI change (one `attribute "context-target"` in `Page.App.viewSidebarElement`
+ * plus the CSS back) and this is a purge.
  *
  * Contract — events out
  *   gw-sidebar-toggle
@@ -58,7 +66,7 @@ const SORTS: Array<[value: string, id: string, label: string, glyph: string | nu
 
 class Sidebar extends HTMLElement {
   static observedAttributes = [
-    "open", "current", "sort", "docs", "context-target", "switcher-enabled", "static",
+    "open", "current", "sort", "docs", "switcher-enabled", "static",
   ];
 
   private list: HTMLElement | null = null;
@@ -74,7 +82,7 @@ class Sidebar extends HTMLElement {
     if (!this.isConnected) return;
     // Only the rows change on most updates; re-rendering the whole sidebar
     // would blow away the filter input's caret.
-    if (name === "docs" || name === "current" || name === "context-target") {
+    if (name === "docs" || name === "current") {
       if (this.list) return this.renderRows();
     }
     this.render();
@@ -206,7 +214,6 @@ class Sidebar extends HTMLElement {
     if (!this.list) return;
     const docs = jsonAttr<Doc[]>(this, "docs") ?? [];
     const current = this.getAttribute("current");
-    const ctx = this.getAttribute("context-target");
 
     if (docs.length === 0) {
       this.list.replaceChildren(h("div", { id: "no-documents" }, "No Documents Found"));
@@ -217,7 +224,6 @@ class Sidebar extends HTMLElement {
       ...docs.map((d) => {
         const classes = ["sidebar-document-item"];
         if (d.id === current) classes.push("active");
-        if (d.id === ctx) classes.push("context-target");
         return h(
           "div",
           { class: classes.join(" ") },

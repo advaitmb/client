@@ -1,31 +1,17 @@
-const _ = require("lodash");
-
-var userStoreLocal;
-var userStoreRemote;
-const userSettingsId = "settings";
-const userStore = {
-  db: function(localDb, remoteDb) {
-    userStoreLocal = localDb;
-    userStoreRemote = remoteDb;
-  },
-  load: async function() {
-    return userStoreLocal.get(userSettingsId);
-  },
-  set: function(key, val) {
-    userStoreLocal.get(userSettingsId)
-      .then(doc => {
-        doc[key] = val;
-        userStoreLocal.put(doc);
-      })
-      .catch(err => {
-        if (err.status == 404) {
-          let newSettings = {_id : userSettingsId};
-          newSettings[key] = val;
-          userStoreLocal.put(newSettings);
-        }
-      })
-  }
-};
+/**
+ * The per-document settings store, reached through the build's `Container`
+ * alias (esbuild.mjs).
+ *
+ * The alias, and this file's name, are what is left of an Electron/web split:
+ * there were two containers, and the build chose one. Everything else the web
+ * one exported was PouchDB- or Electron-era and had no caller left --
+ * `userStore` (a PouchDB `settings` document; user settings ride in the session
+ * blob now, see src/shared/session.js), `getInitialDocState` (an Electron
+ * window's `dbPath`/`lastSavedToFile` state), `showMessageBox` (Electron's
+ * dialog, aliased to `alert`), and seven `justLog` no-ops standing in for
+ * main-process IPC and the file exports. Removed by ticket 22, along with the
+ * lodash import none of them used.
+ */
 
 var localStoreId;
 var treeId;
@@ -33,12 +19,17 @@ var treeId;
 /**
  * The per-document settings blob (theme, last actives), or an empty one.
  *
- * Every one of the three accessors below used to parse localStorage inline, and
- * `get` then indexed the result before checking it — so a `get` before anything
- * had ever been written for this document threw on `null` (CODE_REVIEW.md S8),
- * and a corrupted value threw in all three. There is nothing to recover here
+ * Both accessors below used to parse localStorage inline, so a corrupted value
+ * threw in each of them (CODE_REVIEW.md S8). There is nothing to recover here
  * (these are conveniences, the document itself is in Dexie), so anything
  * unusable reads as "no settings yet" and the next `set` replaces it.
+ *
+ * There was a third accessor, `get(key, fallback)`, which additionally indexed
+ * the parse result before checking it -- so a `get` before anything had ever
+ * been written for this document threw on `null`. It was the S8 bug and it had
+ * no caller: `load` hands the whole blob to Elm (`loadedCards.localStore`),
+ * which decodes the keys it wants, and nothing on this side ever asks for one.
+ * Removed by ticket 22.
  */
 const readLocalStore = () => {
   try {
@@ -63,14 +54,6 @@ const localStore = {
   load: () => {
     return readLocalStore();
   },
-  get: (key, fallback) => {
-    let store = readLocalStore();
-    if (typeof store[key] !== "undefined") {
-      return store[key];
-    } else {
-      return fallback;
-    }
-  },
   set: (key, value) => {
     let store = readLocalStore();
     store[key] = value;
@@ -82,40 +65,4 @@ const localStore = {
   },
 };
 
-const getInitialDocState = () => {
-  const url = new URL(window.location);
-  const treeName = url.searchParams.get("treeId") || "defaultTree";
-  var docState = {
-    dbPath: [treeName],
-    lastSavedToFile: 0,
-    changed: false,
-    jsonImportData: false,
-  };
-  return docState;
-};
-
-const showMessageBox = (...args) => {
-  if (args[0] && args[0].buttons && args[0].buttons.length == 1) {
-    alert(`${args[0].title}\n${args[0].message}\n${args[0].detail}`);
-  } else {
-    console.log("showMessageBox", args);
-  }
-};
-
-const justLog = (...args) => {
-  //console.debug("container", ...args);
-};
-
-export {
-  justLog as sendTo,
-  justLog as msgWas,
-  justLog as answerMain,
-  getInitialDocState,
-  localStore,
-  userStore,
-  justLog as openExternal,
-  showMessageBox,
-  justLog as exportDocx,
-  justLog as exportJson,
-  justLog as exportTxt,
-};
+export { localStore };

@@ -1607,11 +1607,8 @@ div#video-viewer-container {
   border-radius: 3px;
   border-left: 3px solid var(--selection-color);
 }
-.sidebar-document-item a:hover, .sidebar-document-item.context-target a {
+.sidebar-document-item a:hover {
   color: var(--ui-1-fg);
-}
-.sidebar-document-item.context-target a {
-  background: #fcfcfc;
 }
 
 #sidebar-context-menu {
