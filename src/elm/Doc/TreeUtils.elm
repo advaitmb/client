@@ -1,4 +1,4 @@
-module Doc.TreeUtils exposing (ScrollPosition, getAncestors, getChildren, getColumn, getColumnById, getColumns, getContent, getDepth, getDescendants, getFirstCard, getFirstInColumn, getIndex, getLastInColumn, getLeaves, getNextInColumn, getParent, getPrev, getPrevInColumn, getScrollPositions, getSiblings, getTree, getTreeWithPosition, preorderTraversal, scrollPositionToValue, sha1)
+module Doc.TreeUtils exposing (ScrollPosition, getAncestors, getChildren, getColumn, getColumnById, getColumns, getContent, getDepth, getDescendants, getFirstCard, getFirstInColumn, getIndex, getLastInColumn, getLeaves, getNextInColumn, getParent, getPrev, getPrevInColumn, getScrollPositions, getSiblings, getTree, preorderTraversal, scrollPositionToValue, sha1)
 
 import Dict exposing (..)
 import Json.Encode as Enc
@@ -116,15 +116,6 @@ getColumnById id tree =
             getDepth 0 tree id
     in
     getColumn n tree
-
-
-getTreeWithPosition : String -> Tree -> Maybe ( Tree, String, Int )
-getTreeWithPosition id tree =
-    Maybe.map3
-        (\t p i -> ( t, p, i ))
-        (getTree id tree)
-        (getParent id tree |> Maybe.map .id)
-        (getIndex id tree)
 
 
 getPrevNext : Int -> String -> Tree -> Maybe Tree

@@ -1,9 +1,8 @@
 port module Page.Doc.Incoming exposing (Msg(..), fromOutside, subscribe)
 
 import Coders exposing (..)
-import File exposing (File)
 import Json.Decode as Dec exposing (Decoder, decodeValue, errorToString, field)
-import Types exposing (Children(..), Collaborator, CursorPosition(..), OutsideData, TextCursorInfo, Tree)
+import Types exposing (Collaborator, CursorPosition(..), OutsideData, TextCursorInfo, Tree)
 
 
 type
@@ -12,7 +11,6 @@ type
     = CancelCardConfirmed
       -- === DOM ===
     | InitialActivation String
-    | DragStarted String
     | DragExternalStarted
     | DropExternal String
     | Paste Tree
@@ -31,7 +29,6 @@ type
     | RecvCollabState Collaborator
     | RecvCollabUsers (List Collaborator)
     | CollaboratorDisconnected String
-      -- === TESTING ===
 
 
 
@@ -90,14 +87,6 @@ fromOutside outsideInfo =
             case decodeValue (Dec.oneOf [ Dec.string, Dec.null "" ]) outsideInfo.data of
                 Ok cardId ->
                     Ok (InitialActivation cardId)
-
-                Err e ->
-                    Err (errorToString e)
-
-        "DragStarted" ->
-            case decodeValue Dec.string outsideInfo.data of
-                Ok dragId ->
-                    Ok (DragStarted dragId)
 
                 Err e ->
                     Err (errorToString e)

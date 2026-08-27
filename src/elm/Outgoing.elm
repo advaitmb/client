@@ -33,7 +33,6 @@ type Msg
     | SendCollabState Enc.Value
       -- === DOM ===
     | ScrollCards (List String) (List ( Int, ScrollPosition )) Int Bool
-    | DragStart Enc.Value
     | CopyCurrentSubtree Enc.Value
     | CopyToClipboard String String
     | SelectAll String
@@ -127,9 +126,6 @@ send info =
                     , ( "instant", bool instant )
                     ]
                 )
-
-        DragStart event ->
-            dataToSend "DragStart" event
 
         CopyCurrentSubtree treeJSON ->
             dataToSend "CopyCurrentSubtree" treeJSON

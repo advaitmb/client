@@ -1,6 +1,5 @@
 module Types exposing (CardTreeOp(..), Children(..), CollabStateMode(..), Collaborator, Column, ConflictSelection(..), CursorPosition(..), DragExternalModel, DropId(..), Group, OutsideData, SortBy(..), TextCursorInfo, Toast, ToastPersistence(..), ToastRole(..), TooltipPosition(..), Tree, ViewMode(..), ViewState)
 
-import Html5.DragDrop as DragDrop
 import Json.Encode as Enc
 
 
@@ -132,8 +131,7 @@ type alias ViewState =
     , ancestors : List String
     , viewMode : ViewMode
     , searchField : Maybe String
-    , dragModel : ( DragDrop.Model String DropId, DragExternalModel )
-    , draggedTree : Maybe ( Tree, String, Int )
+    , dragModel : DragExternalModel
     , collaborators : List Collaborator
     }
 

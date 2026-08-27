@@ -14,7 +14,6 @@ import Html.Events exposing (custom, on, onClick, onDoubleClick)
 import Html.Extra exposing (viewIf)
 import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy2, lazy3, lazy4, lazy6, lazy8)
-import Html5.DragDrop as DragDrop
 import Json.Decode as Json
 import Json.Encode as Enc
 import List.Extra as ListExtra
@@ -81,8 +80,7 @@ init isNew globalData =
             , descendants = []
             , ancestors = [ "0" ]
             , searchField = Nothing
-            , dragModel = ( DragDrop.init, DragExternalModel Nothing False )
-            , draggedTree = Nothing
+            , dragModel = DragExternalModel Nothing False
             , collaborators = []
             }
         , dirty = False
@@ -149,7 +147,6 @@ type Msg
     | InsertChild String
       -- === Dragging ===
     | CardDropped String DropId
-    | DragDropMsg (DragDrop.Msg String DropId)
     | DragExternal DragExternalMsg
       -- === Fullscreen ===
     | ExitFullscreenRequested
@@ -338,80 +335,14 @@ update msg ({ workingTree } as model) =
                     -- drag is over all the same.
                     ( model, send <| DragDone, [] )
 
-        DragDropMsg dragDropMsg ->
-            let
-                ( newDragModel, dragResult_ ) =
-                    DragDrop.update dragDropMsg (Tuple.first vs.dragModel)
-
-                modelDragUpdated =
-                    { model
-                        | viewState =
-                            { vs
-                                | dragModel = ( newDragModel, Tuple.second vs.dragModel )
-                            }
-                    }
-            in
-            case ( DragDrop.getDragId newDragModel, dragResult_ ) of
-                ( Just _, Nothing ) ->
-                    -- Dragging
-                    ( modelDragUpdated
-                    , DragDrop.getDragstartEvent dragDropMsg
-                        |> Maybe.map .event
-                        |> Maybe.map (\json -> send <| DragStart json)
-                        |> Maybe.withDefault Cmd.none
-                    , []
-                    )
-                        |> preventIfBlocked model
-
-                ( Nothing, Just ( _, dropId, _ ) ) ->
-                    -- Drop success
-                    case vs.draggedTree of
-                        Just ( draggedTree, _, _ ) ->
-                            let
-                                moveOperation =
-                                    case dropId of
-                                        Into id ->
-                                            move draggedTree id 999999
-
-                                        Above id ->
-                                            move draggedTree
-                                                ((getParent id model.workingTree.tree |> Maybe.map .id) |> Maybe.withDefault "0")
-                                                ((getIndex id model.workingTree.tree |> Maybe.withDefault 0) |> Basics.max 0)
-
-                                        Below id ->
-                                            move draggedTree
-                                                ((getParent id model.workingTree.tree |> Maybe.map .id) |> Maybe.withDefault "0")
-                                                ((getIndex id model.workingTree.tree |> Maybe.withDefault 0) + 1)
-                            in
-                            ( { modelDragUpdated | viewState = { vs | draggedTree = Nothing }, dirty = True }, Cmd.batch [ send <| SetDirty True, send <| DragDone ], [] )
-                                |> moveOperation
-                                |> andThen (changeMode { to = Normal draggedTree.id, instant = False, save = True })
-
-                        Nothing ->
-                            ( modelDragUpdated, Cmd.none, [] )
-
-                ( Nothing, Nothing ) ->
-                    -- NotDragging
-                    case vs.draggedTree of
-                        Just ( draggedTree, parentId, idx ) ->
-                            ( modelDragUpdated, Cmd.none, [] )
-                                |> move draggedTree parentId idx
-
-                        Nothing ->
-                            ( modelDragUpdated, Cmd.none, [] )
-
-                ( Just _, Just _ ) ->
-                    -- Should be Impossible: both Dragging and Dropped
-                    ( modelDragUpdated, Cmd.none, [] )
-
         DragExternal dragExternalMsg ->
             case dragExternalMsg of
                 DragEnter dId ->
-                    ( { model | viewState = { vs | dragModel = ( Tuple.first vs.dragModel, { dropId = Just dId, isDragging = True } ) } }, Cmd.none, [] )
+                    ( { model | viewState = { vs | dragModel = { dropId = Just dId, isDragging = True } } }, Cmd.none, [] )
 
                 DragLeave dId ->
-                    if (Tuple.second vs.dragModel |> .dropId) == Just dId then
-                        ( { model | viewState = { vs | dragModel = ( Tuple.first vs.dragModel, { dropId = Nothing, isDragging = True } ) } }, Cmd.none, [] )
+                    if vs.dragModel.dropId == Just dId then
+                        ( { model | viewState = { vs | dragModel = { dropId = Nothing, isDragging = True } } }, Cmd.none, [] )
 
                     else
                         ( model, Cmd.none, [] )
@@ -517,32 +448,10 @@ incoming incomingMsg model =
                 _ ->
                     ( model, Cmd.none, [] )
 
-        DragStarted dragId ->
-            let
-                newTree =
-                    TreeStructure.update (TreeStructure.Rmv dragId) model.workingTree
-
-                draggedTree =
-                    getTreeWithPosition dragId model.workingTree.tree
-            in
-            if List.isEmpty <| getChildren newTree.tree then
-                ( model, Cmd.none, [] )
-
-            else
-                ( { model | workingTree = newTree, viewState = { vs | draggedTree = draggedTree } }, Cmd.none, [] )
-
         DragExternalStarted ->
             case vs.viewMode of
                 Normal _ ->
-                    ( { model
-                        | viewState =
-                            { vs
-                                | dragModel =
-                                    ( Tuple.first vs.dragModel
-                                    , { dropId = Nothing, isDragging = True }
-                                    )
-                            }
-                      }
+                    ( { model | viewState = { vs | dragModel = { dropId = Nothing, isDragging = True } } }
                     , Cmd.none
                     , []
                     )
@@ -551,11 +460,11 @@ incoming incomingMsg model =
                     ( model, Cmd.none, [] )
 
         DropExternal dropText ->
-            case Tuple.second vs.dragModel |> .dropId of
+            case vs.dragModel.dropId of
                 Just dropId ->
                     let
                         modelNoDrag =
-                            { model | viewState = { vs | dragModel = ( Tuple.first vs.dragModel, { dropId = Nothing, isDragging = False } ) } }
+                            { model | viewState = { vs | dragModel = { dropId = Nothing, isDragging = False } } }
 
                         baseModelCmdTuple =
                             case dropId of
@@ -576,8 +485,7 @@ incoming incomingMsg model =
                     -- to insert, but the drag is over all the same, so the
                     -- regions stop offering themselves (CODE_REVIEW.md E8).
                     ( { model
-                        | viewState =
-                            { vs | dragModel = ( Tuple.first vs.dragModel, { dropId = Nothing, isDragging = False } ) }
+                        | viewState = { vs | dragModel = { dropId = Nothing, isDragging = False } }
                       }
                     , Cmd.none
                     , []
@@ -2248,7 +2156,7 @@ treeView _ vstate model =
         , on "gw-edit-fullscreen" (Json.succeed EditToFullscreenMode)
         , on "gw-save-close" (Json.succeed SaveAndCloseCard)
         , attribute "external-drag"
-            (if Tuple.second vstate.dragModel |> .isDragging then
+            (if vstate.dragModel.isDragging then
                 "yes"
 
              else
