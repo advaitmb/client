@@ -1,6 +1,6 @@
 # 33: Header icons are mouse-only
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 32 (resolved)
 
