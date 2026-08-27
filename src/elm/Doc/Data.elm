@@ -316,7 +316,9 @@ conflictToTree data selection =
             let
                 toDict : CardData -> Dict String (Card UpdatedAt)
                 toDict d =
-                    d |> List.map (\c -> ( c.id, c )) |> Dict.fromList
+                    -- Newest row per id, so the tree does not depend on the
+                    -- order the rows came out of Dexie (ADR-0005 §1).
+                    d |> newestPerId |> List.map (\c -> ( c.id, c )) |> Dict.fromList
 
                 combine : CardData -> CardData
                 combine conf =
@@ -605,12 +607,19 @@ mergeCards isUp data currCard otherCard =
             }
                 |> asUnsynced
 
+        -- Both the position offsets below and the rows this emits must see
+        -- the tree as the user does: newest row per id, deleted cards gone.
+        -- A stale row would otherwise pull a child that has since moved (or
+        -- been deleted) back under the merged card (CODE_REVIEW.md D2).
+        visibleCards =
+            newestVisible data
+
         childrenOfCurrent =
-            data
+            visibleCards
                 |> List.filter (\card -> card.parentId == Just currCard.id)
 
         childrenOfOther =
-            data
+            visibleCards
                 |> List.filter (\card -> card.parentId == Just otherCard.id)
 
         positionsCurrent =
@@ -694,10 +703,12 @@ getPosition : String -> Maybe String -> Int -> List (Card UpdatedAt) -> Float
 getPosition cardId parId idx data =
     let
         siblings =
+            -- Newest row per id first, then drop deleted cards: filtering the
+            -- raw rows would keep a stale row of a card that has since been
+            -- deleted or moved out of `parId` (ADR-0005 §1).
             data
-                |> List.filter (\card -> card.parentId == parId && card.deleted == False && card.id /= cardId)
-                |> UpdatedAt.sortNewestFirst .updatedAt
-                |> ListExtra.uniqueBy .id
+                |> newestVisible
+                |> List.filter (\card -> card.parentId == parId && card.id /= cardId)
                 |> List.sortBy .position
 
         ( sibLeft_, sibRight_ ) =
@@ -762,14 +773,34 @@ toTree allCards =
 
 toTrees : List (Card UpdatedAt) -> List Tree
 toTrees allCards =
-    let
-        cards =
-            allCards
-                |> UpdatedAt.sortNewestFirst .updatedAt
-                |> ListExtra.uniqueBy .id
-                |> List.filter (not << .deleted)
-    in
-    treeHelper cards Nothing
+    treeHelper (newestVisible allCards) Nothing
+
+
+{-| The newest version row of each card id.
+
+The version log is append-mostly (Dexie's `cards` primary key is `updatedAt`),
+so rows a card has outgrown -- an old parent, an old position, an undeleted
+row of a deleted card -- stay in the table until push + fast-forward. Per
+ADR-0005 §1, newest-row-per-id is the only legal view of that log: every scan
+of the rows reduces to it first.
+
+-}
+newestPerId : List (Card UpdatedAt) -> List (Card UpdatedAt)
+newestPerId allCards =
+    allCards
+        |> UpdatedAt.sortNewestFirst .updatedAt
+        |> ListExtra.uniqueBy .id
+
+
+{-| The cards the user can see: newest row per id, minus the cards whose
+newest row marks them deleted. Note the order -- dropping deleted rows before
+deduping would resurrect a deleted card from one of its older rows.
+-}
+newestVisible : List (Card UpdatedAt) -> List (Card UpdatedAt)
+newestVisible allCards =
+    allCards
+        |> newestPerId
+        |> List.filter (not << .deleted)
 
 
 treeHelper : List (Card UpdatedAt) -> Maybe String -> List Tree
@@ -781,22 +812,32 @@ treeHelper allCards parentId =
     List.map (\card -> { id = card.id, content = card.content, children = Children (treeHelper allCards (Just card.id)) }) cards
 
 
+{-| The card and every card below it, as the user sees the tree.
+
+Walking the raw rows would collect a card whose *stale* row still names `id`
+as its parent -- so deleting a card would delete a card that had been moved
+out of it (CODE_REVIEW.md D1). Cards already deleted are left out too: they
+are not in the subtree on screen, and re-marking them adds a redundant
+unsynced deletion row per pass.
+
+-}
 getDescendants : String -> List (Card UpdatedAt) -> List String
 getDescendants id allCards =
-    let
-        card_ =
-            allCards |> List.filter (\card -> card.id == id) |> List.head
-    in
-    case card_ of
+    descendantsOf id (newestVisible allCards)
+
+
+descendantsOf : String -> List (Card UpdatedAt) -> List String
+descendantsOf id visibleCards =
+    case visibleCards |> ListExtra.find (\card -> card.id == id) of
         Nothing ->
             []
 
         Just card ->
             card.id
-                :: (allCards
+                :: (visibleCards
                         |> List.filter (\c -> c.parentId == Just id)
                         |> List.map .id
-                        |> List.concatMap (\i -> getDescendants i allCards)
+                        |> List.concatMap (\i -> descendantsOf i visibleCards)
                    )
 
 
@@ -1076,18 +1117,24 @@ resolveDeleteConflicts allCards versions =
 
         theirDeletionsToRemove =
             -- If the delete conflict is because they deleted it on 'Their' side, then we need to undo those deletions
-            -- by removing the older synced version from the DB...
+            -- by removing the pre-deletion synced version from the DB.  That
+            -- leaves their deletion as the only synced row and our edit as the
+            -- only unsynced one, which is exactly the pair `cardDelta` turns
+            -- into an undelete + our content (edits beat deletions).
+            --
+            -- Nothing is added here.  The limb that claimed to add "new
+            -- unsynced undeleted versions so we can create deltas based off
+            -- them" filtered ids out of the set they came from, so it was
+            -- always empty (CODE_REVIEW.md D10) -- and it built those versions
+            -- from the *pre-deletion* content.  The port layer stamps a staged
+            -- row as it writes it, so such a row would outrank our edit and
+            -- become the one pushed, silently reverting the very edit this
+            -- resolution exists to keep.
             theirDeletionCards
                 |> List.map .updatedAt
                 |> UpdatedAt.unique
-
-        theirDeletionsLocalVersions =
-            -- ... and add new unsynced undeleted versions so we can create deltas based off them
-            theirDeletionCards
-                |> List.filter (\c -> not (List.member c.id idsOfConflicts))
-                |> List.map (\c -> { c | deleted = False } |> asUnsynced)
     in
-    { toAdd = theirDeletionsLocalVersions, toMarkSynced = [], toMarkDeleted = [], toRemove = ourDeletionTimestamps ++ theirDeletionsToRemove |> UpdatedAt.unique }
+    { toAdd = [], toMarkSynced = [], toMarkDeleted = [], toRemove = ourDeletionTimestamps ++ theirDeletionsToRemove |> UpdatedAt.unique }
 
 
 pushOkHandler : List String -> Model -> Maybe Outgoing.Msg
