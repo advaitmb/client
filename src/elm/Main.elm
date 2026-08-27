@@ -17,6 +17,7 @@ import Page.Login
 import Page.Signup
 import Route
 import Session exposing (LoggedIn, Session(..))
+import SharedUI
 import Url exposing (Url)
 
 
@@ -266,15 +267,7 @@ update msg model =
             case urlRequest of
                 Browser.Internal url ->
                     if Page.App.isDirty appModel then
-                        let
-                            saveShortcut =
-                                if GlobalData.isMac globalData then
-                                    "⌘+enter"
-
-                                else
-                                    "Ctrl+Enter"
-                        in
-                        ( model, send <| Alert ("You have unsaved changes!\n" ++ saveShortcut ++ " to save.") )
+                        ( model, send <| Alert (SharedUI.unsavedChangesAlert (GlobalData.isMac globalData)) )
 
                     else
                         ( model, Nav.pushUrl navKey (Url.toString url) )

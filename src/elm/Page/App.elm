@@ -37,7 +37,7 @@ import Page.DocMessage
 import RandomId
 import Route
 import Session exposing (LoggedIn, Session(..))
-import SharedUI exposing (ctrlOrCmdText)
+import SharedUI exposing (ctrlOrCmdText, unsavedChangesAlert)
 import Svg.Attributes
 import Task
 import Time
@@ -425,7 +425,15 @@ update msg model =
             ( model |> updateSession (Session.sync json session), Cmd.none )
 
         LogoutRequested ->
-            ( model, Session.logout )
+            -- Logging out replaces the page with the login screen, and an
+            -- edit in progress lives in the model rather than the database.
+            -- Same guard the router applies to navigating away while dirty
+            -- (Main.elm's ClickedLink).
+            if isDirty model then
+                ( model, send <| Alert (unsavedChangesAlert (GlobalData.isMac globalData)) )
+
+            else
+                ( model, Session.logout )
 
         IncomingAppMsg appMsg ->
             case appMsg of
@@ -2103,6 +2111,7 @@ viewSidebarElement model session currentDocId =
             )
         , on "gw-new" (Json.succeed TemplateSelectorOpened)
         , on "gw-switcher" (Json.succeed SwitcherOpened)
+        , on "gw-logout" (Json.succeed LogoutRequested)
         , on "gw-filter" (Json.map FileSearchChanged detailString)
         , on "gw-sort" (Json.map sortByMsg detailString)
         , on "gw-context"

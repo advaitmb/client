@@ -541,6 +541,12 @@ input.has-error {
   fill: #aaa;
   cursor: not-allowed;
 }
+/* Logout sits at the bottom of the rail (the last of #sidebar's bottom rows),
+   where the removed account menu used to open from. Placed explicitly so it
+   stays pinned there as the top of the rail grows. */
+#logout-icon {
+  grid-area: bott-row3;
+}
 #sidebar-document-list-wrap {
   grid-area: doc-list;
   display: flex;

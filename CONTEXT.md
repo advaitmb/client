@@ -59,3 +59,5 @@ Vocabulary used in code, issues, and tests. Full system description:
    computation) — extract to module scope to test, don't test via Dexie.
 3. Custom elements: attribute-in → DOM/CustomEvent-out, in a DOM test
    environment.
+4. Session sequences extracted from `doc.js` (`src/shared/session.js`:
+   logout) — faked `fetch`, real `localStorage`, injected callbacks.

@@ -1,4 +1,4 @@
-module SharedUI exposing (ctrlOrCmdText, modalWrapper)
+module SharedUI exposing (ctrlOrCmdText, modalWrapper, unsavedChangesAlert)
 
 import Ant.Icons.Svg as Icons
 import Html exposing (Html, a, button, div, h1, h2, text)
@@ -43,3 +43,12 @@ ctrlOrCmdText isMac =
 
     else
         "Ctrl"
+
+
+{-| Shown when something would throw away an edit that only exists in the
+model: navigating away (Main.handleUrlChange) and logging out
+(Page.App.LogoutRequested) both refuse while the document is dirty.
+-}
+unsavedChangesAlert : Bool -> String
+unsavedChangesAlert isMac =
+    "You have unsaved changes!\n" ++ ctrlOrCmdText isMac ++ "+enter to save."

@@ -29,6 +29,13 @@
    module first; do not test through Dexie or the WebSocket.
 3. Custom elements — public contract only: set attributes, observe rendered
    DOM and emitted `CustomEvent`s. No reaching into private fields.
+4. Session-level sequences extracted from `doc.js` — added by ticket 04 for
+   the logout sequence (`src/shared/session.js`). These are not pure, so
+   seam 2 does not cover them: the rule is the same extraction (nothing in
+   `doc.js` itself is importable, it boots the app at module load) but they
+   are observed through the boundaries they actually cross — a faked `fetch`,
+   the real `localStorage`, and the callbacks the port layer passes in. Still
+   never through Dexie or the WebSocket.
 
 No test is written at a seam outside this list without updating this ADR.
 

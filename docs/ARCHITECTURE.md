@@ -48,6 +48,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/doc.js` | JS side of the Elm ports: storage, sync, dispatch table |
 | `src/shared/doc-helpers.js` | Shared helpers + the `gw-textarea` custom element |
 | `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
+| `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
 | `src/static/` | `index.html`, CSS, fonts, images, `templates/*.json`; copied verbatim into `web/` |
@@ -131,11 +132,15 @@ document list (`Doc.List.Model`), and `features` (no payment status — ADR-0002
 a `paymentStatus` left in stored session data by an older build is ignored). Auth HTTP: POST `/signup`, POST `/login` (via `Http.riskyRequest`
 for the session cookie). On success the session is persisted through the
 `StoreUser` port; JS writes it to `localStorage["gingko-session-storage"]` and
-echoes `userLoggedInMsg`.
+echoes `userLoggedInMsg`. Logout is the mirror image: `<gw-sidebar>`'s logout
+button → the `LogoutUser` port → the sequence in `src/shared/session.js`
+(POST `/logout`, blob cleared, then doc.js's `stopSyncing`) →
+`userLoggedOutMsg` → the login page (§7).
 
 On selfhost the Elm login screen is normally skipped entirely: `doc.js`
 auto-logs-in against `/me` at boot and seeds the local database before Elm
-starts (see §6.1).
+starts (see §6.1). That is also why logging out hands back to Elm instead of
+reloading `/login`: a reload would ask `/me` again.
 
 `GlobalData` is `{ seed, currentTime, isMac }`; time ticks every 9 s from
 `Page.App`, and the random seed is threaded through card-id generation.
@@ -385,7 +390,14 @@ incoming ones (`docMsgs`, `appMsgs`, `documentListChanged`, `importComplete`,
 `CopyCurrentSubtree`, `CopyToClipboard`, `SelectAll`, `TextSurround`,
 `InsertMarkdownLink`, `SetCursorPosition`, `HistorySlider`,
 `SetSidebarState`, `SaveThemeSetting`, `Print`, `EmptyMessageShown`,
-`ConsoleLogRequested`, `LogoutUser` (⚠ no JS handler).
+`ConsoleLogRequested`, `LogoutUser`.
+
+`LogoutUser` is the one round trip that ends in JS telling Elm to change
+pages: `<gw-sidebar>`'s `gw-logout` → `Page.App.LogoutRequested` →
+`Session.logout` → `doc.js` (POST `/logout`, drop the session blob, close the
+socket, `src/shared/session.js`) → `userLoggedOutMsg` →
+`Main.UserLoggedOut` → the login page. Local document data is deliberately
+kept; see `src/shared/session.js`.
 
 **Live JS → Elm:** `docMsgs` — `CancelCardConfirmed`, `InitialActivation`,
 `DragStarted`, `DragExternalStarted`, `DropExternal`, `Paste`, `PasteInto`,

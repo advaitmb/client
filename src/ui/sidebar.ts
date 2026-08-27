@@ -24,7 +24,7 @@
  *
  * Contract — events out
  *   gw-sidebar-toggle
- *   gw-new | gw-switcher
+ *   gw-new | gw-switcher | gw-logout
  *   gw-filter   detail: the search term
  *   gw-sort     detail: "alpha" | "modified" | "created"
  *   gw-context  detail: { id, x, y }
@@ -42,6 +42,7 @@ const I = {
   menu: "M4 7h16M4 12h16M4 17h16",
   edit: "M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z",
   file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
+  logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
 };
 
 interface Doc {
@@ -143,6 +144,10 @@ class Sidebar extends HTMLElement {
         switcherOff ? undefined : this.on(() => emit(this, "gw-switcher")),
         switcherOff ? "disabled" : undefined,
       ),
+      // The only way out of the session: the account menu that used to host
+      // logout is gone (CODE_REVIEW.md C3). style.css pins it to the bottom
+      // of the rail, where that menu was.
+      button("logout-icon", I.logout, "Log out", this.on(() => emit(this, "gw-logout"))),
     ];
 
     this.id = "sidebar";

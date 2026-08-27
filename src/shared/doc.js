@@ -36,6 +36,7 @@ dexie.version(4).stores({
 });
 
 const helpers = require("./doc-helpers");
+const { SESSION_STORAGE_KEY, logoutUser } = require("./session");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -73,6 +74,7 @@ let docElement;
 let sidebarWidth;
 let externalDrag = false;
 let savedObjectIds = new Set();
+let treeListSubscription = null;
 let cardDataSubscription = null;
 let historyDataSubscription = null;
 let wsErrorCount = 0;
@@ -88,7 +90,6 @@ const params = {
   ticking: false,
   DIRTY: false,
 };
-const sessionStorageKey = "gingko-session-storage";
 function getDataType() {
   return DATA_TYPE;
 }
@@ -181,7 +182,7 @@ async function setUserDbs(eml) {
 
   let firstLoad = true;
 
-  Dexie.liveQuery(() => dexie.trees.toArray()).subscribe((trees) => {
+  treeListSubscription = Dexie.liveQuery(() => dexie.trees.toArray()).subscribe((trees) => {
     const docMetadatas = trees.filter(t => t.deletedAt == null).map(treeDocToMetadata);
     if (!loadingDocs && !firstLoad) {
       toElm(docMetadatas, "documentListChanged");
@@ -194,6 +195,26 @@ async function setUserDbs(eml) {
     firstLoad = false;
   });
 
+}
+
+
+/**
+ * The counterpart of setUserDbs: stop syncing as the user who just logged
+ * out. pws reconnects on its own until it is closed explicitly, and the
+ * liveQueries would keep feeding a document that is no longer on screen.
+ * Local data itself is untouched (see session.js).
+ */
+function stopSyncing() {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  wsQueue = [];
+  if (treeListSubscription != null) { treeListSubscription.unsubscribe(); treeListSubscription = null; }
+  if (cardDataSubscription != null) { cardDataSubscription.unsubscribe(); cardDataSubscription = null; }
+  if (historyDataSubscription != null) { historyDataSubscription.unsubscribe(); historyDataSubscription = null; }
+  TREE_ID = null;
+  email = null;
 }
 
 
@@ -425,6 +446,18 @@ const fromElm = (msg, elmData) => {
       elmData.seed = timestamp;
       elmData.currentTime = timestamp;
       setTimeout(() => gingko.ports.userLoggedInMsg.send(null), 0);
+    },
+
+    LogoutUser: async () => {
+      await logoutUser({
+        teardown: stopSyncing,
+        // Hand back to Elm rather than reloading /login: Main.elm's
+        // userLoggedOut subscription swaps the page in place, while a reload
+        // would run boot auto-login again (getFlags finds no email, so /me is
+        // asked) -- and any server session that outlived the POST above would
+        // silently log the user back in.
+        onLoggedOut: () => gingko.ports.userLoggedOutMsg.send(null),
+      });
     },
 
 
@@ -869,7 +902,7 @@ function my_uuid(length) {
 }
 
 function getSessionData() {
-  let sessionStringRaw = localStorage.getItem(sessionStorageKey);
+  let sessionStringRaw = localStorage.getItem(SESSION_STORAGE_KEY);
   if (sessionStringRaw) {
     return JSON.parse(sessionStringRaw);
   } else {
@@ -879,7 +912,7 @@ function getSessionData() {
 
 function setSessionData(data, source) {
   console.log("Setting session data:",source, JSON.stringify(data))
-  localStorage.setItem(sessionStorageKey, JSON.stringify(data));
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
 }
 
 
