@@ -111,25 +111,38 @@ set the four values; `bun i`; `bun run newbuild`; serve `web/` behind
 
 ### 4.1 Entry point, pages, routing
 
-`Main.main` is a `Browser.application` (`Main.elm:398`). The model is a flat
+`Main.main` is a `Browser.application` (`Main.elm:392`). The model is a flat
 union of pages (`Main.elm:34`): `Signup`, `Login`, `Import`, `DocNew`, `App`.
 Flags (one JSON object from `doc.js`) are decoded twice: `Session.decode` and
 `GlobalData.decode`.
 
-There is **no route parser**; `Route.elm` only builds URLs, and parsing is
-hand-rolled in `Main.handleUrlChange` (`Main.elm:70–167`) over
-`AppUrl.fromUrl`:
+There is **no route parser** in the `Url.Parser` sense: `Route.elm` owns both
+directions of the mapping by hand, pattern matching on `AppUrl.fromUrl`'s path
+segments. It answers with a **landing** — the page to initialize, plus any
+correction to the address bar (a `Route` to *replace* the current URL with;
+pushing one would leave the bad URL in the history for Back to land on):
 
-- Logged in: `[]` → App home; `/new` → `Page.DocNew` (generates a random id,
-  redirects to `/<id>`, and the redirect is treated as a brand-new doc);
-  `/import/<template>` → `Page.Import`; `/<dbName>` → App with that document;
-  `/<dbName>/404-not-found` → not-found screen; anything else no-ops.
-- Guest: `[]` → Signup, `/login`, `/signup`, and `/import/<t>` mid-login
-  transition.
+- `Route.loggedInLanding`: `[]` → `Home`; `/new` → `NewDocument` (generates a
+  random id, redirects to `/<id>`, and the redirect is treated as a brand-new
+  doc); `/import/<template>` → `ImportTemplate` (an unknown template → `Home`);
+  `/<dbName>` and `/<dbName>/<title>` → `Document`;
+  `/<dbName>/404-not-found` and any deeper path → `DocumentNotFound`;
+  `/login`, `/signup` → `Home`, correcting the URL to `/`.
+- `Route.guestLanding`: `/login` → `LoginForm`; `/signup` → `SignupForm`; `[]`
+  → `SignupForm`, correcting the URL to `/signup`; every other path →
+  `LoginForm`, correcting the URL to `/login`.
+
+Both are total and pure, which is what makes them testable (ADR-0001 seam 8) —
+`Main`'s pages all carry a `Nav.Key`. `Main.routeUrl` is the only place that
+carries a landing out, and both `init` and `handleUrlChange` go through it, so
+the first page of a cold load runs its init commands like any other. Before
+ticket 14, `init` discarded them and half the URL shapes returned `Cmd.none`
+(CODE_REVIEW.md E4).
 
 Login/signup completion uses a `transition : Maybe LoggedIn` field on the auth
-pages; `Main.loginInProgress` picks it up during the redirect to `/` and
-initializes `Page.App` with the new session.
+pages; `Main.loginInProgress` picks it up when the redirect the auth page
+triggered arrives, and routes it as the logged-in session it is, so
+`Page.App`/`Page.Import` is initialized with the new session.
 
 ### 4.2 Session and global data
 

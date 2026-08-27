@@ -47,14 +47,14 @@ coldDocUrl =
             \_ ->
                 (loggedIn "/abc123/my-document-title").page
                     |> Expect.equal (Route.Document { dbName = "abc123", isNew = False })
-        , test "loads it rather than creating it, even from the new-document page" <|
+        , test "loads it rather than creating it: a document with a title exists" <|
             \_ ->
                 Route.loggedInLanding { fromNewDocument = True } (appUrl "/abc123/my-document-title")
                     |> .page
-                    |> Expect.equal (Route.Document { dbName = "abc123", isNew = True })
+                    |> Expect.equal (Route.Document { dbName = "abc123", isNew = False })
         , test "leaves the address bar alone: the title segment is the document's" <|
             \_ ->
-                (loggedIn "/abc123/my-document-title").urlChange
+                (loggedIn "/abc123/my-document-title").urlCorrection
                     |> Expect.equal Nothing
         , test "a trailing slash still names the document" <|
             \_ ->
@@ -73,7 +73,7 @@ loggedInUrls =
         [ test "the root opens the app itself" <|
             \_ ->
                 loggedIn "/"
-                    |> Expect.equal { page = Route.Home, urlChange = Nothing }
+                    |> Expect.equal { page = Route.Home, urlCorrection = Nothing }
         , test "/new mints a document" <|
             \_ ->
                 (loggedIn "/new").page
@@ -99,19 +99,19 @@ loggedInUrls =
             \_ ->
                 (loggedIn "/abc123/404-not-found").page
                     |> Expect.equal Route.DocumentNotFound
-        , test "the login page is redirected away from, without a history entry" <|
+        , test "the login page is corrected to the app, with no history entry to go Back to" <|
             \_ ->
                 loggedIn "/login"
                     |> Expect.equal
                         { page = Route.Home
-                        , urlChange = Just (Route.Replace Route.Root)
+                        , urlCorrection = Just Route.Root
                         }
         , test "so is the signup page" <|
             \_ ->
                 loggedIn "/signup"
                     |> Expect.equal
                         { page = Route.Home
-                        , urlChange = Just (Route.Replace Route.Root)
+                        , urlCorrection = Just Route.Root
                         }
         , test "a path this app has no shape for says so, on a page with the sidebar" <|
             \_ ->
@@ -128,22 +128,22 @@ guestUrls =
                 Route.guestLanding (appUrl "/")
                     |> Expect.equal
                         { page = Route.SignupForm
-                        , urlChange = Just (Route.Replace Route.Signup)
+                        , urlCorrection = Just Route.Signup
                         }
         , test "the login page is the login page" <|
             \_ ->
                 Route.guestLanding (appUrl "/login")
-                    |> Expect.equal { page = Route.LoginForm, urlChange = Nothing }
+                    |> Expect.equal { page = Route.LoginForm, urlCorrection = Nothing }
         , test "the signup page is the signup page" <|
             \_ ->
                 Route.guestLanding (appUrl "/signup")
-                    |> Expect.equal { page = Route.SignupForm, urlChange = Nothing }
+                    |> Expect.equal { page = Route.SignupForm, urlCorrection = Nothing }
         , test "a document URL offers the login form, at its own address" <|
             \_ ->
                 Route.guestLanding (appUrl "/abc123/my-document-title")
                     |> Expect.equal
                         { page = Route.LoginForm
-                        , urlChange = Just (Route.Replace Route.Login)
+                        , urlCorrection = Just Route.Login
                         }
         , test "so does a URL only a signed-in user has a page for" <|
             \_ ->
@@ -152,7 +152,7 @@ guestUrls =
                     |> Expect.equal
                         (List.repeat 4
                             { page = Route.LoginForm
-                            , urlChange = Just (Route.Replace Route.Login)
+                            , urlCorrection = Just Route.Login
                             }
                         )
         ]

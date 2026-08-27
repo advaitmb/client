@@ -3,7 +3,6 @@ module Route exposing
     , Landing
     , LoggedInPage(..)
     , Route(..)
-    , UrlChange(..)
     , guestLanding
     , loggedInLanding
     , pushUrl
@@ -43,19 +42,18 @@ type Route
     | NotFound String
 
 
-{-| Where a URL sends the app: the page to show, and the correction to make to
-the address bar (a URL the app would never have built itself, or one that
-names a page this session cannot have).
+{-| Where a URL sends the app: the page to show, and -- for a URL the app would
+never have built itself, or one that names a page this session cannot have --
+the address to correct it to.
+
+A correction always *replaces* the URL. Pushing one would leave the URL that
+needed correcting in the history, for Back to land on and be corrected forward
+again.
 -}
 type alias Landing page =
     { page : page
-    , urlChange : Maybe UrlChange
+    , urlCorrection : Maybe Route
     }
-
-
-type UrlChange
-    = Push Route
-    | Replace Route
 
 
 {-| The pages a logged-in session can be on.
@@ -74,51 +72,48 @@ app is coming from, which is why it is passed in rather than read off the URL.
 -}
 loggedInLanding : { fromNewDocument : Bool } -> AppUrl.AppUrl -> Landing LoggedInPage
 loggedInLanding { fromNewDocument } appUrl =
-    let
-        openDoc dbName =
-            page (Document { dbName = dbName, isNew = fromNewDocument })
-    in
     case appUrl.path of
         [] ->
-            page Home
+            landOn Home
 
         [ "new" ] ->
-            page NewDocument
+            landOn NewDocument
 
         [ "import", templateName ] ->
             case Template.fromString templateName of
                 Just template ->
-                    page (ImportTemplate template)
+                    landOn (ImportTemplate template)
 
                 Nothing ->
-                    page Home
+                    landOn Home
 
         [ "login" ] ->
-            -- Already logged in: there is nothing on these two pages for this
-            -- session. Correct the URL rather than pushing a new entry, or
-            -- Back would land on them again.
+            -- Already logged in: there is nothing on either auth page for this
+            -- session.
             redirect Home Root
 
         [ "signup" ] ->
             redirect Home Root
 
         [ dbName ] ->
-            openDoc dbName
+            landOn (Document { dbName = dbName, isNew = fromNewDocument })
 
         -- Order matters: `/<dbName>/404-not-found` (what `NotFound` builds, and
         -- where a failed load sends the user) is a document URL otherwise.
         [ _, "404-not-found" ] ->
-            page DocumentNotFound
+            landOn DocumentNotFound
 
         [ dbName, _ ] ->
-            -- `/<dbName>/<title>`, what `Doc` builds: the second segment is
-            -- the document's name, along for readability only.
-            openDoc dbName
+            -- `/<dbName>/<title>`, what `Doc` builds: the second segment is the
+            -- document's name, along for readability only. A document with a
+            -- name is one that exists -- `/new` mints `/<dbName>` -- so this
+            -- shape always loads rather than creates.
+            landOn (Document { dbName = dbName, isNew = False })
 
         _ ->
             -- No such shape. Say so on the page the user can act on, listing
             -- their documents, instead of leaving them on a spinner (E4).
-            page DocumentNotFound
+            landOn DocumentNotFound
 
 
 {-| The pages a session without a user can be on. Every other URL is a page
@@ -137,23 +132,27 @@ guestLanding appUrl =
             redirect SignupForm Signup
 
         [ "login" ] ->
-            page LoginForm
+            landOn LoginForm
 
         [ "signup" ] ->
-            page SignupForm
+            landOn SignupForm
 
         _ ->
             redirect LoginForm Login
 
 
-page : page -> Landing page
-page p =
-    { page = p, urlChange = Nothing }
+{-| Show this page: the URL already names it.
+-}
+landOn : page -> Landing page
+landOn p =
+    { page = p, urlCorrection = Nothing }
 
 
+{-| Show this page, and correct the URL to the route that names it.
+-}
 redirect : page -> Route -> Landing page
 redirect p route =
-    { page = p, urlChange = Just (Replace route) }
+    { page = p, urlCorrection = Just route }
 
 
 toString : Route -> String

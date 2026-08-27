@@ -50,6 +50,10 @@ Vocabulary used in code, issues, and tests. Full system description:
 - **Elm core** (`src/elm/`) — owns all state and document logic.
   `Page.App` = logged-in shell, `Page.Doc` = editor (mode machine
   Normal/Editing/FullscreenEditing), `Doc.Data` = the version-row model.
+- **Landing** (`Route.elm`) — what a URL names: the page to initialize, plus
+  any correction to the address bar. Every path has one (a URL nobody planned
+  for lands on the not-found screen or the login form), and initializing that
+  page is what runs its commands.
 - **Port layer** (`src/shared/doc.js`) — the JS side of the Elm ports:
   Dexie, localStorage, the WebSocket protocol, and the tagged-JSON dispatch
   table. Elm→JS tag names and JS handler names must match exactly.
@@ -82,3 +86,5 @@ Vocabulary used in code, issues, and tests. Full system description:
 7. Auth forms (Elm, pure): `Page.Login.credentialsValidator` and
    `Session.signupBody` — what the login and signup forms accept, and what
    the client asks the server to create an account with.
+8. Routing (Elm, pure): `Route.loggedInLanding` / `Route.guestLanding` — which
+   page a URL names, and `Route.toString` round-tripping back to it.

@@ -65,6 +65,16 @@
    page `Model` carries a `Nav.Key` no test can make — which is why the
    validator is extensible in its subject.
 
+8. Routing (Elm, pure) — which page a URL names: `Route.loggedInLanding` and
+   `Route.guestLanding`, total functions from (session kind, path) to the page
+   to initialize plus any correction to the address bar. Recorded by ticket 14.
+   Same reason as seams 5 and 7 for not testing the caller: `Main` and every
+   page `Model` carry a `Nav.Key` no test can make, so the decision is
+   extracted and `Main` is left with only the mechanical part (initialize that
+   page, batch its commands with the URL change). `Route.toString` is tested in
+   the same file, by round trip: the URLs the app builds must parse back to the
+   pages they were built for.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context

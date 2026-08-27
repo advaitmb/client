@@ -107,36 +107,26 @@ routeUrl routing url =
     case routing.session of
         LoggedInSession session ->
             Route.loggedInLanding { fromNewDocument = routing.fromNewDocument } appUrl
-                |> applyLanding routing (loggedInPage routing session)
+                |> applyLanding routing.navKey (loggedInPage routing session)
 
         GuestSession guestSession ->
             Route.guestLanding appUrl
-                |> applyLanding routing (guestPage routing guestSession)
+                |> applyLanding routing.navKey (guestPage routing guestSession)
 
 
-applyLanding : Routing -> (page -> ( Model, Cmd Msg )) -> Route.Landing page -> ( Model, Cmd Msg )
-applyLanding { navKey } toPage landing =
-    case landing.urlChange of
-        Just urlChange ->
-            toPage landing.page |> withUrlChange navKey urlChange
+applyLanding : Nav.Key -> (page -> ( Model, Cmd Msg )) -> Route.Landing page -> ( Model, Cmd Msg )
+applyLanding navKey toPage landing =
+    case landing.urlCorrection of
+        Just route ->
+            toPage landing.page |> correctUrlTo navKey route
 
         Nothing ->
             toPage landing.page
 
 
-withUrlChange : Nav.Key -> Route.UrlChange -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-withUrlChange navKey urlChange ( model, cmd ) =
-    ( model
-    , Cmd.batch
-        [ cmd
-        , case urlChange of
-            Route.Push route ->
-                Route.pushUrl navKey route
-
-            Route.Replace route ->
-                Route.replaceUrl navKey route
-        ]
-    )
+correctUrlTo : Nav.Key -> Route.Route -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+correctUrlTo navKey route ( model, cmd ) =
+    ( model, Cmd.batch [ cmd, Route.replaceUrl navKey route ] )
 
 
 loggedInPage : Routing -> LoggedIn -> Route.LoggedInPage -> ( Model, Cmd Msg )
@@ -308,7 +298,7 @@ update msg model =
                 LoggedInSession session ->
                     Page.Login.init navKey globalData (Session.toGuest session)
                         |> updateWith Login GotLoginMsg
-                        |> withUrlChange navKey (Route.Replace Route.Login)
+                        |> correctUrlTo navKey Route.Login
 
                 _ ->
                     ( model, Cmd.none )
