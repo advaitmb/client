@@ -224,6 +224,17 @@ All keyboard input is captured by Mousetrap in JS and forwarded as
 app-level shortcuts per modal state and hands the rest to `Page.Doc.incoming`
 (a full vim-ish navigation/move/merge/insert/cut/copy map).
 
+Which keystrokes get that far is `src/shared/shortcut-scope.js`, installed as
+Mousetrap's `stopCallback` (ADR-0001 seam 14). The bindings are on `document`,
+so a keystroke aimed at a control in the app's **chrome** — the header, the
+sidebar, the modals — would otherwise act on the document behind it as well:
+typing `j` with the export menu open moved the card cursor. Inside the chrome an
+unmodified keystroke is the control's; Escape (the way out) and the modifier
+chords (`mod+s` means save wherever it is pressed, and its override of the
+browser's own shortcut rides on reaching the handler) still reach the app; a
+form field is the field's, as it always was; and `.mousetrap` on the card
+editor's textarea and the switcher's search box opts them back in.
+
 The card tree renders as the `<gw-tree>` element: the document is encoded into
 a `tree` attribute and the cursor state into a separate `view-state`
 attribute so tree reconciliation and mode changes stay independent. Fullscreen

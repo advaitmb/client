@@ -96,6 +96,13 @@ Vocabulary used in code, issues, and tests. Full system description:
   (`gw-tree`, `gw-header`, `gw-sidebar`, modals, `gw-markdown`). Elm passes
   state as JSON attributes; elements report back with bubbling `CustomEvent`s.
   Rules live in `src/ui/README.md`.
+- **Chrome / document surface** — which region a keystroke came from is what
+  decides whether the app's shortcut map acts on it. The header, the sidebar and
+  the modals are **chrome**: their own controls own the keyboard. The cards,
+  their rendered markdown and the furniture around them (breadcrumbs, shortcut
+  tray, mobile buttons) are the **document surface**, where the shortcuts *are*
+  the interaction. `src/shared/shortcut-scope.js` is the one place that answers
+  it; the list of chrome regions lives there.
 - **Kernel replacements** (`elm-kernel-replacements/`) — patched
   `elm/virtual-dom` etc. that diff against the actual DOM, making third-party
   DOM ownership (the `gw-*` elements) safe inside Elm-rendered markup.
@@ -161,3 +168,9 @@ Vocabulary used in code, issues, and tests. Full system description:
     that has arrived (`responseDecoder`) or is still loading (`decode`), and
     the `Doc.Metadata` / `UpdatedAt` encoder→decoder round trips — a value this
     client writes has to decode back to itself.
+14. Which keystrokes the app's shortcuts act on (JS, pure):
+    `src/shared/shortcut-scope.js`'s `shortcutReachesApp` — from (the element a
+    keystroke was aimed at, the combo Mousetrap matched) to whether the app acts
+    on it, i.e. Mousetrap's `stopCallback`. Inside the app's chrome an
+    unmodified keystroke is the control's; Escape and the modifier chords are
+    the app's; a field is the field's; `.mousetrap` opts back in.

@@ -97,11 +97,20 @@ lives in Elm: an element is handed the answer, not the inputs to compute one.
   but owns its own checked state, and every mark on this side of the boundary is
   Elm's answer rather than the click's.
 - **A `keydown` an element handles must not also reach the app.** Mousetrap
-  binds the shortcuts on `document` and ignores only form fields, so Enter on a
-  menu button opens the active card's editor as well as choosing the entry — and
-  an arrow key in a radio group moves the card cursor behind the open menu.
-  `stopPropagation` on the keys you handle, and only those — Escape has to get
-  through.
+  binds the shortcuts on `document`, so Enter on a menu button opens the active
+  card's editor as well as choosing the entry — and an arrow key in a radio
+  group moves the card cursor behind the open menu. `stopPropagation` on the
+  keys you handle, and only those — Escape has to get through.
+- **The keys an element does *not* handle are covered once, elsewhere.** These
+  surfaces are the app's **chrome**, and `src/shared/shortcut-scope.js` (ADR-0001
+  seam 14) takes the app's shortcuts off any keystroke aimed at a control inside
+  one: unmodified keys are the control's, while Escape and the modifier chords
+  still reach the app. So the guard above is for what a control *does* with a
+  key (and, for the arrows, `preventDefault` so the page does not scroll) — not
+  for keeping the letter shortcuts out, which no per-control guard could do.
+  **A new chrome surface joins the list in that module**; the document's own
+  surfaces (`gw-tree`, `gw-markdown`) must stay out of it, because the
+  shortcuts are the interaction there.
 - **Loading states render but wire nothing.** The `static` attribute is the
   convention (`gw-sidebar`): draw the surface, attach no handlers.
 - **DOM tests share one document.** `bunfig.toml` preloads `tests/dom.ts`, and

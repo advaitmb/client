@@ -10,6 +10,10 @@ import { ImmortalStorage, IndexedDbStore, LocalStorageStore, SessionStorageStore
 // Stamp ordering lives in its own module so it can be unit-tested without
 // Dexie or a WebSocket (ADR-0001 seam 2). Stamps are never string-ordered.
 import { computeCheckpoint, maxStamp } from './stamps.js'
+// Whether a keystroke is the app's or the control it was aimed at, in a module
+// a test can read (ADR-0001 seam 14). Mousetrap's own answer ignores form
+// fields and nothing else.
+import { shortcutReachesApp } from './shortcut-scope.js'
 
 
 const _ = require("lodash");
@@ -1092,6 +1096,17 @@ window.onresize = () => {
 const debouncedScrollColumns = _.debounce(helpers.scrollColumns, 200);
 const debouncedScrollHorizontal = _.debounce(helpers.scrollHorizontal, 200);
 
+
+// Every binding below is on `document`, so this is the one place that decides
+// whether a keystroke was meant for the app or for the control the user is in.
+// Replacing the prototype's method is Mousetrap's documented hook and reaches
+// the global instance `Mousetrap.init()` built over `document`, which is the
+// only one this app makes. The whole rule lives in the module, the default
+// included -- an override does not compose with what it replaces, and half a
+// rule in each place is how the form-field half would get lost.
+Mousetrap.prototype.stopCallback = function (e, element, combo) {
+  return !shortcutReachesApp(element, combo);
+};
 
 Mousetrap.bind(helpers.shortcuts, function (e, s) {
   switch (s) {

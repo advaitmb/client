@@ -243,6 +243,28 @@
     with `src/shared/stamps.js`, so the zero stamp is pinned as the literal
     `"0"` on both sides rather than only as a round trip.
 
+14. Which keystrokes the app's shortcuts act on (JS, pure) — added by ticket 35:
+    `src/shared/shortcut-scope.js`'s `shortcutReachesApp`, from (the element a
+    keystroke was aimed at, the combo Mousetrap matched) to whether the app acts
+    on it. Mousetrap's `stopCallback` is the hook, and the whole rule lives here
+    rather than only the part that is new: an override does not compose with the
+    default it replaces, so half a rule in each place is how the form-field half
+    would get lost.
+
+    Same extraction rule as seams 2, 4 and 12 — nothing in `doc.js` is
+    importable, it boots the app at module load — and observed the way seam 3
+    observes an element: the fixtures are the real `<gw-header>`, `<gw-sidebar>`,
+    `<gw-template-modal>` and `<gw-markdown>`, because what the rule answers is
+    *where* a control is, and a stand-in `<button>` in a fixture could not tell
+    a header button from a card's link. Every control is focused before the
+    question is asked, so a control the keyboard cannot reach fails these too.
+
+    Out of reach at this seam, and so verified by inspection: the one line that
+    installs it (`Mousetrap.prototype.stopCallback` in `doc.js`) and everything
+    downstream of the answer — that a stopped keystroke leaves the browser's own
+    default in place, and that `needOverride`'s `return false` is what cancels
+    it for the chords that pass.
+
 No test is written at a seam outside this list without updating this ADR.
 
 ## Context
