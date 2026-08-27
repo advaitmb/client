@@ -10,12 +10,13 @@ import Doc.UI as UI exposing (viewMobileButtons, viewSearchField)
 import GlobalData exposing (GlobalData)
 import Html exposing (Attribute, Html, div, node, span, text)
 import Html.Attributes as Attributes exposing (attribute, class, classList, dir, id, style, title)
-import Html.Events exposing (custom, onClick, onDoubleClick)
+import Html.Events exposing (custom, on, onClick, onDoubleClick)
 import Html.Extra exposing (viewIf)
 import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy2, lazy3, lazy4, lazy6, lazy8)
 import Html5.DragDrop as DragDrop
 import Json.Decode as Json
+import Json.Encode as Enc
 import List.Extra as ListExtra
 import Markdown
 import Outgoing exposing (Msg(..), send)
@@ -119,6 +120,7 @@ type Msg
     | InsertBelow String
     | InsertChild String
       -- === Dragging ===
+    | CardDropped String String String
     | DragDropMsg (DragDrop.Msg String DropId)
     | DragExternal DragExternalMsg
       -- === Fullscreen ===
@@ -281,6 +283,38 @@ update msg ({ workingTree } as model) =
                 |> insertChild id ""
 
         -- === Card Moving  ===
+        CardDropped draggedId targetId where_ ->
+            -- Native HTML5 drag/drop from <gw-tree>. Same move the elm-dnd
+            -- drop-success branch performed, expressed as one message.
+            case getTree draggedId model.workingTree.tree of
+                Just draggedTree ->
+                    let
+                        parentId =
+                            getParent targetId model.workingTree.tree
+                                |> Maybe.map .id
+                                |> Maybe.withDefault "0"
+
+                        targetIdx =
+                            getIndex targetId model.workingTree.tree |> Maybe.withDefault 0
+
+                        moveOperation =
+                            case where_ of
+                                "into" ->
+                                    move draggedTree targetId 999999
+
+                                "below" ->
+                                    move draggedTree parentId (targetIdx + 1)
+
+                                _ ->
+                                    move draggedTree parentId (Basics.max 0 targetIdx)
+                    in
+                    ( { model | dirty = True }, send <| SetDirty True, [] )
+                        |> moveOperation
+                        |> andThen (changeMode { to = Normal draggedId, instant = False, save = True })
+
+                Nothing ->
+                    ( model, Cmd.none, [] )
+
         DragDropMsg dragDropMsg ->
             let
                 ( newDragModel, dragResult_ ) =
@@ -2107,8 +2141,15 @@ viewLoaded ({ docMsg } as appMsg) model =
            ]
 
 
+{-| <gw-tree>. Elm keeps the tree, the search filter, the active/editing
+cards and every keyboard shortcut; src/ui/tree.ts renders them.
+
+The two attributes are separate on purpose. `tree` changes when the document
+changes; `view-state` changes on every arrow keypress. Combining them would
+mean re-encoding the whole document on every cursor move.
+-}
 treeView : Bool -> ViewState -> TreeStructure.Model -> Html Msg
-treeView isMac vstate model =
+treeView _ vstate model =
     let
         activeId =
             getActiveIdFromViewState vstate
@@ -2134,312 +2175,100 @@ treeView isMac vstate model =
                 |> searchFilter vstate.searchField
                 |> List.drop 1
 
-        getViewArgs c =
+        editingId =
+            case vstate.viewMode of
+                Editing _ ->
+                    Enc.string activeId
+
+                _ ->
+                    Enc.null
+
+        encodeCard group t =
             let
-                editing_ =
-                    case vstate.viewMode of
-                        Normal _ ->
-                            VisibleNormal
-
-                        Editing _ ->
-                            if c |> List.concat |> List.map .id |> List.member activeId then
-                                VisibleEditing
-
-                            else
-                                VisibleNormal
-
-                        FullscreenEditing _ ->
-                            -- TODO : Impossible state
-                            VisibleFullscreenEditing
-            in
-            VisibleViewState
-                activeId
-                editing_
-                vstate.descendants
-                vstate.ancestors
-                vstate.dragModel
-                vstate.collaborators
-                isMac
-
-        columns =
-            columnsFiltered
-                |> List.map (\c -> lazy2 viewColumn (getViewArgs c) c)
-    in
-    div
-        [ id "document"
-        ]
-        [ div [ class "left-padding-column" ] []
-        , div [ id "column-container" ]
-            columns
-        , div [ class "right-padding-column" ] []
-        ]
-
-
-viewColumn : VisibleViewState -> Column -> Html Msg
-viewColumn vstate col =
-    let
-        buffer =
-            [ div [ class "buffer" ] [] ]
-    in
-    div
-        [ class "column" ]
-        (buffer
-            ++ List.map (lazy2 viewGroup vstate) col
-            ++ buffer
-        )
-
-
-viewGroup : VisibleViewState -> Group -> Html Msg
-viewGroup vstate xs =
-    let
-        firstChild =
-            xs
-                |> List.head
-                |> Maybe.withDefault defaultTree
-                |> .id
-
-        lastChild =
-            xs
-                |> List.reverse
-                |> List.head
-                |> Maybe.withDefault defaultTree
-                |> .id
-
-        hasActive =
-            xs
-                |> List.map .id
-                |> List.member vstate.active
-
-        isActiveDescendant =
-            vstate.descendants
-                |> List.member firstChild
-
-        viewFunction t =
-            let
-                isActive =
-                    t.id == vstate.active
-
-                isAncestor =
-                    List.member t.id vstate.ancestors
-
-                isEditing =
-                    case vstate.viewMode of
-                        VisibleEditing ->
-                            t.id == vstate.active
-
-                        VisibleNormal ->
-                            False
-
-                        VisibleFullscreenEditing ->
-                            -- TODO : Impossible state
-                            False
-
                 isLast =
-                    t.id == lastChild
-
-                collabsOnCard =
-                    vstate.collaborators
-                        |> List.filter (\c -> c.mode == CollabActive t.id || c.mode == CollabEditing t.id)
+                    List.reverse group |> List.head |> Maybe.map (\l -> l.id == t.id) |> Maybe.withDefault False
             in
-            if isActive && not isEditing then
-                ( t.id
-                , lazy6 viewCardActive
-                    t.id
-                    t.content
-                    (hasChildren t)
-                    isLast
-                    collabsOnCard
-                    vstate.dragModel
-                )
-
-            else if isEditing then
-                ( t.id
-                , lazy4 viewCardEditing
-                    t.id
-                    t.content
-                    (hasChildren t)
-                    vstate.isMac
-                )
-
-            else
-                ( t.id
-                , lazy8 viewCardOther
-                    t.id
-                    t.content
-                    collabsOnCard
-                    isEditing
-                    (hasChildren t)
-                    isAncestor
-                    isLast
-                    vstate.dragModel
-                )
+            Enc.object
+                [ ( "id", Enc.string t.id )
+                , ( "content", Enc.string t.content )
+                , ( "hasChildren", Enc.bool (hasChildren t) )
+                , ( "isLast", Enc.bool isLast )
+                ]
     in
-    Keyed.node "div"
-        [ classList
-            [ ( "group", True )
-            , ( "has-active", hasActive )
-            , ( "active-descendant", isActiveDescendant )
-            ]
-        ]
-        (List.map viewFunction xs
-            ++ (if isActiveDescendant then
-                    [ ( "fillet-top-left", UI.fillet "top-left" )
-                    , ( "fillet-bottom-left", UI.fillet "bottom-left" )
-                    , ( "fillet-top-right", UI.fillet "top-right" )
-                    , ( "fillet-bottom-right", UI.fillet "bottom-right" )
+    node "gw-tree"
+        [ attribute "tree"
+            (columnsFiltered
+                |> Enc.list (Enc.list (\g -> Enc.list (encodeCard g) g))
+                |> Enc.encode 0
+            )
+        , attribute "view-state"
+            (Enc.encode 0 <|
+                Enc.object
+                    [ ( "active", Enc.string activeId )
+                    , ( "editing", editingId )
+                    , ( "ancestors", Enc.list Enc.string vstate.ancestors )
+                    , ( "descendants", Enc.list Enc.string vstate.descendants )
                     ]
+            )
+        , on "gw-activate" (Json.map Activate detailStr)
+        , on "gw-open" (Json.map (openCardMsg model) detailStr)
+        , on "gw-insert-above" (Json.map InsertAbove detailStr)
+        , on "gw-insert-below" (Json.map InsertBelow detailStr)
+        , on "gw-insert-child" (Json.map InsertChild detailStr)
+        , on "gw-delete" (Json.map DeleteCard detailStr)
+        , on "gw-edit-fullscreen" (Json.succeed EditToFullscreenMode)
+        , on "gw-save-close" (Json.succeed SaveAndCloseCard)
+        , attribute "external-drag"
+            (if Tuple.second vstate.dragModel |> .isDragging then
+                "yes"
 
-                else
-                    []
-               )
+             else
+                "no"
+            )
+        , on "gw-external-enter" (Json.map (DragExternal << DragEnter) dropIdDecoder)
+        , on "gw-external-leave" (Json.map (DragExternal << DragLeave) dropIdDecoder)
+        , on "gw-drop"
+            (Json.map3 CardDropped
+                (Json.at [ "detail", "dragged" ] Json.string)
+                (Json.at [ "detail", "target" ] Json.string)
+                (Json.at [ "detail", "where" ] Json.string)
+            )
+        ]
+        []
+
+
+detailStr : Json.Decoder String
+detailStr =
+    Json.at [ "detail" ] Json.string
+
+
+{-| { id, where } from <gw-tree> back into a DropId.
+-}
+dropIdDecoder : Json.Decoder DropId
+dropIdDecoder =
+    Json.map2
+        (\id where_ ->
+            case where_ of
+                "above" ->
+                    Above id
+
+                "below" ->
+                    Below id
+
+                _ ->
+                    Into id
         )
+        (Json.at [ "detail", "id" ] Json.string)
+        (Json.at [ "detail", "where" ] Json.string)
 
 
-viewCardOther : String -> String -> List Collaborator -> Bool -> Bool -> Bool -> Bool -> ( DragDrop.Model String DropId, DragExternalModel ) -> Html Msg
-viewCardOther cardId content collabsOnCard isEditing isParent isAncestor isLast dragModels =
-    let
-        collabsEditingCard =
-            collabsOnCard |> List.filter (\c -> c.mode == CollabEditing cardId)
-    in
-    div
-        [ id ("card-" ++ cardId)
-        , dir "auto"
-        , classList
-            [ ( "card", True )
-            , ( "ancestor", isAncestor )
-            , ( "has-children", isParent )
-            , ( "collab-active", not (List.isEmpty collabsOnCard) )
-            , ( "collab-editing", not (List.isEmpty collabsEditingCard) )
-            ]
-        ]
-        ((if not isEditing then
-            [ div ([ class "drag-region", title "Drag to move" ] ++ DragDrop.draggable DragDropMsg cardId) [ div [ class "handle" ] [] ] ]
-
-          else
-            []
-         )
-            ++ dropRegions cardId isEditing isLast dragModels
-            ++ [ div
-                    [ class "view"
-                    , onClick (Activate cardId)
-                    , onDoubleClick (OpenCard cardId content)
-                    ]
-                    [ lazy2 viewContent cardId content ]
-               ]
-        )
-
-
-viewCardActive : String -> String -> Bool -> Bool -> List Collaborator -> ( DragDrop.Model String DropId, DragExternalModel ) -> Html Msg
-viewCardActive cardId content isParent isLast collabsOnCard dragModels =
-    let
-        collabsEditingCard =
-            collabsOnCard |> List.filter (\c -> c.mode == CollabEditing cardId)
-
-        buttons =
-            [ div [ class "flex-row card-top-overlay" ]
-                [ span
-                    [ class "card-btn ins-above"
-                    , title <| tr InsertAboveTitle
-                    , onClick (InsertAbove cardId)
-                    ]
-                    [ text "+" ]
-                ]
-            , div [ class "flex-column card-right-overlay" ]
-                [ span
-                    [ class "card-btn delete"
-                    , title <| tr DeleteCardTitle
-                    , onClick (DeleteCard cardId)
-                    ]
-                    []
-                , span
-                    [ class "card-btn ins-right"
-                    , title <| tr InsertChildTitle
-                    , onClick (InsertChild cardId)
-                    ]
-                    [ text "+" ]
-                , span
-                    [ class "card-btn edit"
-                    , title <| tr EditCardTitle
-                    , onClick (OpenCard cardId content)
-                    ]
-                    []
-                ]
-            , div [ class "flex-row card-bottom-overlay" ]
-                [ span
-                    [ class "card-btn ins-below"
-                    , title <| tr InsertBelowTitle
-                    , onClick (InsertBelow cardId)
-                    ]
-                    [ text "+" ]
-                ]
-            , viewIf isParent <| UI.fillet "top-right"
-            , viewIf isParent <| UI.fillet "bottom-right"
-            ]
-    in
-    div
-        [ id ("card-" ++ cardId)
-        , dir "auto"
-        , classList
-            [ ( "card", True )
-            , ( "active", True )
-            , ( "collab-active", not (List.isEmpty collabsOnCard) )
-            , ( "collab-editing", not (List.isEmpty collabsEditingCard) )
-            , ( "has-children", isParent )
-            ]
-        ]
-        ([ div ([ class "drag-region", title "Drag to move" ] ++ DragDrop.draggable DragDropMsg cardId) [ div [ class "handle" ] [] ] ]
-            ++ buttons
-            ++ dropRegions cardId False isLast dragModels
-            ++ [ div
-                    [ class "view"
-                    , onClick (Activate cardId)
-                    , onDoubleClick (OpenCard cardId content)
-                    ]
-                    [ lazy2 viewContent cardId content ]
-               ]
-        )
-
-
-viewCardEditing : String -> String -> Bool -> Bool -> Html Msg
-viewCardEditing cardId content isParent _ =
-    div
-        [ id ("card-" ++ cardId)
-        , dir "auto"
-        , classList
-            [ ( "card", True )
-            , ( "active", True )
-            , ( "editing", True )
-            , ( "has-children", isParent )
-            ]
-        , attribute "data-cloned-content" content
-        ]
-        [ node "gw-textarea"
-            [ attribute "card-id" cardId
-            , dir "auto"
-            , classList
-                [ ( "edit", True )
-                , ( "mousetrap", True )
-                ]
-            , attribute "data-private" "lipsum"
-            , attribute "data-gramm" "false"
-            , attribute "start-value" content
-            ]
-            []
-        , div [ class "flex-column card-right-overlay" ]
-            [ div
-                [ class "fullscreen-card-btn"
-                , title "Edit in Fullscreen"
-                , onClick EditToFullscreenMode
-                ]
-                [ AntIcons.fullscreenOutlined [ Attributes.width 16, Attributes.height 16 ] ]
-            , div
-                [ class "card-btn save"
-                , title <| tr SaveChangesTitle
-                , onClick SaveAndCloseCard
-                ]
-                []
-            ]
-        ]
+{-| The element reports which card to open; the content comes from here.
+-}
+openCardMsg : TreeStructure.Model -> String -> Msg
+openCardMsg model cardId =
+    getTree cardId model.tree
+        |> Maybe.map (\t -> OpenCard cardId t.content)
+        |> Maybe.withDefault (Activate cardId)
 
 
 

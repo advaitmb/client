@@ -18,9 +18,11 @@
  *   gw-header            UI/Header.elm, Doc.UI.viewSaveIndicator, Doc/History.view
  *   gw-sidebar           UI/Sidebar.elm, Doc.List.viewSidebarList
  *   gw-markdown          Page/Doc.viewContent + the Export preview
+ *   gw-tree              Page/Doc treeView / viewColumn / viewGroup / the cards
  *
- * Still in Elm: the card tree's structure and interaction (its content is
- * rendered by gw-markdown).
+ * Still in Elm: all interaction -- the keyboard state machine, editing
+ * lifecycle, tree manipulation and persistence. The DOM is the interface
+ * layer's.
  */
 
 import "./help-modal";
@@ -30,3 +32,4 @@ import "./template-modal";
 import "./header";
 import "./sidebar";
 import "./markdown";
+import "./tree";
