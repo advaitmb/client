@@ -44,16 +44,17 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
     constructor() {
       super();
       this.textarea_ = document.createElement('textarea');
-      // Bind once and keep the references. `.bind()` returns a NEW function on
-      // every call, so binding again in disconnectedCallback removed nothing --
-      // all four listeners leaked on every card that was ever edited.
+      // The bound references are created once here and kept, because `.bind()`
+      // returns a NEW function on every call: re-binding at removal time takes
+      // nothing off, which is how all four listeners once leaked on every card
+      // that was ever edited. _bindListeners / _unbindListeners add and remove
+      // them; connectedCallback / disconnectedCallback drive those.
       this._boundInput = this._onInput.bind(this);
       this._boundSelection = this._selectionHandler.bind(this);
       this._boundFocus = this._focusHandler.bind(this);
-      this.textarea_.addEventListener('input', this._boundInput);
-      this.textarea_.addEventListener('keyup', this._boundSelection);
-      this.textarea_.addEventListener('click', this._boundSelection);
-      this.textarea_.addEventListener('focus', this._boundFocus);
+      this._listenersBound = false;
+      this._docListenerBound = false;
+      this._startValueApplied = false;
     }
     set isFullscreen(value) {
       this._isFullscreen = value;
@@ -80,8 +81,65 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       return this.textarea_ === document.activeElement;
     }
 
+    /**
+     * Every listener this element owns, added as one set.
+     *
+     * tree.ts reuses the editing card's element across tree renders, so a tree
+     * change arriving mid-edit (a second tab writing, a collaborator edit, a
+     * checkbox toggle) re-parents this element and fires disconnectedCallback
+     * followed by connectedCallback. Everything disconnect tears down has to
+     * come back on connect, or keystrokes stop reaching Elm and the next save
+     * writes the pre-edit content.
+     *
+     * `_listenersBound` keeps that idempotent: a connect with no intervening
+     * disconnect must not register a second copy of each listener, or one
+     * keystroke would report itself twice.
+     */
+    _bindListeners() {
+      if (this._listenersBound) {
+        return;
+      }
+      this._listenersBound = true;
+      this.textarea_.addEventListener('input', this._boundInput);
+      this.textarea_.addEventListener('keyup', this._boundSelection);
+      this.textarea_.addEventListener('click', this._boundSelection);
+      this.textarea_.addEventListener('focus', this._boundFocus);
+      // Document-level, so it outlives this element and must come off again.
+      // Whether it went on is recorded per instance rather than re-read from
+      // isFullscreen on the way out: the fullscreen view has one gw-textarea
+      // per card, and any of them removing a handler it never added would
+      // strip click-outside from whichever card is actually being edited.
+      this._docListenerBound = !this.isFullscreen;
+      if (this._docListenerBound) {
+        document.addEventListener('click', editBlurHandler);
+      }
+    }
+
+    _unbindListeners() {
+      if (!this._listenersBound) {
+        return;
+      }
+      this._listenersBound = false;
+      this.textarea_.removeEventListener('input', this._boundInput);
+      this.textarea_.removeEventListener('keyup', this._boundSelection);
+      this.textarea_.removeEventListener('click', this._boundSelection);
+      this.textarea_.removeEventListener('focus', this._boundFocus);
+      if (this._docListenerBound) {
+        this._docListenerBound = false;
+        document.removeEventListener('click', editBlurHandler);
+      }
+    }
+
     connectedCallback() {
-      this.textarea_.value = this.getAttribute('start-value');
+      // `start-value` is the content the edit started from, so it seeds the
+      // textarea on the first connect only -- a re-parent mid-edit must not
+      // revert what the user has typed since. Later authoritative changes
+      // still arrive through attributeChangedCallback.
+      if (!this._startValueApplied) {
+        this._startValueApplied = true;
+        this.textarea_.value = this.getAttribute('start-value');
+      }
+      this._bindListeners();
       this.textarea_.setAttribute('id', 'card-edit-' + this.getAttribute('card-id'));
       this.textarea_.setAttribute('card-id', this.getAttribute('card-id'));
       this.textarea_.setAttribute('class', this.getAttribute('class'));
@@ -94,19 +152,14 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
       this.appendChild(this.textarea_);
       if (!this.isFullscreen) {
         this.textarea_.focus();
-        document.addEventListener('click', editBlurHandler);
       }
       this.offset_ = this.textarea_.offsetHeight - this.textarea_.clientHeight;
       this._resize();
     }
 
     disconnectedCallback() {
-      this.textarea_.removeEventListener('input', this._boundInput);
-      this.textarea_.removeEventListener('keyup', this._boundSelection);
-      this.textarea_.removeEventListener('click', this._boundSelection);
-      this.textarea_.removeEventListener('focus', this._boundFocus);
+      this._unbindListeners();
       if (!this.isFullscreen) {
-        document.removeEventListener('click', editBlurHandler);
         updateFillets();
       }
       if (getDataTypeFn() == CARD_DATA) {
