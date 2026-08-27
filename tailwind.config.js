@@ -3,7 +3,7 @@ module.exports = {
   corePlugins: {
     preflight: false,
   },
-  content: ["./src/elm/**/*.elm"],
+  content: ["./src/elm/**/*.elm", "./src/ui/**/*.ts"],
   theme: {
     extend: {},
   },
