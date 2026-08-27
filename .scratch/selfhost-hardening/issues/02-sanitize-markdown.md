@@ -1,6 +1,6 @@
 # 02: Sanitize all rendered card markdown (stored XSS)
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
