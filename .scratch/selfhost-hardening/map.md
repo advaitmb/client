@@ -36,6 +36,9 @@ ticket carries `needs-info` any more.
   `Blocked by:` line is `resolved`.
 - Every ticket follows `/implement`: TDD at the ADR-0001 seams, `/code-review`
   before commit, work lands on `selfhost`.
+- **Ticket-implementing agents run on Opus 5** (`model: "opus"` when spawning
+  them). Orchestration/chat may run on a faster model, but implementation,
+  TDD and code-review work does not.
 
 ## Tickets
 
