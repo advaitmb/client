@@ -23,6 +23,12 @@ instances — per-instance state is the S13-style fix.
 `Math.max` uses a seedless `reduce`, which throws on an empty card set —
 harden alongside S8's boot guards.
 
+**Added scope (from ticket 28's resolution):** `saveBackupToImmortalDB` in
+doc.js half-applies ADR-0005 §1 — it dedupes newest-per-id but keeps cards
+whose newest row is a deletion, and its `treeHelper` filters only on
+`parentId`. Low stakes (write-only backup) but fix while hardening the file:
+drop deleted cards after the dedupe.
+
 ## Acceptance criteria
 
 - [ ] No anonymous-listener accumulation on `ScrollCards` (verifiable by
