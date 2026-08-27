@@ -8,6 +8,7 @@ import List.Extra as ListExtra
 import Outgoing exposing (Msg(..))
 import RemoteData exposing (WebData)
 import Result.Extra
+import Set
 import Time
 import Types exposing (CardTreeOp(..), Children(..), ConflictSelection(..), Tree)
 import UpdatedAt exposing (UpdatedAt)
@@ -679,11 +680,11 @@ localChanges treeId op staged data =
                     visibleWithStaged staged data
 
                 idsToMarkAsDeleted =
-                    descendantsOf id visibleCards
+                    descendantsOf id visibleCards |> Set.fromList
 
                 cardsToMarkAsDeleted =
                     visibleCards
-                        |> List.filter (\card -> List.member card.id idsToMarkAsDeleted)
+                        |> List.filter (\card -> Set.member card.id idsToMarkAsDeleted)
                         |> List.map (\card -> { card | deleted = True })
             in
             Ok { toAdd = [], toMarkSynced = [], toMarkDeleted = cardsToMarkAsDeleted, toRemove = [] }
@@ -1174,17 +1175,21 @@ them adds a redundant unsynced deletion row per pass.
 -}
 descendantsOf : String -> List (Card a) -> List String
 descendantsOf id visibleCards =
-    case visibleCards |> ListExtra.find (\card -> card.id == id) of
-        Nothing ->
-            []
+    -- A card absent from the visible set has no subtree on screen; its children
+    -- are reached through it, so the walk below never has to ask again.
+    if visibleCards |> List.any (\card -> card.id == id) then
+        subtreeIds (childIndex visibleCards) id
 
-        Just card ->
-            card.id
-                :: (visibleCards
-                        |> List.filter (\c -> c.parentId == Just id)
-                        |> List.map .id
-                        |> List.concatMap (\i -> descendantsOf i visibleCards)
-                   )
+    else
+        []
+
+
+subtreeIds : ChildIndex a -> String -> List String
+subtreeIds index id =
+    id
+        :: (childrenOf (Just id) index
+                |> List.concatMap (\card -> subtreeIds index card.id)
+           )
 
 
 type alias Versions =
