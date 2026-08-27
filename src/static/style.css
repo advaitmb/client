@@ -704,18 +704,6 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   height: 100%;
   z-index: 999999;
 }
-#language-menu {
-  position: fixed;
-  border-radius: 5px 5px 5px 0;
-  box-shadow: var(--small-shadow);
-  overflow-y: auto;
-  z-index: 3;
-}
-#language-menu .selected {
-  background: var(--active-bg);
-  font-weight: bold;
-}
-
 #loading-overlay {
   grid-area: document;
   width: 100%;
@@ -1443,12 +1431,6 @@ ul.dropdown > li > span.no-interaction:hover {
   background-color: white;
 }
 
-#help-dropdown {
-  position: absolute;
-  right: 38px;
-  top: 39px;
-}
-
 .modal.red-alert {
   background: #ffebee;
 }
@@ -1544,44 +1526,6 @@ div#video-viewer-container {
   margin-left: -1px;
   box-shadow: var(--small-shadow);
 }
-
-#migrate-modal {
-  display: grid;
-  padding-bottom: 32px;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: min-content min-content min-content;
-  grid-template-areas:
-  "top top"
-  "left right"
-  "bottom bottom";
-}
-#migrate-modal > * {
-  padding: 16px;
-}
-#migrate-modal .top {
-  grid-area: top;
-  text-align: center;
-}
-#migrate-modal .left {
-  grid-area: left;
-}
-#migrate-modal .right {
-  grid-area: right;
-}
-#migrate-bugs-modal {
-  display: grid;
-  padding: 16px 110px;
-  grid-template-columns: 1fr;
-}
-#migrate-modal .bottom {
-  grid-area: bottom;
-  text-align: center;
-}
-#fullscreen-button {
-  display: none;
-}
-
-
 
 .sidebar-item a {
   text-decoration: none;

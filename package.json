@@ -5,7 +5,7 @@
   "description": "Gingko client rewritten in Elm.",
   "repository": {
     "type": "git",
-    "url": "git://github.com/gingko/client.git"
+    "url": "git+https://github.com/advaitmb/client.git"
   },
   "author": {
     "name": "Gingko Inc",
@@ -13,9 +13,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/gingko/client/issues"
+    "url": "https://github.com/advaitmb/client/issues"
   },
-  "homepage": "https://github.com/gingko/client",
+  "homepage": "https://github.com/advaitmb/client",
   "scripts": {
     "test": "bun run test:elm && bun run test:ts",
     "test:elm": "ELM_HOME=$PWD/elm-home/elm-stuff elm-test",
