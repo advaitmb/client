@@ -127,6 +127,14 @@ committed `node10` setting is a hard error on the tsc in this environment,
 which is not this ticket's). The built bundle carries the picker
 (`web/ui.js` has the labels, `web/style.css` the button rules).
 
+CI green on `selfhost` for every push:
+[33094453594](https://github.com/advaitmb/client/actions/runs/33094453594)
+(`a61816e`, the claim),
+[33095510389](https://github.com/advaitmb/client/actions/runs/33095510389)
+(`080d064`, the picker) and
+[33095750465](https://github.com/advaitmb/client/actions/runs/33095750465)
+(`2771afc`, the tracker).
+
 ## Comments
 
 - **The menu is still mouse-only to *open*, and that is the honest gap.** The

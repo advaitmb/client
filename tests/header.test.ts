@@ -334,20 +334,20 @@ test("Enter on a menu entry does not also reach the app's shortcuts", () => {
   document.addEventListener("keydown", watch);
 
   try {
-    const enter = (key: string) =>
+    const press = (key: string) =>
       themeItem(el, "dark").dispatchEvent(
         new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
       );
     // Mousetrap binds "enter" on `document` and ignores only form fields, so
     // an Enter that got there would open the active card's editor as well as
     // choosing the theme (the reason ticket 24's breadcrumb stops its keydown).
-    enter("Enter");
-    enter(" ");
+    press("Enter");
+    press(" ");
     expect(escaped).toEqual([]);
 
     // Narrowly: the app's other keys still get through. Swallowing everything
     // would trap a keyboard user in an open menu.
-    enter("Escape");
+    press("Escape");
     expect(escaped).toEqual(["Escape"]);
   } finally {
     document.removeEventListener("keydown", watch);
