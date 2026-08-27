@@ -1139,20 +1139,21 @@ group by group.
 groupedByCardId : List (Card a) -> List (List (Card a))
 groupedByCardId cards =
     let
-        addCard card ( idsSeen, rowsById ) =
-            case Dict.get card.id rowsById of
-                Just rows ->
-                    ( idsSeen, Dict.insert card.id (card :: rows) rowsById )
+        addCard card ( idsSeen, rows ) =
+            case Dict.get card.id rows of
+                Just rowsOfCard ->
+                    ( idsSeen, Dict.insert card.id (card :: rowsOfCard) rows )
 
                 Nothing ->
-                    ( card.id :: idsSeen, Dict.insert card.id [ card ] rowsById )
+                    ( card.id :: idsSeen, Dict.insert card.id [ card ] rows )
 
-        ( idsNewestSeenFirst, groups ) =
+        ( idsSeenReversed, rowsById ) =
             List.foldl addCard ( [], Dict.empty ) cards
     in
-    idsNewestSeenFirst
+    -- Both halves were built by prepending, so both are reversed back here.
+    idsSeenReversed
         |> List.reverse
-        |> List.filterMap (\id -> Dict.get id groups |> Maybe.map List.reverse)
+        |> List.filterMap (\id -> Dict.get id rowsById |> Maybe.map List.reverse)
 
 
 {-| The newest version row of each card id.
