@@ -10,5 +10,6 @@ let diff = confRefKeys
             .concat(confKeys.filter(x => !confRefKeys.includes(x)));
 
 if (diff.length != 0) {
-  process.stderr.write("Difference in config keys: " + JSON.stringify(diff));
+  process.stderr.write("Difference in config keys: " + JSON.stringify(diff) + "\n");
+  process.exit(1);
 }

@@ -1,6 +1,6 @@
 ![](./docs/images/screenshot-alien-screenplay.png)
 
-# Gingko Writer [![Web Deploy](https://github.com/gingko/client/actions/workflows/web-deploy.yml/badge.svg)](https://github.com/gingko/client/actions/workflows/web-deploy.yml)
+# Gingko Writer [![CI](https://github.com/advaitmb/client/actions/workflows/ci.yml/badge.svg?branch=selfhost)](https://github.com/advaitmb/client/actions/workflows/ci.yml)
 
 Writing software to help organize and draft complex documents. Anything from novels and screenplays to legal briefs and graduate theses.
 

@@ -1,0 +1,4 @@
+[test]
+# Register a DOM (happy-dom) before test files load, for custom-element
+# tests at ADR-0001 seam 3.
+preload = ["./tests/happydom.ts"]
