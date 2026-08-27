@@ -689,7 +689,15 @@ moveTargetRows =
 -- Merging two cards (ticket 30)
 
 
-{-| The two cards of one merge scenario, with the children it needs.
+{-| One merge as a scenario: which way the user merged, and which of the two
+cards had children of its own. The four combinations in each direction are what
+`mergeCards` decides between.
+-}
+type alias MergeScenario =
+    { isUp : Bool, currentHasChildren : Bool, otherHasChildren : Bool }
+
+
+{-| The two cards of one merge scenario, with the children it asks for.
 
 `c` is the card the user is on -- the one that survives and keeps its id -- and
 `o` is the one it absorbs: the card below it for a merge down, the card above it
@@ -697,9 +705,7 @@ for a merge up, so the fixture places them in that order. Children are named
 after the card they start under: `cc1`, `cc2` under `c`, `oc1`, `oc2` under `o`.
 
 -}
-mergeRows :
-    { isUp : Bool, currentHasChildren : Bool, otherHasChildren : Bool }
-    -> List (Data.Card_tests_only UpdatedAt)
+mergeRows : MergeScenario -> List (Data.Card_tests_only UpdatedAt)
 mergeRows { isUp, currentHasChildren, otherHasChildren } =
     let
         ( posOfCurrent, posOfOther ) =
@@ -731,33 +737,33 @@ mergeRows { isUp, currentHasChildren, otherHasChildren } =
            )
 
 
-{-| The rows one merge of `o` into `c` stages to add, as
-( id, parentId, position ): who the save says each card's parent is now, and
-where it sits among its siblings. Every child of the card merged away has to be
-in here -- the same save deletes its parent.
+{-| The rows that scenario's merge stages to add, as ( id, parentId, position ):
+who the save says each card's parent is now, and where it sits among its
+siblings. Every child of the card merged away has to be in here -- the same save
+deletes its parent.
 
 Sorted by id: the port layer writes the whole list, so the order it arrives in
 says nothing, while the positions in it are the order the user will see.
 
 -}
-mergedRows : Bool -> List (Data.Card_tests_only UpdatedAt) -> Result String (List ( String, Maybe String, Float ))
-mergedRows isUp rows =
-    Data.localSave "tree1" (CTMrg "c" "o" isUp) (Data.model_tests_only rows Nothing)
+mergedRows : MergeScenario -> Result String (List ( String, Maybe String, Float ))
+mergedRows scenario =
+    Data.localSave "tree1" (CTMrg "c" "o" scenario.isUp) (Data.model_tests_only (mergeRows scenario) Nothing)
         |> Tuple.second
         |> Dec.decodeValue changeListsDecoder
         |> Result.mapError Dec.errorToString
         |> Result.map (.toAdd >> List.map (\row -> ( row.id, row.parentId, row.position )) >> List.sortBy (\( id, _, _ ) -> id))
 
 
-{-| The same merge all the way round -- saved, written, read back -- as the
-root cards and the children of `c` the user is left looking at. A child that
-got no re-parenting row is simply absent: the tree is built from the root down,
-so nothing under a deleted card is reachable.
+{-| The same merge all the way round -- saved, written, read back -- as the root
+cards and the children of `c` the user is left looking at. A child that got no
+re-parenting row is simply absent: the tree is built from the root down, so
+nothing under a deleted card is reachable.
 -}
-mergedTree : Bool -> List (Data.Card_tests_only UpdatedAt) -> Result String ( List String, List String )
-mergedTree isUp rows =
-    docFrom rows
-        |> step 2000 (CTMrg "c" "o" isUp)
+mergedTree : MergeScenario -> Result String ( List String, List String )
+mergedTree scenario =
+    docFrom (mergeRows scenario)
+        |> step 2000 (CTMrg "c" "o" scenario.isUp)
         |> Result.map (\doc -> ( rootOrder doc, childIdsOf "c" doc.tree ))
 
 
@@ -1020,8 +1026,7 @@ suite =
                 -- children have to be re-parented in the same save.  The
                 -- surviving card has no children of its own to sit clear of,
                 -- so they keep the positions they have.
-                mergeRows { isUp = False, currentHasChildren = False, otherHasChildren = True }
-                    |> mergedRows False
+                mergedRows { isUp = False, currentHasChildren = False, otherHasChildren = True }
                     |> Expect.equal
                         (Ok
                             [ ( "c", Nothing, 0 )
@@ -1035,15 +1040,13 @@ suite =
                 -- root and its children are under `c`.  Without their
                 -- re-parenting rows they are under a deleted card, which puts
                 -- them out of the tree altogether.
-                mergeRows { isUp = False, currentHasChildren = False, otherHasChildren = True }
-                    |> mergedTree False
+                mergedTree { isUp = False, currentHasChildren = False, otherHasChildren = True }
                     |> Expect.equal (Ok ( [ "c" ], [ "oc1", "oc2" ] ))
         , test "merging up into a childless card re-parents the merged card's children" <|
             \_ ->
                 -- The mirror image: the card above (`o`) is the one absorbed,
                 -- and its children again have nothing to sit clear of.
-                mergeRows { isUp = True, currentHasChildren = False, otherHasChildren = True }
-                    |> mergedRows True
+                mergedRows { isUp = True, currentHasChildren = False, otherHasChildren = True }
                     |> Expect.equal
                         (Ok
                             [ ( "c", Nothing, 1 )
@@ -1053,16 +1056,14 @@ suite =
                         )
         , test "the tree after merging up into a childless card keeps the children" <|
             \_ ->
-                mergeRows { isUp = True, currentHasChildren = False, otherHasChildren = True }
-                    |> mergedTree True
+                mergedTree { isUp = True, currentHasChildren = False, otherHasChildren = True }
                     |> Expect.equal (Ok ( [ "c" ], [ "oc1", "oc2" ] ))
         , test "merging down puts the merged card's children after the surviving card's" <|
             \_ ->
                 -- `o` sat below `c`, so its children belong below `c`'s: they
                 -- are moved past `c`'s last child (position 1) onto the next
                 -- whole numbers, keeping the gaps they had between them.
-                mergeRows { isUp = False, currentHasChildren = True, otherHasChildren = True }
-                    |> mergedRows False
+                mergedRows { isUp = False, currentHasChildren = True, otherHasChildren = True }
                     |> Expect.equal
                         (Ok
                             [ ( "c", Nothing, 0 )
@@ -1074,8 +1075,7 @@ suite =
             \_ ->
                 -- And the other way round: `o` sat above `c`, so its children
                 -- are moved to before `c`'s first child (position 0).
-                mergeRows { isUp = True, currentHasChildren = True, otherHasChildren = True }
-                    |> mergedRows True
+                mergedRows { isUp = True, currentHasChildren = True, otherHasChildren = True }
                     |> Expect.equal
                         (Ok
                             [ ( "c", Nothing, 1 )
@@ -1087,10 +1087,8 @@ suite =
             \_ ->
                 -- Nothing to re-parent in either direction: the merge is the
                 -- joined content and the deletion of `o`.
-                ( mergeRows { isUp = False, currentHasChildren = False, otherHasChildren = False }
-                    |> mergedRows False
-                , mergeRows { isUp = True, currentHasChildren = False, otherHasChildren = False }
-                    |> mergedRows True
+                ( mergedRows { isUp = False, currentHasChildren = False, otherHasChildren = False }
+                , mergedRows { isUp = True, currentHasChildren = False, otherHasChildren = False }
                 )
                     |> Expect.equal
                         ( Ok [ ( "c", Nothing, 0 ) ]
@@ -1101,10 +1099,8 @@ suite =
                 -- The surviving card's own children are not part of a merge:
                 -- only the card merged away needs re-parenting rows, and here
                 -- it has none in either direction.
-                ( mergeRows { isUp = False, currentHasChildren = True, otherHasChildren = False }
-                    |> mergedRows False
-                , mergeRows { isUp = True, currentHasChildren = True, otherHasChildren = False }
-                    |> mergedRows True
+                ( mergedRows { isUp = False, currentHasChildren = True, otherHasChildren = False }
+                , mergedRows { isUp = True, currentHasChildren = True, otherHasChildren = False }
                 )
                     |> Expect.equal
                         ( Ok [ ( "c", Nothing, 0 ) ]

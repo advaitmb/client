@@ -16,6 +16,11 @@ Vocabulary used in code, issues, and tests. Full system description:
   by parent into **groups**.
 - **Card tree operation (`CardTreeOp`)** — the operation vocabulary between
   editor and persistence: insert, update, move, merge, remove, paste-subtree.
+- **Merge** — joining two vertically adjacent cards into one. The card the user
+  is on survives and keeps its id; the other is deleted and its children are
+  re-parented under the survivor — always, in both directions. The direction
+  (up absorbs the card above, down the one below) decides only the order the
+  two texts and the two child lists are joined in.
 
 ## Persistence and sync
 
