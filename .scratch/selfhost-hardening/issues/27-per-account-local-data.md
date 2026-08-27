@@ -1,6 +1,6 @@
 # 27: Per-account local data (account switching sees stale cache)
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 04 (resolved)
 
