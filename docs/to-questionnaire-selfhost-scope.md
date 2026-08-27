@@ -11,8 +11,10 @@ be used:** they flip the blocked tickets from `needs-info` to
 ## Context
 
 The `selfhost` branch review (docs/CODE_REVIEW.md) produced ~70 findings, now
-filed as GitHub issues under a wayfinder map. Technical decisions are recorded
-in `docs/adr/`. The questions below are the only ones that need you.
+filed as tickets under `.scratch/selfhost-hardening/` (GitHub Issues are
+disabled on this repo — enable them and say so if you'd rather track there).
+Technical decisions are recorded in `docs/adr/`. The questions below are the
+only ones that need you.
 
 ## How to answer
 

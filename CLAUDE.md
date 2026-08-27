@@ -7,8 +7,8 @@ and a TypeScript custom-element interface layer (`src/ui/`). Companion server:
 
 Read `CONTEXT.md` for domain vocabulary and `docs/ARCHITECTURE.md` for the full
 system description before making non-trivial changes. `docs/CODE_REVIEW.md` is
-the verified catalog of known bugs and dead code; the open GitHub issues are
-derived from it.
+the verified catalog of known bugs and dead code; the tickets under
+`.scratch/selfhost-hardening/issues/` are derived from it.
 
 ## Development
 
@@ -17,15 +17,15 @@ derived from it.
   `import.meta.dir`). Output goes to `web/`.
 - `config.js` is gitignored; create it from `config-example.js` before building.
 - Tests: see `package.json` scripts (`elm-test` for `src/elm`, `bun test` for
-  `src/ui` + `src/shared`). If these don't exist yet, issue #2 (test
+  `src/ui` + `src/shared`). If these don't exist yet, ticket 01 (test
   infrastructure) hasn't landed — land it before TDD work.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues live in GitHub Issues on `advaitmb/client`. See
-`docs/agents/issue-tracker.md`.
+Local markdown tracker: tickets live under `.scratch/<feature>/issues/`
+(GitHub Issues are disabled on this repo). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
