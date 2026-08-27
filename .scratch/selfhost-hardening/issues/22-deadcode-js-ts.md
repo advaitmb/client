@@ -28,6 +28,15 @@ how-to-clone-address.png` (last referrer removed); the stale "send … to
 Sentry" comment in doc.js. Verify zero references before each deletion, as
 ticket 20 did.
 
+**Added scope (from ticket 17's resolution):** `src/ui/README.md` documents
+a `tsc` typecheck gate that does not exist (no tsconfig at root, nothing in
+ci.yml) — when rewriting the README, either add a real `tsc --strict` check
+to CI (it would have caught a field shadowing `HTMLElement.prototype.title`
+that tests could not) or stop claiming it. Also: the theme write ring
+(`ThemeChanged`, `SaveThemeSetting`, `Theme.toValue`) currently has no
+producer — do NOT remove it without checking the owner's pending decision on
+restoring the theme picker (see ticket 17's Comments).
+
 ## Acceptance criteria
 
 - [ ] All §6 JS/TS items removed or justified in Comments; coordinate with
