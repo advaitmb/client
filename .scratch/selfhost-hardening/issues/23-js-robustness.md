@@ -204,4 +204,6 @@ mounts the sync button — the same path that used to throw before Elm existed.
   `bun run newbuild` succeeds, `node config-check.js` exits 0, and
   `bunx tsc@4.9 -p src/ui/tsconfig.json` reports only the pre-existing
   `markdown.ts` `allowSyntheticDefaultImports` error (untouched by this
-  ticket).
+  ticket). CI runs 33093422620 (c523fa2, the extractions), 33094049118
+  (7bc1b0a, doc.js), 33095137252 (a2635e9, the review pass) and 33095232701
+  (1b9dd9a) all green on `selfhost`.
