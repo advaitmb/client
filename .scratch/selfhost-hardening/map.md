@@ -361,6 +361,27 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   clipboard sites share `src/shared/clipboard.js`. New ADR-0001 **seam 12**.
   A push ack that does not parse no longer counts as a successful sync. 158
   elm-test + 143 bun test. Details in `issues/18-error-surfacing.md`.
+- Ticket 24 resolved — S1, S2, S3, S4, S10, S12 and P4, all one shape: a
+  decision that existed twice, or a question asked of the wrong thing. The save
+  indicator is now **one** `<gw-save-indicator>` rendered by the header *and*
+  `Doc/Fullscreen.elm` (parity would have left two), with `Doc.UI.encodeSaveState`
+  the single Elm-side payload; the import's port tag is `SaveImportedTree` on both
+  sides; `Session.isOwner` becomes `ownership` with a third answer, `Unknown`,
+  which both callers **withhold** on rather than guess (a load-gated `True` was
+  rejected: `RenameDocument` has no ownership check but the disabled title field,
+  so guessing would open a real rename window); `copyNaming` drops the regex and
+  compares names, taking the first free number; `Metadata.encode` writes every
+  field its decoder reads and the `oneOf` fallback that hid the bug is one decoder
+  with optional fields; `UpdatedAt`'s *parser* learns `"0"`, because that spelling
+  is the wire format `stamps.js` shares. The `<img src="" onerror>` and the no-op
+  `EmptyMessageShown` it fired are gone; the empty-state and password controls are
+  real buttons (the latter moved out of their `<label>`), while a breadcrumb stays
+  a `div` made keyboard-operable — its label is rendered markdown, which may
+  contain a link. `mod+j`/`k`/`l` collapse into one `splitCard` whose guard sees
+  the unmutated model, over a single `stageCardText`. New ADR-0001 **seam 13**;
+  seams 10 and 11 widened (chrome views that need no `Nav.Key`; the cards an event
+  leaves, which makes a guard's ordering over a model change test-visible). 199
+  elm-test + 201 bun test. Details in `issues/24-elm-consistency.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
