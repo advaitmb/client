@@ -48,7 +48,9 @@ const CARD_DATA = Symbol.for("cardbased");
  *     call sites are reached from inside Elm's update cycle, and one of them
  *     dispatches an event Elm listens to; re-entering Elm from its own port
  *     handler is what the original `setTimeout(…, 0)` was avoiding, and an
- *     animation frame keeps that while also being after the render.
+ *     animation frame keeps that while also being after the render. (Which
+ *     also means a hidden tab waits until it is looked at — both callers move
+ *     something on screen, so there is nothing to do until then.)
  *   - It runs exactly once, and after `timeoutMs` it runs even if the element
  *     never came. The callers re-check the element themselves, so running late
  *     is how they learn it is not there -- and it means no observer is left

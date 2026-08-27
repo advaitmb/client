@@ -9,7 +9,7 @@ import uuid from '@tpp/simple-uuid'
 import { ImmortalStorage, IndexedDbStore, LocalStorageStore, SessionStorageStore } from 'immortal-db'
 // Stamp ordering lives in its own module so it can be unit-tested without
 // Dexie or a WebSocket (ADR-0001 seam 2). Stamps are never string-ordered.
-import { computeCheckpoint, maxStamp, newestVersionPerId } from './stamps.js'
+import { computeCheckpoint, maxStamp } from './stamps.js'
 
 
 const _ = require("lodash");
@@ -36,7 +36,7 @@ dexie.version(4).stores({
 });
 
 const helpers = require("./doc-helpers");
-const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession } = require("./session");
+const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession, readSessionData } = require("./session");
 // The local half of a save, extracted for the same reason as session.js:
 // nothing in this file is importable by a test (ADR-0001 seam 4).
 const { applyCardBasedSave } = require("./save");
@@ -50,11 +50,19 @@ const { createMetadataSync } = require("./metadata");
 const { wsMessageFailure } = require("./ws-errors");
 // Clipboard failures, the same in all three places they can happen (E16).
 const { clipboardErrorMessage, copyText } = require("./clipboard");
+// Which failed messages *from Elm* the user has to hear about, and the
+// browser-extension net below. The ws-errors.js policy, on the other channel
+// (S7).
+const { isExtensionInterference, portMessageFailure } = require("./port-errors");
+// Reading the card log: one row per id, the newest, deletions dropped
+// (ADR-0005 §1).
+const { backupSnapshotText, rootCardId } = require("./cards");
+// Renaming a document, once, however many times Elm asks (S5).
+const { renameDocument } = require("./documents");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
 
-let renaming = false;
 window.elmMessages = [];
 
 let remoteDB;
@@ -64,7 +72,10 @@ let TREE_ID;
 const CLIENT_ID = uuid(12);
 let COLLAB_STATE;
 let DATA_TYPE;
-const CARD_DATA = Symbol.for("cardbased");
+// Defined in doc-helpers, which is the other half of the pair that has to agree
+// about it: both files used to declare their own `Symbol.for("cardbased")`
+// (S13).
+const CARD_DATA = helpers.CARD_DATA;
 let userDbName;
 let email = null;
 let ws;
@@ -96,7 +107,6 @@ const params = {
   localStore,
   lastColumnScrolled: null,
   lastActivesScrolled: null,
-  ticking: false,
   DIRTY: false,
 };
 function getDataType() {
@@ -230,6 +240,9 @@ function stopSyncing() {
   if (historyDataSubscription != null) { historyDataSubscription.unsubscribe(); historyDataSubscription = null; }
   TREE_ID = null;
   email = null;
+  socketIsOpen = false;
+  documentIsLoaded = false;
+  socketConnectedAnnounced = false;
 }
 
 
@@ -256,6 +269,33 @@ function reportWsFailure(messageType, error) {
 }
 
 
+/**
+ * Tell Elm the socket is up — once both halves of "up" are true.
+ *
+ * `SocketConnected` exists so that `Page.App` can push what this device has not
+ * synced (`Data.triggeredPush`), and it can only do that for a document it has
+ * loaded: on any other state the message does nothing at all. The socket,
+ * meanwhile, is opened during boot, *before* Elm is initialized — so the
+ * message used to be sent on a `setTimeout(…, 1000)`, a bet on Elm having
+ * booted and loaded a document within the second (CODE_REVIEW.md S5). Lose the
+ * bet on a slow start and the unsynced rows sat there until the next save.
+ *
+ * The two halves are both events this file already sees: the socket opening,
+ * and Elm asking for a document (`loadCardBasedDocument`, which has just handed
+ * Elm its cards). Whichever is second sends the message, and it is sent once
+ * per open socket — a second one would push the same deltas again.
+ */
+let socketIsOpen = false;
+let documentIsLoaded = false;
+let socketConnectedAnnounced = false;
+
+function announceSocketConnected() {
+  if (!socketIsOpen || !documentIsLoaded || socketConnectedAnnounced) { return; }
+  socketConnectedAnnounced = true;
+  toElm(null, 'appMsgs', 'SocketConnected');
+}
+
+
 function initWebSocket () {
   const wsUrl = window.location.origin.replace('http', 'ws')+'/ws'
   ws = new PersistentWebSocket(wsUrl, {pingTimeout: 30000 + 2000})
@@ -279,7 +319,8 @@ function initWebSocket () {
     }
 
     interval = setInterval(() => ws.send('ping'), 30000)
-    setTimeout(() => toElm(null, 'appMsgs', 'SocketConnected') , 1000)
+    socketIsOpen = true;
+    announceSocketConnected();
   }
 
   ws.onmessage = async (e) => {
@@ -443,6 +484,12 @@ function initWebSocket () {
     // Clear list of collaborators
     toElm([], 'docMsgs', 'RecvCollabUsers');
 
+    // pws reconnects on its own, and the next `onopen` has to be able to say so
+    // again: what came back is a socket that has not pushed this session's
+    // unsynced rows.
+    socketIsOpen = false;
+    socketConnectedAnnounced = false;
+
     clearInterval(interval)
   }
 }
@@ -554,11 +601,10 @@ const fromElm = (msg, elmData) => {
       // Set localStore db
       localStore.db(elmData);
 
-      try {
-        loadCardBasedDocument(TREE_ID);
-      } catch (e) {
-        console.log(e);
-      }
+      // Awaited, not fire-and-forget in a try that could only ever catch a
+      // synchronous throw: this is an async function, so its failure is a
+      // rejection, and the dispatch table reports those now (S7).
+      await loadCardBasedDocument(TREE_ID);
     },
 
     LoadDocument : async () => {
@@ -574,15 +620,13 @@ const fromElm = (msg, elmData) => {
         return;
       }
 
-      try {
-        if (treeDoc.location === "cardbased") {
-          loadCardBasedDocument(elmData);
-        } else {
-          console.error("Unknown document location:", treeDoc.location);
-          toElm(TREE_ID, "appMsgs", "NotFound");
-        }
-      } catch (e) {
-        console.log(e);
+      if (treeDoc.location === "cardbased") {
+        // Same as InitDocument: awaited, so a failure to load the document the
+        // user just opened is reported rather than swallowed (S7).
+        await loadCardBasedDocument(elmData);
+      } else {
+        console.error("Unknown document location:", treeDoc.location);
+        toElm(TREE_ID, "appMsgs", "NotFound");
       }
     },
 
@@ -596,12 +640,12 @@ const fromElm = (msg, elmData) => {
       }
     },
 
+    // Committing a title sends this and then blurs the field, and the blur
+    // commits it again -- so the rename is idempotent by value rather than
+    // guarded by a "renaming" flag that dropped whichever message lost the race
+    // (S5, and documents.js for why by-value is the difference).
     RenameDocument: async () => {
-      if (!renaming) { // Hack to prevent double rename attempt due to Browser.Dom.blur
-        renaming = true;
-        await dexie.trees.update(TREE_ID, {name: elmData, updatedAt: Date.now(), synced: false});
-        renaming = false;
-      }
+      await renameDocument({ db: dexie, treeId: TREE_ID, name: elmData, now: Date.now });
     },
 
     PushDeltas : () => {
@@ -732,31 +776,37 @@ const fromElm = (msg, elmData) => {
         wsSend('pullHistory', TREE_ID, false);
       }
 
-      const timeout = document.getElementById('history-slider') ? 0 : 200;
-
-      setTimeout(() => {
+      // Elm renders the slider as it opens the history menu, so on the first
+      // open it is not there yet. Waiting for the element beats guessing at
+      // 200ms for it (S5); the null check stays, because after `whenReady`'s
+      // backstop it can still be missing.
+      helpers.whenReady(() => document.getElementById('history-slider') !== null, () => {
         let slider = document.getElementById('history-slider')
         if (slider != null) {
           slider.stepUp(delta);
           slider.dispatchEvent(new Event('input'));
         }
-      }, timeout)
+      });
     },
 
+    // `|| {}`: there is a session blob by the time either of these is
+    // reachable, unless boot could not reach the server at all -- and a
+    // preference is not worth failing over on a first run without one (S8).
     SaveUserSetting: () => {
       let key = elmData[0];
       let value = elmData[1];
-      let currSessionData = getSessionData();
+      let currSessionData = getSessionData() || {};
       currSessionData[key] = value;
       setSessionData(currSessionData, "SaveUserSetting");
     },
 
     SetSidebarState: () => {
-      let currSessionData = getSessionData();
+      let currSessionData = getSessionData() || {};
       currSessionData.sidebarOpen = elmData;
       setSessionData(currSessionData, "SetSidebarState");
       window.requestAnimationFrame(()=>{
-        sidebarWidth = document.getElementById('sidebar').clientWidth;
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) { sidebarWidth = sidebar.clientWidth; }
       });
     },
 
@@ -794,12 +844,45 @@ const fromElm = (msg, elmData) => {
 
   const cases = Object.assign(helpers.casesShared(elmData, params), casesWeb)
 
+  const handler = cases[msg];
+
+  // A tag with no handler is the only thing that deserves this sentence, and
+  // it used to be printed for a handler that threw as well -- which named the
+  // message as the culprit and buried the real error behind a wrong
+  // explanation (S7).
+  if (typeof handler !== "function") {
+    console.error("Unexpected message from Elm : ", msg, elmData);
+    return;
+  }
+
   try {
-    cases[msg]();
+    const result = handler();
+    // Most handlers are `async`, so their failures arrive as a rejected promise
+    // that the `try` around the call never sees -- which was every Dexie write
+    // in the table (S7).
+    if (result != null && typeof result.then === "function") {
+      result.then(undefined, (err) => reportPortFailure(msg, elmData, err));
+    }
   } catch (err) {
-    console.error("Unexpected message from Elm : ", msg, elmData, err);
+    reportPortFailure(msg, elmData, err);
   }
 };
+
+
+/**
+ * One failed message from Elm: always a console line naming the tag, and a
+ * dialog when the failure means a change of the user's did not reach this
+ * device. `port-errors.js` decides which, per tag, and says why.
+ */
+function reportPortFailure(tag, data, error) {
+  const failure = portMessageFailure(tag, error);
+
+  console.error(failure.consoleMessage, data, error);
+
+  if (failure.userMessage !== null) {
+    alert(failure.userMessage);
+  }
+}
 
 
 function wsSend(msgTag, msgData, queueIfNotReady) {
@@ -868,8 +951,7 @@ async function loadCardBasedDocument (treeId) {
       saveBackupToImmortalDB(treeId, cards);
       if (firstLoad) {
         firstLoad = false;
-        const firstCard = cards.filter(c => c.parentId === null)[0];
-        setTimeout(() => {toElm(firstCard.id, "docMsgs", "InitialActivation")} , 20);
+        activateRootCard(cards);
       }
     }
   });
@@ -886,34 +968,58 @@ async function loadCardBasedDocument (treeId) {
     }
   });
 
+  // Elm has its cards and the socket can now say it is up: whichever of the two
+  // was second sends `SocketConnected`, which is what pushes what this device
+  // has not synced.
+  documentIsLoaded = true;
+  announceSocketConnected();
+
+  // Which document is open decides whether the GitHub sync button is shown at
+  // all, and this is the one place that changes.
+  syncUI.refresh();
+
   // Pull data from remote
   pull(treeId, chk);
 }
 
+/**
+ * Activate the document's first root card, once its element exists.
+ *
+ * Elm answers this by scrolling to the card, so the card has to be on screen:
+ * that was `setTimeout(…, 20)`, and 20ms is neither a guarantee nor a
+ * requirement (S5). Which card it is comes from `rootCardId`, which reads the
+ * log the only legal way -- the old `cards.filter(c => c.parentId === null)[0]`
+ * took the newest *row* with no parent, deleted rows included, and threw
+ * outright on a document whose root card was gone (S8).
+ */
+function activateRootCard(cards) {
+  const cardId = rootCardId(cards);
+
+  if (cardId === null) {
+    console.error("This document has no root card to activate");
+    return;
+  }
+
+  helpers.whenReady(
+    () => document.querySelector('[id="card-' + cardId + '"]') !== null,
+    () => toElm(cardId, "docMsgs", "InitialActivation")
+  );
+}
+
 function pull(treeId, chk) {
   wsSend("pull", [treeId, chk], true);
-  setTimeout(() => {
-    wsSend('pullHistoryMeta', treeId, true);
-  }, 500)
+  // Straight after the pull, not 500ms behind it: a websocket delivers in the
+  // order it was written and `wsQueue` drains in the order it was filled, so
+  // the delay was not waiting for anything -- it only meant that a document
+  // opened and closed inside half a second never asked for its history at all
+  // (S5).
+  wsSend('pullHistoryMeta', treeId, true);
 }
 
 function saveBackupToImmortalDB (treeId, cards) {
-  const snapshot = newestVersionPerId(cards);
-  const trees = treeHelper(snapshot, null);
-  const treeString = trees.map(treeToGkw).join('\n');
   if (ImmortalDB) {
-    ImmortalDB.set('backup-snapshot:' + treeId, treeString);
+    ImmortalDB.set('backup-snapshot:' + treeId, backupSnapshotText(cards));
   }
-}
-
-function treeToGkw (tree) {
-  return "<gingko-card id=\""
-    + tree.id
-    + "\">\n\n"
-    + tree.content
-    + "\n\n"
-    + tree.children.map(treeToGkw).join("\n\n")
-    + "</gingko-card>";
 }
 
 function treeToHtml (tree) {
@@ -922,14 +1028,6 @@ function treeToHtml (tree) {
     + "\n"
     + tree.children.map(treeToHtml).join("\n")
     + "</section>";
-}
-
-function treeHelper (cards, parentId) {
-  let children = _.chain(cards).filter(c => c.parentId === parentId).sortBy('position').value();
-  return children.map(c => {
-    let children = treeHelper(cards, c.id);
-    return {id: c.id, content: c.content, children}
-  });
 }
 
 async function loadDocListAndSend() {
@@ -951,18 +1049,24 @@ function my_uuid(length) {
   return result;
 }
 
+// The stored session, or null. What "or null" covers -- absent, unparseable,
+// or parsed to something that is not a blob -- is session.js's to say: boot's
+// very first step used to be an unguarded `JSON.parse` here, so one corrupted
+// value was a blank page (S8).
 function getSessionData() {
-  let sessionStringRaw = localStorage.getItem(SESSION_STORAGE_KEY);
-  if (sessionStringRaw) {
-    return JSON.parse(sessionStringRaw);
-  } else {
-    return null;
-  }
+  return readSessionData();
 }
 
 function setSessionData(data, source) {
   console.log("Setting session data:",source, JSON.stringify(data))
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+  } catch (err) {
+    // A denied or full localStorage costs this session its preferences on the
+    // next reload, and nothing else: everything that matters is in Dexie. Not
+    // worth failing the message that asked for it.
+    console.error("session: could not store the session", source, err);
+  }
 }
 
 
@@ -1094,16 +1198,27 @@ Mousetrap.bind(["shift+tab"], function () {
 
 helpers.defineCustomTextarea(toElm, getDataType);
 
+// The last net: an error nothing else caught. Only one kind of them is
+// actionable -- an extension rewriting the DOM under Elm's virtual DOM -- and
+// `isExtensionInterference` is the guarded version of the test that used to be
+// here: this listener also fires for failed *resource* loads, whose event
+// carries no `message` at all, so `err.message.match(...)` threw a TypeError
+// from inside the error handler and lost the original error with it (S7).
 window.addEventListener("error", (err) => {
-  console.log(err);
-  if (
-    err.message.match(/Cannot read properties of undefined \(reading 'childNodes'\)/)
-    ||
-    err.message.match(/Failed to execute 'removeChild' on 'Node'/)
-  ) {
+  console.error("uncaught error", err);
+
+  if (isExtensionInterference(err && err.message)) {
     alert("There may be an extension interfering with Gingko Writer.\n\nDisable your extensions and try again, or contact support");
     cleanBodyHelp();
   }
+});
+
+// The same net for a promise nobody handled. Not silenced, and not alerted
+// either: every path that can tell the user something already does (the port
+// dispatch, `ws.onmessage`, the clipboard and the save), so anything reaching
+// here is news for the console and a bug to fix.
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("unhandled rejection", event && event.reason);
 });
 
 const cleanBodyHelp = () => {
@@ -1227,6 +1342,7 @@ const syncUI = (() => {
   // Show only for documents that map to a configured project.
   async function refresh() {
     if (!wrap) build();
+    watchHeader();
     if (!TREE_ID) { wrap.style.display = "none"; lastCheckedId = null; return; }
     if (TREE_ID !== lastCheckedId) {
       lastCheckedId = TREE_ID;
@@ -1238,14 +1354,58 @@ const syncUI = (() => {
       } catch { wrap.dataset.configured = ""; }
     }
     if (wrap.dataset.configured !== "yes") { wrap.style.display = "none"; return; }
+    reposition();
+  }
+
+  /** Put the button where the header currently is, or hide it if there is none. */
+  function reposition() {
+    if (!wrap || wrap.dataset.configured !== "yes") { return; }
     wrap.style.display = place() ? "flex" : "none";
+  }
+
+  /**
+   * Follow the header's geometry, rather than re-reading it 75 times a minute
+   * for the entire session (S5).
+   *
+   * `place()` needs to run again whenever the header's box changes, and the
+   * header is a CSS grid whose icon columns are pinned to its right edge -- so
+   * "the box changed" covers every way the anchor can move: the window
+   * resizing, the sidebar opening, a header menu adding its row. A
+   * ResizeObserver is exactly that event.
+   *
+   * Elm can also replace the header element itself (navigating between the
+   * document page and every other one), which no observer on the old node
+   * reports. That is what `gw-header-rendered` is for, below: the element says
+   * when it has rendered, and this re-observes whatever is there now.
+   */
+  function watchHeader() {
+    if (typeof ResizeObserver !== "function") { return; }
+    const header = document.getElementById("document-header");
+    if (header === observedHeader) { return; }
+    if (headerObserver === null) {
+      headerObserver = new ResizeObserver(reposition);
+    }
+    headerObserver.disconnect();
+    observedHeader = header;
+    if (header !== null) { headerObserver.observe(header); }
   }
 
   window.addEventListener("resize", () => { if (wrap) refresh(); });
   return { refresh };
 })();
 
-setInterval(() => syncUI.refresh(), 800);
+let headerObserver = null;
+let observedHeader = null;
+
+// The header telling us it has rendered, which is the one thing a
+// ResizeObserver on it cannot: that there is a *new* header element, or that
+// the icon the button is measured against has just appeared in it. Elm's own
+// re-renders reach us this way too, so nothing here polls (S5).
+document.addEventListener("gw-header-rendered", () => syncUI.refresh());
+// And once now, for the header that may already be on screen by the time this
+// module finishes loading. Which document is open is the other input, and
+// `loadCardBasedDocument` asks for a refresh when that changes.
+syncUI.refresh();
 
 
 /* === Images ===============================================================

@@ -145,6 +145,12 @@ class Header extends HTMLElement {
       if (child !== title.span) child.remove();
     }
     this.append(...parts.filter((n): n is Node => n !== null));
+
+    // Elm listens for none of this, and that is the point: the port layer
+    // fixed-positions the GitHub sync button against #history-icon, and it
+    // polled the header's geometry every 800ms for the whole session to find
+    // out when that moved (CODE_REVIEW.md S5). This is the header saying so.
+    emit(this, "gw-header-rendered");
   }
 
   /**

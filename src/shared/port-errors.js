@@ -58,8 +58,7 @@ const BENIGN_MESSAGE_TAGS = [
   // The history view: a slider that does not move is the whole of the failure.
   'HistorySlider',
   // A console line, and the handlers that do nothing at all.
-  'ConsoleLogRequested', 'UpdateCommits', 'EmptyMessageShown', 'InitBeamer',
-  'SocketSend',
+  'ConsoleLogRequested', 'UpdateCommits', 'InitBeamer', 'SocketSend',
 ];
 
 /**

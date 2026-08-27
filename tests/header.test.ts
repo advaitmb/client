@@ -203,3 +203,24 @@ test("a known non-owner is told the title is not theirs to edit", () => {
 
   expect(titleInput(el).style.cursor).toBe("not-allowed");
 });
+
+test("the header says when it has rendered, so nothing has to poll its geometry", () => {
+  // The port layer fixed-positions the GitHub sync button against
+  // #history-icon and used to re-measure the header every 800ms, forever, to
+  // notice that the icon had moved or appeared (CODE_REVIEW.md S5). This event
+  // is that news; a ResizeObserver covers the rest.
+  const rendered: string[] = [];
+  const watch = () => rendered.push("rendered");
+  document.addEventListener("gw-header-rendered", watch);
+
+  try {
+    const [el] = mount();
+    expect(rendered.length).toBe(1);
+
+    // Every later render too: a menu opening adds a row and moves the icons.
+    el.setAttribute("menu", "history");
+    expect(rendered.length).toBe(2);
+  } finally {
+    document.removeEventListener("gw-header-rendered", watch);
+  }
+});
