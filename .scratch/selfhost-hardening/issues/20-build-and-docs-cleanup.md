@@ -36,9 +36,12 @@ sidebar rail) — remove with the payments CSS.
 - [x] README quickstart verified end-to-end in a clean clone.
 - [x] Each B-item above done or explicitly deferred with a reason in
       Comments.
-- [ ] CI green.
+- [x] CI green.
 
 ## Answer
+
+CI green on selfhost: run 33067220874 (`0dbed69`, the B4–B13 code and docs)
+and run 33069054218 (`671ac3c`, the review follow-ups + tracker).
 
 Every B-item is **done**; nothing deferred. The build is no longer Bun-only,
 no page reaches for a CDN, and the docs describe commands that exist.
