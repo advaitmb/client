@@ -213,3 +213,21 @@ This is load-bearing rather than cosmetic, because an unknown incoming tag is
 *not* ignored — `Page.Doc.Incoming`'s catch-all returns
 `Err "Unexpected info from outside: <tag>"`, which reaches `onError` and
 surfaces as a toast (ticket 18). Recorded in `ARCHITECTURE.md` §7.
+
+**CI green on all eleven commits**, checked per commit rather than only at the
+tip, because a purge is exactly the change that compiles at the end while
+having been broken in the middle: `fc7f519`, `49b3ad3`, `38828c0`, `3d2ece6`,
+`ad85898`, `bf4c795`, `84d4356`, `849735e`, `aafbf54`, `1d5e8d1`, `59e958f`,
+and `bed639f`+`4711d46` under the tip's run. Each was pushed as its own green
+group — the container restarted twice during this ticket, and the incremental
+pushes are why none of the work was lost.
+
+**One environment note for the next agent in a cloud session.** `bun run
+test:elm` fails on a fresh container even after `scripts/install_elm_pkgs.sh`:
+elm-test solves its own dependency set and asks for `danfishgold/base64-bytes`
+**1.1.0**, while `elm.json` pins 1.0.3, so `elm make` tries a GitHub zipball
+the proxy rejects with 400. The fix is the script's own trick applied to the
+extra version — `git clone --depth 1 --branch 1.1.0` into
+`elm-home/elm-stuff/0.19.1/packages/danfishgold/base64-bytes/1.1.0/`. Worth
+teaching the script to read elm-test's solution rather than only `elm.json`;
+not filed, as it costs one command once per container.
