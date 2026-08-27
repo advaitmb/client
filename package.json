@@ -20,6 +20,7 @@
     "test": "bun run test:elm && bun run test:ts",
     "test:elm": "ELM_HOME=$PWD/elm-home/elm-stuff elm-test",
     "test:ts": "bun test",
+    "typecheck": "tsc -p src/ui/tsconfig.json",
     "config-check": "bun config-check.js",
     "newbuild": "bun patches.mjs && bun esbuild.mjs && cp -r src/static/. web/ && bunx tailwindcss -i src/static/style.css -o web/style.css && ELM_HOME=elm-home/elm-stuff elm-watch make --optimize && bun run minifyelm",
     "minifyelm": "bunx uglifyjs web/elm.js --compress 'pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9],pure_getters,keep_fargs=false,unsafe_comps,unsafe' | bunx uglifyjs --mangle --output web/elm.js"
@@ -51,6 +52,7 @@
     "jsdom": "^30.0.1",
     "postcss": "^8.4.25",
     "tailwindcss": "^3.3.2",
+    "typescript": "~5.9.3",
     "uglify-js": "^3.17.4"
   }
 }

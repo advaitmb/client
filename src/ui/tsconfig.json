@@ -1,3 +1,5 @@
+// The typecheck gate for this directory: `bun run typecheck`, and a step in
+// ci.yml. See README.md for what it is for and how to confirm it is real.
 {
   "compilerOptions": {
     "target": "ES2022",
@@ -6,8 +8,13 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "module": "ES2022",
-    "moduleResolution": "node",
+    // Resolution has to be the bundler's, because esbuild is what builds this
+    // directory: `node`/`node10` reads neither a package's `exports` map nor
+    // its ESM build, which is why `import DOMPurify from "dompurify"` was an
+    // error here and correct at runtime. It is also the value with a future --
+    // `node10` is on its way out of TypeScript.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,

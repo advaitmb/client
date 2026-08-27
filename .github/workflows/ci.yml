@@ -47,6 +47,14 @@ jobs:
           path: elm-home/elm-stuff
           key: elm-${{ runner.os }}-${{ hashFiles('elm.json') }}
 
+      # `bun test` and esbuild both strip types without checking them, so
+      # nothing before this step reads a type annotation. src/ui/README.md
+      # claimed this gate for months without it existing (CODE_REVIEW.md S11);
+      # it catches what no test can, e.g. a field shadowing
+      # `HTMLElement.prototype.title` (ticket 24).
+      - name: TypeScript typecheck
+        run: bun run typecheck
+
       - name: Build
         run: bun run newbuild
 
