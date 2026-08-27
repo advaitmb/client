@@ -1,6 +1,6 @@
 # 23: JS robustness — timing hacks, leaks, dispatch, boot
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 01
 
