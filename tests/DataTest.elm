@@ -55,6 +55,47 @@ deletedRow args =
     { row | deleted = True }
 
 
+{-| An unsynced version row: one offline save, not pushed to the server yet.
+-}
+unsyncedRow :
+    { id : String, parentId : Maybe String, position : Float, content : String, ts : Int }
+    -> Data.Card_tests_only UpdatedAt
+unsyncedRow args =
+    let
+        row =
+            syncedRow args
+    in
+    { row | synced = False }
+
+
+{-| The `cards` rows as `src/shared/doc.js` hands them to Elm.
+-}
+encodeRows : List (Data.Card_tests_only UpdatedAt) -> Enc.Value
+encodeRows rows =
+    let
+        encodeRow row =
+            Enc.object
+                [ ( "id", Enc.string row.id )
+                , ( "treeId", Enc.string row.treeId )
+                , ( "content", Enc.string row.content )
+                , ( "parentId", row.parentId |> Maybe.map Enc.string |> Maybe.withDefault Enc.null )
+                , ( "position", Enc.float row.position )
+                , ( "deleted"
+                  , Enc.int
+                        (if row.deleted then
+                            1
+
+                         else
+                            0
+                        )
+                  )
+                , ( "synced", Enc.bool row.synced )
+                , ( "updatedAt", UpdatedAt.encode row.updatedAt )
+                ]
+    in
+    Enc.list encodeRow rows
+
+
 
 -- Decoding the DBChangeLists JSON that localSave emits
 
@@ -114,6 +155,187 @@ savePayload msgs =
                         Nothing
             )
         |> List.head
+
+
+
+-- Decoding the delta push that goes to the server
+
+
+type alias PushedOp =
+    { t : String, content : Maybe String, expectedVersion : Maybe String }
+
+
+type alias PushedDelta =
+    { id : String, ts : String, ops : List PushedOp }
+
+
+pushedOpDecoder : Dec.Decoder PushedOp
+pushedOpDecoder =
+    Dec.map3 PushedOp
+        (Dec.field "t" Dec.string)
+        (Dec.maybe (Dec.field "c" Dec.string))
+        (Dec.maybe (Dec.field "e" Dec.string))
+
+
+pushedDeltaDecoder : Dec.Decoder PushedDelta
+pushedDeltaDecoder =
+    Dec.map3 PushedDelta
+        (Dec.field "id" Dec.string)
+        (Dec.field "ts" Dec.string)
+        (Dec.field "ops" (Dec.list pushedOpDecoder))
+
+
+{-| The deltas of the `PushDeltas` message, or none when there is no such
+message because nothing is left to push.
+-}
+pushedDeltas : List Outgoing.Msg -> Result String (List PushedDelta)
+pushedDeltas msgs =
+    msgs
+        |> List.filterMap
+            (\msg ->
+                case msg of
+                    Outgoing.PushDeltas value ->
+                        Just value
+
+                    _ ->
+                        Nothing
+            )
+        |> List.head
+        |> Maybe.map
+            (Dec.decodeValue (Dec.field "dlts" (Dec.list pushedDeltaDecoder))
+                >> Result.mapError Dec.errorToString
+            )
+        |> Maybe.withDefault (Ok [])
+
+
+
+-- Resolving a content conflict (ADR-0005 §2)
+
+
+{-| Card "a" was edited offline three times against a synced original, and the
+server has a newer conflicting version of it. Card "b" is not in conflict, but
+carries an unsynced offline edit of its own.
+-}
+conflictedRows : List (Data.Card_tests_only UpdatedAt)
+conflictedRows =
+    [ syncedRow { id = "a", parentId = Nothing, position = 1, content = "Original", ts = 1000 }
+    , unsyncedRow { id = "a", parentId = Nothing, position = 1, content = "Edit 1", ts = 2000 }
+    , unsyncedRow { id = "a", parentId = Nothing, position = 1, content = "Edit 2", ts = 3000 }
+    , unsyncedRow { id = "a", parentId = Nothing, position = 1, content = "Edit 3", ts = 4000 }
+    , syncedRow { id = "a", parentId = Nothing, position = 1, content = "Their edit", ts = 5000 }
+    , syncedRow { id = "b", parentId = Just "a", position = 1, content = "Child", ts = 1000 }
+    , unsyncedRow { id = "b", parentId = Just "a", position = 1, content = "Child edit", ts = 2500 }
+    ]
+
+
+{-| Card "a"'s synced original followed by its three offline edits: the rows a
+resolution discards. Their version (5000) is not among them -- it is the row the
+card is left with. `List.take 3` drops the newest, the one picking Ours keeps.
+-}
+ourLineStamps : List String
+ourLineStamps =
+    [ "1000:0:hash-a-1000", "2000:0:hash-a-2000", "3000:0:hash-a-3000", "4000:0:hash-a-4000" ]
+
+
+{-| The delta card "b" pushes in every scenario below: resolving card "a"'s
+conflict must not touch another card's unsynced work.
+-}
+childDelta : PushedDelta
+childDelta =
+    { id = "b"
+    , ts = "2500:0:hash-b-2500"
+    , ops = [ { t = "u", content = Just "Child edit", expectedVersion = Just "1000:0:hash-b-1000" } ]
+    }
+
+
+{-| What resolving `conflictedRows` leaves behind, seen from the seam: the
+staged changes, the unsynced rows still in the DB afterwards, and the delta
+push that follows.
+
+A card with no unsynced row left and no delta of its own is a card that
+classifies as `Synced`: those two fields are how the tests say so.
+
+-}
+type alias Resolution =
+    { changes : ChangeLists
+    , unsyncedAfter : List ( String, String )
+    , pushedAfter : List PushedDelta
+    }
+
+
+{-| Receive `conflictedRows` (so the conflict under test is the one
+`getSyncState` actually reports), resolve it as `selection`, apply the staged
+save the way the port layer would, then look at what the next push carries.
+-}
+resolveAs : ConflictSelection -> Result String Resolution
+resolveAs selection =
+    case Data.cardDataReceived (encodeRows conflictedRows) ( Data.emptyCardBased, Tree "0" "" (Children []), "tree1" ) of
+        Nothing ->
+            Err "expected cardDataReceived to report the received rows"
+
+        Just { newData } ->
+            if not (Data.hasConflicts newData) then
+                Err "expected the offline edits to be reported as a conflict for the user to resolve"
+
+            else
+                case
+                    Data.resolveConflicts selection newData
+                        |> Maybe.map List.singleton
+                        |> Maybe.withDefault []
+                        |> savePayload
+                        |> Maybe.map (Dec.decodeValue changeListsDecoder)
+                of
+                    Nothing ->
+                        Err "expected resolveConflicts to stage a save"
+
+                    Just (Err err) ->
+                        Err (Dec.errorToString err)
+
+                    Just (Ok changes) ->
+                        let
+                            rowsAfter =
+                                applySave 6000 changes conflictedRows
+
+                            pushAfter =
+                                Data.triggeredPush (Data.model_tests_only rowsAfter Nothing) "tree1"
+                        in
+                        pushedDeltas pushAfter
+                            |> Result.map
+                                (\pushed ->
+                                    { changes = { changes | toRemove = List.sort changes.toRemove }
+                                    , unsyncedAfter =
+                                        rowsAfter
+                                            |> List.filter (not << .synced)
+                                            |> List.map (\row -> ( row.id, row.content ))
+                                            |> List.sort
+                                    , pushedAfter = pushed
+                                    }
+                                )
+
+
+{-| The port layer's half of a save (`src/shared/doc.js`): drop every row named
+in `toRemove`, then write each staged row with the fresh stamp the port gives it
+as it writes -- which makes it the newest row of its card.
+-}
+applySave : Int -> ChangeLists -> List (Data.Card_tests_only UpdatedAt) -> List (Data.Card_tests_only UpdatedAt)
+applySave ts changes rows =
+    let
+        removed =
+            changes.toRemove |> List.filterMap (UpdatedAt.fromString >> Result.toMaybe)
+
+        stampStaged staged =
+            { id = staged.id
+            , treeId = staged.treeId
+            , content = staged.content
+            , parentId = staged.parentId
+            , position = staged.position
+            , deleted = staged.deleted == 1
+            , synced = staged.synced
+            , updatedAt = UpdatedAt.fromParts ts 0 ("hash-" ++ staged.id ++ "-" ++ String.fromInt ts)
+            }
+    in
+    (rows |> List.filter (\row -> not (List.any (UpdatedAt.areEqual row.updatedAt) removed)))
+        ++ (changes.toAdd |> List.map stampStaged)
 
 
 suite : Test
@@ -417,4 +639,79 @@ suite =
                 in
                 ( treeFrom allRows, treeFrom (List.reverse allRows) )
                     |> Expect.equal ( expected, expected )
+        , test "resolving as Theirs discards every unsynced row of the card, not just the newest" <|
+            \_ ->
+                -- Offline editing appends one unsynced row per save, so
+                -- discarding only the newest leaves the older ones to
+                -- re-classify the card as Unsynced and push content the user
+                -- just threw away (ADR-0005 §2).
+                resolveAs Theirs
+                    |> Expect.equal
+                        (Ok
+                            { changes =
+                                { toAdd = []
+                                , toMarkSynced = []
+                                , toMarkDeleted = []
+                                , toRemove = ourLineStamps
+                                }
+                            , unsyncedAfter = [ ( "b", "Child edit" ) ]
+                            , pushedAfter = [ childDelta ]
+                            }
+                        )
+        , test "resolving as Original pushes the original content and none of the discarded edits" <|
+            \_ ->
+                -- Their version is already on the server, so reverting means
+                -- pushing the original content back up as a fresh unsynced
+                -- row -- and nothing else.
+                resolveAs Original
+                    |> Expect.equal
+                        (Ok
+                            { changes =
+                                { toAdd =
+                                    [ { id = "a"
+                                      , treeId = "tree1"
+                                      , content = "Original"
+                                      , parentId = Nothing
+                                      , position = 1
+                                      , deleted = 0
+                                      , synced = False
+                                      }
+                                    ]
+                                , toMarkSynced = []
+                                , toMarkDeleted = []
+                                , toRemove = ourLineStamps
+                                }
+                            , unsyncedAfter = [ ( "a", "Original" ), ( "b", "Child edit" ) ]
+                            , pushedAfter =
+                                [ childDelta
+                                , { id = "a"
+                                  , ts = "6000:0:hash-a-6000"
+                                  , ops = [ { t = "u", content = Just "Original", expectedVersion = Just "5000:0:hash-a-5000" } ]
+                                  }
+                                ]
+                            }
+                        )
+        , test "resolving as Ours keeps exactly the winning newest unsynced row" <|
+            \_ ->
+                resolveAs Ours
+                    |> Expect.equal
+                        (Ok
+                            { changes =
+                                { toAdd = []
+                                , toMarkSynced = []
+                                , toMarkDeleted = []
+
+                                -- The winning row ("4000:0:hash-a-4000") stays.
+                                , toRemove = ourLineStamps |> List.take 3
+                                }
+                            , unsyncedAfter = [ ( "a", "Edit 3" ), ( "b", "Child edit" ) ]
+                            , pushedAfter =
+                                [ childDelta
+                                , { id = "a"
+                                  , ts = "4000:0:hash-a-4000"
+                                  , ops = [ { t = "u", content = Just "Edit 3", expectedVersion = Just "5000:0:hash-a-5000" } ]
+                                  }
+                                ]
+                            }
+                        )
         ]

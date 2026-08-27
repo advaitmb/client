@@ -234,8 +234,23 @@ cardDataReceived json ( oldModel, oldTree, treeId ) =
                             let
                                 mergedChanges =
                                     resolveDeleteConflicts cards conflictData
+
+                                -- Delete-vs-edit conflicts resolve without
+                                -- asking (edits win), and staging a change is
+                                -- how `resolveDeleteConflicts` says it handled
+                                -- one.  Only `toRemove` can be non-empty
+                                -- today, but the gate asks the general
+                                -- question so a future limb can't fall
+                                -- through it silently.
+                                mergeHandledIt =
+                                    not
+                                        (List.isEmpty mergedChanges.toAdd
+                                            && List.isEmpty mergedChanges.toMarkSynced
+                                            && List.isEmpty mergedChanges.toMarkDeleted
+                                            && List.isEmpty mergedChanges.toRemove
+                                        )
                             in
-                            if List.length mergedChanges.toAdd > 0 || List.length mergedChanges.toMarkSynced > 0 || List.length mergedChanges.toRemove > 0 then
+                            if mergeHandledIt then
                                 ( [ SaveCardBased (toSave mergedChanges) ]
                                 , Nothing
                                 )
@@ -277,33 +292,70 @@ triggeredPush model treeId =
                 _ ->
                     []
 
+
+{-| Apply the user's choice of conflicting version, by rewriting the version log
+of the conflicted cards.
+
+Resolving discards the whole local unsynced line, not just its newest row
+(ADR-0005 §2). Offline editing appends one unsynced row per save, so leaving
+the older rows behind would re-classify the card as `Unsynced` and push content
+the user explicitly discarded (CODE_REVIEW.md D3).
+
+Every choice also drops the original (the oldest synced row): that brings the
+card's synced count back under `historyLimit`, which is what takes it out of the
+`Conflicted` state.
+
+-}
 resolveConflicts : ConflictSelection -> Model -> Maybe Outgoing.Msg
 resolveConflicts selectedVersion model =
     case model of
-        CardBased _ _ (Just versions) ->
+        CardBased allCards _ (Just versions) ->
             let
+                conflictedIds =
+                    (versions.original ++ versions.ours ++ versions.theirs)
+                        |> List.map .id
+                        |> ListExtra.unique
+
+                -- Confined to the conflicted cards: unsynced rows of other
+                -- cards are unrelated local work still waiting to be pushed.
+                ourUnsyncedStamps =
+                    allCards
+                        |> List.filter (\c -> not c.synced && List.member c.id conflictedIds)
+                        |> List.map .updatedAt
+
+                originalStamps =
+                    versions.original |> List.map .updatedAt
+
+                -- `versions.ours` is the newest unsynced row of each
+                -- conflicted card: the row picking Ours keeps.
+                ourWinningStamps =
+                    versions.ours |> List.map .updatedAt
+
                 ( toAdd, toRemove ) =
                     case selectedVersion of
                         Types.Original ->
+                            -- Their version is already on the server, so
+                            -- reverting means pushing the original content
+                            -- back up as a fresh unsynced row.
                             ( versions.original |> List.map asUnsynced
-                            , versions.original |> List.map .updatedAt |> UpdatedAt.unique
+                            , originalStamps ++ ourUnsyncedStamps
                             )
 
                         Types.Theirs ->
                             ( []
-                            , (versions.original ++ versions.ours)
-                                |> List.map .updatedAt
-                                |> UpdatedAt.unique
+                            , originalStamps ++ ourUnsyncedStamps
                             )
 
                         Types.Ours ->
                             ( []
-                            , versions.original
-                                |> List.map .updatedAt
-                                |> UpdatedAt.unique
+                            , originalStamps
+                                ++ (ourUnsyncedStamps
+                                        |> List.filter
+                                            (\stamp -> not (List.any (UpdatedAt.areEqual stamp) ourWinningStamps))
+                                   )
                             )
             in
-            SaveCardBased (toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = toRemove }) |> Just
+            SaveCardBased (toSave { toAdd = toAdd, toMarkSynced = [], toMarkDeleted = [], toRemove = toRemove |> UpdatedAt.unique }) |> Just
 
         _ ->
             Nothing
