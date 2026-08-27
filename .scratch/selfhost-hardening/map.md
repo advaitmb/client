@@ -16,6 +16,10 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
 - ADR-0005 — sync invariants: newest-version-per-id, conflict resolution
   discards the whole unsynced line, numeric stamp comparison.
 - Tracker: local markdown under `.scratch/` (GitHub Issues disabled on repo).
+- Ticket 01 resolved — test infra + CI live: `bun run test` (elm-test 3,
+  bun test 7), config-check is a real gate, `.github/workflows/ci.yml` green
+  on `selfhost`; `build.yml`/`web-deploy.yml` deleted. Details in
+  `issues/01-test-infrastructure.md`.
 
 ## Owner decisions pending
 
