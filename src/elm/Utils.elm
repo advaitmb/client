@@ -1,11 +1,11 @@
-module Utils exposing (asButton, delay, emptyText, getFieldErrors, gravatar, hash, onClickStop, ternary, text, textNoTr)
+module Utils exposing (asButton, delay, emptyText, getFieldErrors, hash, ternary, text, textNoTr)
 
 {--import DebugToJson exposing (pp)--}
 
 import Hex
 import Html exposing (Html)
 import Html.Attributes exposing (attribute)
-import Html.Events exposing (custom, onClick, stopPropagationOn)
+import Html.Events exposing (custom, onClick)
 import Json.Decode as Dec
 import Murmur3 exposing (hashString)
 import Process
@@ -20,11 +20,6 @@ ternary condition trueValue falseValue =
 
     else
         falseValue
-
-
-onClickStop : msg -> Html.Attribute msg
-onClickStop msg =
-    stopPropagationOn "click" (Dec.succeed ( msg, True ))
 
 
 {-| What makes an element that cannot *be* a `<button>` behave like one:
@@ -81,16 +76,8 @@ delay ms msg =
     Task.perform (always msg) (Process.sleep <| toFloat ms)
 
 
-gravatar : Int -> String -> String
-gravatar _ _ =
-    -- Self-host: upstream hashed the account email and fetched an avatar from
-    -- gravatar.com, sending a hash of the address to a third party on every
-    -- render (this helper also feeds the collaborators UI in the header, so it
-    -- fired even with no collaborators). Serve a local icon instead.
-    "/leaf128.png"
 
-
--- Debugging
+-- TRANSLATED TEXT
 
 
 text : TranslationId -> Html msg
