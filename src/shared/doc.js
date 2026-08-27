@@ -42,6 +42,9 @@ const { SESSION_STORAGE_KEY, logoutUser, mergeUserIntoSession } = require("./ses
 const { applyCardBasedSave } = require("./save");
 // Same reason: which drag is in progress, and everything that follows from it.
 const { installDragHandlers } = require("./drag");
+// Same reason: which document rows the server has not acknowledged, and when
+// they go out -- including on reconnect, which nothing used to do (D6).
+const { createMetadataSync } = require("./metadata");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -75,6 +78,7 @@ const updateViewportSize = _.debounce(() => {
 let sidebarWidth;
 let savedObjectIds = new Set();
 let treeListSubscription = null;
+let metadataSync = null;
 let cardDataSubscription = null;
 let historyDataSubscription = null;
 let wsErrorCount = 0;
@@ -176,6 +180,14 @@ async function setUserDbs(eml) {
   // remoteDB was the CouchDB replica for legacy documents; there is no CouchDB.
   remoteDB = null;
   db = null;  // local PouchDB replica: legacy documents only
+
+  // One per session, and before the socket exists: `onopen` asks it for the
+  // metadata the server has not acknowledged.
+  metadataSync = createMetadataSync({
+    send: (msgTag, msgData) => wsSend(msgTag, msgData, false),
+    isOpen: () => !!ws && ws.readyState === ws.OPEN,
+  });
+
   initWebSocket();
 
   // Sync document list with server
@@ -188,10 +200,7 @@ async function setUserDbs(eml) {
       toElm(docMetadatas, "documentListChanged");
     }
 
-    const unsyncedTrees = trees.filter(t => !t.synced).map(t => _.omit(t, ['synced', 'collaborators']));
-    if (unsyncedTrees.length > 0) {
-      wsSend('trees', unsyncedTrees, false);
-    }
+    metadataSync.treesChanged(trees);
     firstLoad = false;
   });
 
@@ -210,6 +219,7 @@ function stopSyncing() {
     ws = null;
   }
   wsQueue = [];
+  if (metadataSync != null) { metadataSync.stop(); }
   if (treeListSubscription != null) { treeListSubscription.unsubscribe(); treeListSubscription = null; }
   if (cardDataSubscription != null) { cardDataSubscription.unsubscribe(); cardDataSubscription = null; }
   if (historyDataSubscription != null) { historyDataSubscription.unsubscribe(); historyDataSubscription = null; }
@@ -229,6 +239,12 @@ function initWebSocket () {
       wsSend(msgTag, msgData, false)
     })
     wsQueue = [];
+
+    // The queue holds messages that are events, so it can only hold what was
+    // asked for while the socket was down. Document metadata is state: it is
+    // re-derived here from the newest trees snapshot instead, so a rename or
+    // delete made offline reaches the server as soon as it can (D6).
+    metadataSync.socketOpened();
 
     if (TREE_ID) {
       wsSend('rt:join', { tr: TREE_ID, uid: CLIENT_ID, m: COLLAB_STATE || null }, false);
