@@ -450,3 +450,50 @@ button, input, select, textarea {
    blurred your own card and drew a presence stripe over it. */
 .collab-editing .view { filter: none; }
 .card.collab-active.collab-editing::after { display: none; }
+
+/* =============================================================================
+   <gw-sidebar> grid placement
+
+   style.css:474 lays the sidebar out on a named grid, and UI/Sidebar.elm used
+   to assign each child its area through elm-css inline styles. Those left with
+   the module, so the areas are declared here instead.
+   ========================================================================= */
+
+#sidebar > #brand                    { grid-area: top-left; }
+#sidebar > #new-icon                 { grid-area: row1-icon; }
+#sidebar > #documents-icon           { grid-area: row2-icon; }
+#sidebar > #document-switcher-icon   { grid-area: row3-icon; }
+#sidebar > #sidebar-document-list-wrap { grid-area: doc-list; }
+
+#sidebar .sidebar-button {
+  width: 40px;
+  padding: 10px;
+  cursor: pointer;
+  color: var(--ui-1-fg);
+  fill: var(--ui-1-fg);
+}
+#sidebar .sidebar-button:hover { color: var(--ui-2-fg); fill: var(--ui-2-fg); }
+#sidebar .sidebar-button.disabled { color: var(--card-btn-color); cursor: not-allowed; }
+
+/* The open documents button joins the panel it opens. */
+#sidebar > #documents-icon.open {
+  background: var(--background-sidebar-menu);
+  color: var(--ui-2-fg);
+  border-radius: 5px 0 0 5px;
+  padding-left: 7px;
+  margin-left: 3px;
+  width: 37px;
+}
+
+/* Document rows: readable rather than a whisper. Upstream tinted them with
+   --tree-fg-2, which is a background-ish tone. */
+#sidebar .sidebar-document-item a {
+  color: var(--normal-text-color);
+  text-decoration: none;
+}
+#sidebar .sidebar-document-item:hover a { color: var(--emphasis-color); }
+#sidebar .sidebar-document-item.active a {
+  color: var(--emphasis-color);
+  font-weight: 600;
+}
+#sidebar #no-documents { color: var(--normal-text-color-medium); }

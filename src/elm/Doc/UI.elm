@@ -8,7 +8,7 @@ import Doc.TreeUtils as TreeUtils exposing (..)
 import Feature
 import Features exposing (Feature(..))
 import GlobalData exposing (GlobalData)
-import Html exposing (Html, a, div, h2, h3, h5, hr, input, li, pre, span, textarea)
+import Html exposing (Html, a, div, h2, h3, h5, hr, input, li, node, pre, span, textarea)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
 import Html.Extra exposing (viewIf)
@@ -29,8 +29,7 @@ import Time exposing (posixToMillis)
 import Toast
 import Translation exposing (TranslationId(..), timeDistInWords, tr)
 import Types exposing (Children(..), CursorPosition(..), SortBy(..), TextCursorInfo, Toast, ToastRole(..), TooltipPosition(..), ViewMode(..), ViewState)
-import UI.Sidebar exposing (viewSidebarStatic)
-import Utils exposing (emptyText, text, textNoTr)
+import Utils exposing (emptyText, ternary, text, textNoTr)
 
 
 viewSaveIndicator :
@@ -175,7 +174,13 @@ viewAppLoadingSpinner sidebarOpen =
          , div [ id "loading-overlay" ] []
          , div [ class "spinner" ] [ div [ class "bounce1" ] [], div [ class "bounce2" ] [], div [ class "bounce3" ] [] ]
          ]
-            ++ viewSidebarStatic sidebarOpen
+            ++ [ -- the same element, told to render but wire nothing up
+                 node "gw-sidebar"
+                    [ attribute "open" (ternary sidebarOpen "yes" "no")
+                    , attribute "static" ""
+                    ]
+                    []
+               ]
         )
 
 

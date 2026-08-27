@@ -44,7 +44,6 @@ import Time
 import Toast
 import Translation exposing (TranslationId(..), tr)
 import Types exposing (CardTreeOp(..), ConflictSelection(..), OutsideData, SortBy(..), Toast, ToastPersistence(..), ToastRole(..), TooltipPosition, Tree, ViewMode(..))
-import UI.Sidebar exposing (SidebarMenuState(..), SidebarState(..), viewSidebar)
 import Upgrade exposing (Msg(..))
 import Utils exposing (delay, ternary)
 
@@ -95,6 +94,19 @@ type ConflictViewerState
 
 type alias DbData =
     { dbName : String, isNew : Bool }
+
+
+{-| Sidebar open/closed, and its (now vestigial) menu state. Both moved here
+from UI/Sidebar.elm when the sidebar became <gw-sidebar>.
+-}
+type SidebarState
+    = SidebarClosed
+    | File
+
+
+type SidebarMenuState
+    = NoSidebarMenu
+    | Account (Maybe Element)
 
 
 {-| Which header menu is open. Moved here from UI/Header.elm when the header
@@ -1554,19 +1566,6 @@ view ({ documentState } as model) =
                 Nothing ->
                     emptyText
 
-        sidebarMsgs =
-            { sidebarStateChanged = SidebarStateChanged
-            , noOp = NoOp
-            , clickedNew = TemplateSelectorOpened
-            , tooltipRequested = TooltipRequested
-            , tooltipClosed = TooltipClosed
-            , clickedSwitcher = SwitcherOpened
-            , clickedHelp = ToggledHelpMenu
-            , logout = LogoutRequested
-            , fileSearchChanged = FileSearchChanged
-            , changeSortBy = SortByChanged
-            , contextMenuOpened = SidebarContextClicked
-            }
     in
     case documentState of
         Doc { docModel, data, lastRemoteSave, lastLocalSave, titleField, docId } ->
@@ -1693,17 +1692,7 @@ view ({ documentState } as model) =
                                 []
                            , viewConflictSelector model.conflictViewerState
                            , maybeExportView
-                           , viewSidebar globalData
-                                session
-                                sidebarMsgs
-                                docId
-                                (Session.sortBy session)
-                                model.fileSearchField
-                                (Session.documents session)
-                                (Session.name session)
-                                Nothing
-                                model.sidebarMenuState
-                                model.sidebarState
+                           , viewSidebarElement model session docId
                            , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                            , viewTooltip
                            ]
@@ -1728,17 +1717,7 @@ view ({ documentState } as model) =
             else
                 div [ id "app-root", classList [ ( "loading", model.loading ) ] ]
                     (Page.DocMessage.viewEmpty { newClicked = TemplateSelectorOpened, emptyMessage = EmptyMessage }
-                        ++ [ viewSidebar globalData
-                                session
-                                sidebarMsgs
-                                ""
-                                ModifiedAt
-                                ""
-                                (Session.documents session)
-                                (Session.name session)
-                                Nothing
-                                model.sidebarMenuState
-                                model.sidebarState
+                        ++ [ viewSidebarElement model session ""
                            , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                            , viewTooltip
                            ]
@@ -1748,17 +1727,7 @@ view ({ documentState } as model) =
         DocNotFound globalData _ ->
             div [ id "app-root" ]
                 (Page.DocMessage.viewNotFound
-                    ++ [ viewSidebar globalData
-                            session
-                            sidebarMsgs
-                            ""
-                            ModifiedAt
-                            ""
-                            (Session.documents session)
-                            (Session.name session)
-                            Nothing
-                            model.sidebarMenuState
-                            model.sidebarState
+                    ++ [ viewSidebarElement model session ""
                        , viewIf (Session.isNotConfirmed session) (viewConfirmBanner CloseEmailConfirmBanner email)
                        , viewTooltip
                        ]
@@ -2163,3 +2132,64 @@ historyCheckoutMsg menu idxStr =
 
         _ ->
             NoOp
+
+
+sortByName : SortBy -> String
+sortByName sort =
+    case sort of
+        Alphabetical ->
+            "alpha"
+
+        ModifiedAt ->
+            "modified"
+
+        CreatedAt ->
+            "created"
+
+
+sortByMsg : String -> Msg
+sortByMsg name =
+    case name of
+        "alpha" ->
+            SortByChanged Alphabetical
+
+        "created" ->
+            SortByChanged CreatedAt
+
+        _ ->
+            SortByChanged ModifiedAt
+
+
+{-| <gw-sidebar>. Rendered from three places (a document, the empty state and
+the not-found state), so it lives here rather than being repeated.
+-}
+viewSidebarElement : Model -> LoggedIn -> String -> Html Msg
+viewSidebarElement model session currentDocId =
+    node "gw-sidebar"
+        [ attribute "open" (ternary (model.sidebarState /= SidebarClosed) "yes" "no")
+        , attribute "current" currentDocId
+        , attribute "sort" (sortByName (Session.sortBy session))
+        , attribute "docs"
+            (DocList.encodeSidebarDocs (Session.sortBy session)
+                model.fileSearchField
+                (Session.documents session)
+                |> Enc.encode 0
+            )
+        , attribute "switcher-enabled"
+            (ternary (Session.documents session == DocList.Success []) "no" "yes")
+        , on "gw-sidebar-toggle"
+            (Json.succeed
+                (SidebarStateChanged (ternary (model.sidebarState == SidebarClosed) File SidebarClosed))
+            )
+        , on "gw-new" (Json.succeed TemplateSelectorOpened)
+        , on "gw-switcher" (Json.succeed SwitcherOpened)
+        , on "gw-filter" (Json.map FileSearchChanged detailString)
+        , on "gw-sort" (Json.map sortByMsg detailString)
+        , on "gw-context"
+            (Json.map3 (\i x y -> SidebarContextClicked i ( x, y ))
+                (Json.at [ "detail", "id" ] Json.string)
+                (Json.at [ "detail", "x" ] Json.float)
+                (Json.at [ "detail", "y" ] Json.float)
+            )
+        ]
+        []

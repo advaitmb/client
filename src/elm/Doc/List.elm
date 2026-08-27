@@ -1,4 +1,4 @@
-port module Doc.List exposing (Model(..), current, documentListChanged, filter, fromList, getLastUpdated, init, isLoading, subscribe, switchListSort, toList, update, viewSidebarList, viewSwitcher)
+port module Doc.List exposing (Model(..), current, encodeSidebarDocs, documentListChanged, filter, fromList, getLastUpdated, init, isLoading, subscribe, switchListSort, toList, update, viewSwitcher)
 
 import Ant.Icons.Svg as AntIcons
 import Doc.Metadata as Metadata exposing (Metadata)
@@ -6,6 +6,7 @@ import Html exposing (Html, a, div, input, li, text, ul)
 import Html.Attributes exposing (attribute, class, classList, href, id, placeholder, title, type_)
 import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave, stopPropagationOn)
 import Json.Decode as Dec
+import Json.Encode as Enc
 import Page.Doc.ContextMenu as ContextMenu
 import Route
 import Svg.Attributes as SA
@@ -150,106 +151,26 @@ update sortCriteria newModel oldModel =
 -- VIEW
 
 
-viewSidebarList :
-    { noOp : msg
-    , filter : String -> msg
-    , changeSortBy : SortBy -> msg
-    , contextMenu : String -> ( Float, Float ) -> msg
-    , tooltipRequested : String -> TooltipPosition -> TranslationId -> msg
-    , tooltipClosed : msg
-    }
-    -> String
-    -> SortBy
-    -> Maybe String
-    -> String
-    -> Model
-    -> Html msg
-viewSidebarList msgs currentDocId sortCriteria contextTarget_ filterField model =
-    let
-        stopClickProp =
-            stopPropagationOn "click" (Dec.succeed ( msgs.noOp, True ))
-
-        viewDocItem d =
-            let
-                itemDocId =
-                    Metadata.getDocId d
-            in
-            div
-                [ classList
-                    [ ( "sidebar-document-item", True )
-                    , ( "active", itemDocId == currentDocId )
-                    , ( "context-target", Just itemDocId == contextTarget_ )
-                    , ( "relative", not <| List.isEmpty (Metadata.getCollaborators d) )
+{-| The sidebar's rows, filtered and sorted, as JSON for <gw-sidebar>.
+Filtering and sort order stay here; only the markup moved to src/ui/sidebar.ts.
+-}
+encodeSidebarDocs : SortBy -> String -> Model -> Enc.Value
+encodeSidebarDocs sortCriteria filterField model =
+    filter filterField model
+        |> toList
+        |> Maybe.withDefault []
+        |> sortBy sortCriteria
+        |> Enc.list
+            (\d ->
+                Enc.object
+                    [ ( "id", Enc.string (Metadata.getDocId d) )
+                    , ( "name"
+                      , Metadata.getDocName d
+                            |> Maybe.map Enc.string
+                            |> Maybe.withDefault Enc.null
+                      )
                     ]
-                ]
-                [ a
-                    [ ContextMenu.open (msgs.contextMenu itemDocId)
-                    , href <| Route.toString (Route.DocUntitled itemDocId)
-                    , stopClickProp
-                    , attribute "data-private" "lipsum"
-                    ]
-                    [ Metadata.getDocName d |> Maybe.withDefault "Untitled" |> text ]
-                , if not <| List.isEmpty (Metadata.getCollaborators d) then
-                    AntIcons.shareAltOutlined
-                        [ SA.class "absolute"
-                        , SA.class "right-2"
-                        , SA.class "top-2"
-                        , SA.class "w-3"
-                        , SA.class "pointer-events-none"
-                        ]
-
-                  else
-                    text ""
-                ]
-    in
-    case filter filterField model of
-        Loading ->
-            div [ id "sidebar-document-list-wrap" ]
-                [ div [ id "sidebar-document-list" ] [ text "" ] ]
-
-        Success filteredDocs ->
-            div [ id "sidebar-document-list-wrap" ]
-                [ div [ id "document-list-buttons", onClickStop msgs.noOp ]
-                    [ div
-                        [ id "sort-alphabetical"
-                        , class "sort-button"
-                        , classList [ ( "selected", sortCriteria == Alphabetical ) ]
-                        , onClickStop <| msgs.changeSortBy Alphabetical
-                        , onMouseEnter <| msgs.tooltipRequested "sort-alphabetical" AboveTooltip SortByName
-                        , onMouseLeave msgs.tooltipClosed
-                        ]
-                        [ text "Abc" ]
-                    , div
-                        [ id "sort-modified"
-                        , class "sort-button"
-                        , classList [ ( "selected", sortCriteria == ModifiedAt ) ]
-                        , onClickStop <| msgs.changeSortBy ModifiedAt
-                        , onMouseEnter <| msgs.tooltipRequested "sort-modified" AboveTooltip SortByLastModified
-                        , onMouseLeave msgs.tooltipClosed
-                        ]
-                        [ AntIcons.editOutlined [ SA.class "sort-icon" ] ]
-                    , div
-                        [ id "sort-created"
-                        , class "sort-button"
-                        , classList [ ( "selected", sortCriteria == CreatedAt ) ]
-                        , onClickStop <| msgs.changeSortBy CreatedAt
-                        , onMouseEnter <| msgs.tooltipRequested "sort-created" AboveTooltip SortByDateCreated
-                        , onMouseLeave msgs.tooltipClosed
-                        ]
-                        [ AntIcons.fileOutlined [ SA.class "sort-icon" ] ]
-                    ]
-                , input [ id "document-list-filter", placeholder "Find file by name", type_ "search", onInput msgs.filter, stopClickProp ] []
-                , div [ id "sidebar-document-list" ]
-                    (if not <| List.isEmpty filteredDocs then
-                        List.map viewDocItem (sortBy sortCriteria filteredDocs)
-
-                     else
-                        [ div [ id "no-documents" ] [ text "No Documents Found" ] ]
-                    )
-                ]
-
-        Failure _ ->
-            text "Failed to load documents list."
+            )
 
 
 type alias SwitcherModel =
