@@ -131,6 +131,20 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   and the producerless `#migrate-modal`/`#help-dropdown`/`styles/github.css`
   are left for a follow-up, flagged in the ticket. Details in
   `issues/20-build-and-docs-cleanup.md`.
+- Ticket 11 resolved — D8 closed: `getPosition` became `placeCard`, which
+  refuses to split a sibling gap below `1.0e-6` (above `ulp x` for any position
+  this model can hold) and renumbers the siblings onto whole numbers instead,
+  leaving the new card's slot free — through the same save, so they sync as
+  ordinary `mov` ops. The rapid-insert half is fixed by **memory, not
+  tie-breaking**: `localSave` now returns the model as well as the save and
+  carries the rows it staged until `cardDataReceived` clears them, because the
+  position of a new card is a pure function of (sibling rows, index) and two
+  saves in one round trip see the same rows — no deterministic rule can tell
+  them apart without ordering the user's cards by hash. An out-of-range index
+  (what the working tree hands down mid-flight) is now an append instead of
+  minting position 0 onto the first sibling. Sibling sorts are `(position, id)`
+  as defence against ties another client writes. 7 new tests at seam 1. Details
+  in `issues/11-position-rebalancing.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
