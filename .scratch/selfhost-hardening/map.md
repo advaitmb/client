@@ -159,6 +159,22 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   `req.body.subscribed` to a variable it never read). `Session.fromLegacy`
   stayed: only its copy named gingkoapp.com. ADR-0001 gains seam 7 (auth
   forms, Elm, pure); 6 tests. Details in `issues/19-auth-pages.md`.
+- Ticket 08 resolved — D5 closed by making the payload self-describing rather
+  than sequencing the two import commands: `SaveCardBased` carries `treeId`,
+  and the handler — extracted to `src/shared/save.js` — works on the document
+  the payload names and reads no global. Sequencing would have made *this* pair
+  of messages safe by timing while leaving the other five senders keyed off an
+  ambient current document; a `treeId || TREE_ID` fallback would have kept the
+  invariant unenforceable, so `treeId` is **required** and a payload without one
+  is refused — which is also the guard against a fallback creeping back.
+  `SaveCardBasedTree` stops claiming `TREE_ID`: the imported document is not on
+  screen until Elm navigates, and every reader of that global means "on screen".
+  Either arrival order now converges (`trees.update` on an absent row writes
+  nothing, and the row the other message adds is unsynced from birth). ADR-0001
+  seam 4 gains the rule for a sequence that writes the database: inject it and
+  assert on the rows left behind. 8 new tests (7 at seam 4, 1 at seam 1), and
+  `treeId` is now a required field of every save payload the seam-1 tests
+  decode. Details in `issues/08-import-race.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
