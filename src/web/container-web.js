@@ -29,6 +29,29 @@ const userStore = {
 
 var localStoreId;
 var treeId;
+
+/**
+ * The per-document settings blob (theme, last actives), or an empty one.
+ *
+ * Every one of the three accessors below used to parse localStorage inline, and
+ * `get` then indexed the result before checking it — so a `get` before anything
+ * had ever been written for this document threw on `null` (CODE_REVIEW.md S8),
+ * and a corrupted value threw in all three. There is nothing to recover here
+ * (these are conveniences, the document itself is in Dexie), so anything
+ * unusable reads as "no settings yet" and the next `set` replaces it.
+ */
+const readLocalStore = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(localStoreId));
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (err) {
+    console.error("localStore: ignoring an unreadable store for", localStoreId, err);
+  }
+  return {};
+};
+
 const localStore = {
   db: (tree_id) => {
     treeId = tree_id;
@@ -38,11 +61,10 @@ const localStore = {
     return (typeof treeId != "undefined");
   },
   load: () => {
-    let store = JSON.parse(localStorage.getItem(localStoreId)) || {};
-    return store;
+    return readLocalStore();
   },
   get: (key, fallback) => {
-    let store = JSON.parse(localStorage.getItem(localStoreId));
+    let store = readLocalStore();
     if (typeof store[key] !== "undefined") {
       return store[key];
     } else {
@@ -50,9 +72,13 @@ const localStore = {
     }
   },
   set: (key, value) => {
-    let store = JSON.parse(localStorage.getItem(localStoreId)) || {};
+    let store = readLocalStore();
     store[key] = value;
-    localStorage.setItem(localStoreId, JSON.stringify(store));
+    try {
+      localStorage.setItem(localStoreId, JSON.stringify(store));
+    } catch (err) {
+      console.error("localStore: could not store", key, err);
+    }
   },
 };
 

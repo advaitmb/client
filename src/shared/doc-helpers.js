@@ -26,7 +26,63 @@ function isValidURL(text) {
 
 /* ===== DOM Manipulation ===== */
 let toElm;
+// Which kind of document is open. Defined here and imported by doc.js, which
+// used to declare its own `Symbol.for("cardbased")` -- the same symbol by luck
+// of the string, and a silent mismatch as soon as either string was edited
+// (CODE_REVIEW.md S13).
 const CARD_DATA = Symbol.for("cardbased");
+
+/**
+ * Run `fn` once the DOM is ready for it, or give up.
+ *
+ * The port layer keeps needing to act on an element Elm has not rendered yet:
+ * the history slider it is about to open, the card it is about to draw. That
+ * was written as `setTimeout(fn, 20)` and `setTimeout(fn, 200)` -- guesses that
+ * are too long on a fast machine and too short on a slow one, and that fail
+ * silently either way (CODE_REVIEW.md S5). The DOM change itself is the signal,
+ * and a MutationObserver is how you hear it.
+ *
+ * Two properties both callers depend on:
+ *
+ *   - `fn` never runs synchronously, even when `isReady()` is already true. Both
+ *     call sites are reached from inside Elm's update cycle, and one of them
+ *     dispatches an event Elm listens to; re-entering Elm from its own port
+ *     handler is what the original `setTimeout(…, 0)` was avoiding, and an
+ *     animation frame keeps that while also being after the render.
+ *   - It runs exactly once, and after `timeoutMs` it runs even if the element
+ *     never came. The callers re-check the element themselves, so running late
+ *     is how they learn it is not there -- and it means no observer is left
+ *     watching the document for the rest of the session.
+ *
+ * @param {Function} isReady   cheap predicate over the DOM.
+ * @param {Function} fn        what to do once it is true.
+ * @param {number} [timeoutMs] how long to wait for it. Generous: this is a
+ *   backstop, not the mechanism.
+ */
+const whenReady = (isReady, fn, timeoutMs = 2000) => {
+  let done = false;
+  let observer = null;
+  let timer = null;
+
+  const finish = () => {
+    if (done) { return; }
+    done = true;
+    if (observer !== null) { observer.disconnect(); }
+    if (timer !== null) { clearTimeout(timer); }
+    window.requestAnimationFrame(fn);
+  };
+
+  if (isReady()) {
+    finish();
+    return;
+  }
+
+  observer = new MutationObserver(() => {
+    if (isReady()) { finish(); }
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  timer = setTimeout(finish, timeoutMs);
+};
 
 const autoSaveImmediate = function() {
   if (!toElm) {
@@ -476,6 +532,32 @@ const updateFillets = (cols) => {
   })
 }
 
+/**
+ * Keep the fillets aligned while a column scrolls -- one module-level handler
+ * for every column, deliberately.
+ *
+ * `ScrollCards` arrives on every navigation keystroke and (re)binds this to
+ * every column. As an anonymous function that meant a new listener per message,
+ * never removed, so a single scroll event eventually ran the whole fillet
+ * geometry hundreds of times (CODE_REVIEW.md S6). One shared function object
+ * makes the rebinding a no-op: `addEventListener` discards a duplicate (type,
+ * listener, capture) triple, so there is nothing to remove and no bookkeeping
+ * to keep in step with the columns Elm renders.
+ *
+ * It also takes no arguments, which is the other half of the fix: the old
+ * closure held the column list as it was when the listener was created, and
+ * that list is stale the moment the tree changes shape.
+ */
+let filletTicking = false;
+const filletScrollHandler = () => {
+  if (filletTicking) { return; }
+  filletTicking = true;
+  window.requestAnimationFrame(() => {
+    filletTicking = false;
+    updateFillets();
+  });
+};
+
 /* ===== Shared variables ===== */
 
 const errorAlert = (title, msg, err) => {
@@ -595,21 +677,15 @@ var casesShared = (elmData, params) => {
       let columns = Array.from(document.getElementsByClassName("column"));
 
       if (columns.length == 0) {
-        setTimeout(() => {
+        // The columns are Elm's to render and it has not done it yet, so wait
+        // for them rather than for 20ms.
+        whenReady(() => document.getElementsByClassName("column").length > 0, () => {
           updateFillets();
-        }, 20);
+        });
       }
 
-      columns.map((c, i) => {
-        c.addEventListener('scroll', () => {
-          if(!params.ticking) {
-            params.ticking = true;
-            window.requestAnimationFrame(() => {
-              updateFillets(columns);
-              params.ticking = false;
-            })
-          }
-        })
+      columns.map((c) => {
+        c.addEventListener('scroll', filletScrollHandler);
       })
 
       window.requestAnimationFrame(() => {
@@ -730,6 +806,8 @@ var casesShared = (elmData, params) => {
 /* ===== CommonJS Module exports ===== */
 
 module.exports = {
+  CARD_DATA: CARD_DATA,
+  whenReady: whenReady,
   defineCustomTextarea: defineCustomTextarea,
   scrollHorizontal: scrollHorizontal,
   scrollColumns: scrollColumns,

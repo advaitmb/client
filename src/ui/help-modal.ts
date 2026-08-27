@@ -10,10 +10,8 @@
  *   event      gw-close  the overlay or close button was clicked
  */
 
-import { h, icon, emit } from "./dom";
-
-const CLOSE_ICON =
-  "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zM15 9l-6 6M9 9l6 6";
+import { h } from "./dom";
+import { mountModal } from "./modal";
 
 type Row = [keys: string[], description: string];
 
@@ -140,24 +138,15 @@ function shortcutSections(isMac: boolean) {
 
 class HelpModal extends HTMLElement {
   connectedCallback() {
-    const close = () => emit(this, "gw-close");
-    this.replaceChildren(
-      h("div.modal-overlay", { onclick: close }),
-      h(
-        "div.max-width-grid",
-        {},
-        h(
-          "div.modal.help-modal",
-          {},
-          h(
-            "div.modal-header",
-            {},
-            h("h2", {}, "Help"),
-            h("div.close-button", { onclick: close, title: "Close" }, icon(CLOSE_ICON)),
-          ),
-          h("div.modal-guts", {}, ...shortcutSections(this.getAttribute("platform") === "mac")),
-        ),
-      ),
+    // The overlay, the header and the close button are every modal's, so they
+    // come from `mountModal` -- which is also the only place the close icon's
+    // path data lives now. This element owns the shortcut tables and nothing
+    // else (CODE_REVIEW.md S13).
+    mountModal(
+      this,
+      "Help",
+      shortcutSections(this.getAttribute("platform") === "mac"),
+      { modalClass: "help-modal" },
     );
   }
 

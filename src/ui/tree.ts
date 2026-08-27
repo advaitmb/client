@@ -98,9 +98,23 @@ class Tree extends HTMLElement {
     else this.renderTree();
   }
 
+  /**
+   * Everything this element remembers goes when it leaves the page, because
+   * connectedCallback rebuilds all of it from the attributes. Half of it used
+   * to stay (CODE_REVIEW.md S13): `data` outlived the elements it described,
+   * and `dragged` outlived the drag itself -- `dragend` never fires for a
+   * removed element, so a tree taken off the page mid-drag came back believing
+   * a card was still in flight and turned the next drop into a move.
+   */
   disconnectedCallback() {
     this.cards.clear();
     this.contents.clear();
+    this.data.clear();
+    this.editingId = null;
+    this.dragged = null;
+    // The other half of forgetting the drag: CSS reveals the drop regions
+    // while this is set.
+    this.removeAttribute("dragging");
     this.columnContainer = null;
     this.replaceChildren();
   }

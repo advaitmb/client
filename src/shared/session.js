@@ -15,6 +15,64 @@
 const SESSION_STORAGE_KEY = "gingko-session-storage";
 
 /**
+ * The session blob as it is stored, or null if there isn't one this client can
+ * use.
+ *
+ * This is the first thing boot does: `getFlags` reads it, decorates it and
+ * hands it to Elm as its flags. It used to be a bare `JSON.parse`, so a
+ * corrupted value threw before Elm existed — a blank page with no way back
+ * except clearing site data by hand (CODE_REVIEW.md S8). Anything unusable is
+ * a guest session instead, which is a working app.
+ *
+ * "Unusable" includes JSON that parses to something that is not a blob: a
+ * number or a string takes `getFlags`' field assignments silently and then
+ * fails Elm's flag decoder, which is the same blank page by a longer route.
+ *
+ * The corrupt value is removed rather than left in place. Nothing can be
+ * recovered from it (the document data lives in Dexie; this holds the email
+ * and a handful of preferences), the next write would overwrite it anyway, and
+ * leaving it means logging the same failure on every reload.
+ *
+ * @returns {Object|null}
+ */
+function readSessionData() {
+  let raw;
+  try {
+    raw = localStorage.getItem(SESSION_STORAGE_KEY);
+  } catch (err) {
+    // Storage can be denied outright (private modes, blocked cookies). A
+    // session that cannot be read is a guest, not a crash.
+    console.error("session: could not read the stored session", err);
+    return null;
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    console.error("session: the stored session is not valid JSON; ignoring it", err);
+  }
+
+  const usable =
+    parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+
+  if (!usable) {
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (err) {
+      console.error("session: could not clear the unusable stored session", err);
+    }
+    return null;
+  }
+
+  return parsed;
+}
+
+/**
  * The keys in the session blob that belong to this client and no one else.
  * Elm writes them through the `SaveUserSetting` and `SetSidebarState` ports,
  * which reach localStorage and stop there — nothing pushes them to the
@@ -108,6 +166,7 @@ async function logoutUser({ teardown, onLoggedOut } = {}) {
 
 module.exports = {
   SESSION_STORAGE_KEY: SESSION_STORAGE_KEY,
+  readSessionData: readSessionData,
   logoutUser: logoutUser,
   mergeUserIntoSession: mergeUserIntoSession,
 };

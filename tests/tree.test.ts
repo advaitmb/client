@@ -112,3 +112,18 @@ test("dropping a card on itself is not a move", () => {
 
   expect(reported.map(([name]) => name)).toEqual(["gw-drag-start"]);
 });
+
+test("a tree taken off the page and put back is not still holding a drag", () => {
+  // Leaving the page cancels the drag: `dragend` does not fire for an element
+  // that has been removed, so the only thing that can forget it is
+  // disconnectedCallback -- which cleared the card map but not `dragged`,
+  // `data` or `editingId` (CODE_REVIEW.md S13). A leftover `dragged` turns the
+  // next drop anywhere in the tree into a card move nobody asked for.
+  startDragging("card-one");
+  el.remove();
+  document.body.append(el);
+
+  region("card-two", "below").dispatchEvent(dragEvent("drop"));
+
+  expect(reported.map(([name]) => name)).toEqual(["gw-drag-start"]);
+});

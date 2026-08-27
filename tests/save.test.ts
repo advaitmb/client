@@ -381,3 +381,36 @@ test("a save that deletes a card leaves the history entry that still had it", as
 
   expect(db.contents.snapshots.map((s) => s.snapshot)).toEqual(["1500:open-doc", "5000:open-doc"]);
 });
+
+test("a save whose document has no rows to snapshot still finishes the save", async () => {
+  // The snapshot id is the newest stamp in the document's log, and there is no
+  // newest stamp in an empty one. Elm should never build this payload -- the
+  // rows it stages carry the document it named -- but the failure mode was out
+  // of all proportion to the mistake: `undefined.split(':')` threw inside the
+  // `try`, so a save that had already written its cards reported "Error saving
+  // data!" to the user and skipped stamping the document's row, which is what
+  // sends the change to the server (ticket 10's finding, S8).
+  const db = fakeDexie({
+    trees: [{ id: OPEN_DOC, name: "The document I was working on", updatedAt: 1000 }],
+  });
+
+  await applyCardBasedSave(
+    {
+      treeId: OPEN_DOC,
+      toAdd: [stagedCard("x", "some-other-doc", "A card that went elsewhere")],
+      toMarkSynced: [],
+      toMarkDeleted: [],
+      toRemove: [],
+    },
+    deps(db)
+  );
+
+  expect(errors).toEqual([]);
+  expect(db.contents.snapshots).toEqual([]);
+  expect(db.contents.trees[0]).toEqual({
+    id: OPEN_DOC,
+    name: "The document I was working on",
+    updatedAt: 5000,
+    synced: false,
+  });
+});

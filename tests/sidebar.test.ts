@@ -80,3 +80,13 @@ test("the loading state leaves logout inert", () => {
 
   expect(reported).toEqual([]);
 });
+
+test("the logo is addressed from the site root, not from the current route", () => {
+  // `cp -r src/static/. web/` puts it at the root (package.json's newbuild), so
+  // that is where it is asked for. A relative `../gingko-leaf-logo.svg`
+  // resolves against whatever route the rail is rendered on
+  // (CODE_REVIEW.md S13).
+  const [el] = mount();
+
+  expect(el.querySelector("#brand img")?.getAttribute("src")).toBe("/gingko-leaf-logo.svg");
+});

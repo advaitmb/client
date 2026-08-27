@@ -123,7 +123,9 @@ class Sidebar extends HTMLElement {
       h(
         "div",
         { id: "brand" },
-        h("img", { src: "../gingko-leaf-logo.svg", width: 28, alt: "" }),
+        // Absolute: the build copies src/static/. to the web root, and the rail
+        // is rendered on every route (CODE_REVIEW.md S13).
+        h("img", { src: "/gingko-leaf-logo.svg", width: 28, alt: "" }),
         open ? h("h2", { id: "brand-name" }, "Gingko Writer") : null,
         open ? h("div", { id: "sidebar-collapse-icon" }, icon(I.left)) : null,
         h("div", { id: "hamburger-icon" }, icon(I.menu)),

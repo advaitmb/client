@@ -16,7 +16,11 @@
  * the port layer owns (the dirty flag and telling the user).
  */
 
-const { maxStamp, newestVersionPerId } = require("./stamps");
+const { maxStamp } = require("./stamps");
+// One row per id, the newest, deletions dropped -- the only legal view of the
+// card log, and the same function the ImmortalDB backup and the first-load
+// activation read it through (ADR-0005 §1).
+const { visibleCards } = require("./cards");
 
 /**
  * Everything about a save that can be decided without touching the database.
@@ -105,22 +109,31 @@ async function applyCardBasedSave(payload, deps) {
       // per content save, over a log fast-forward keeps near one row per card.
       const rows = await db.cards.where({ treeId: treeId }).toArray();
 
-      // Dedupe first, then drop the deleted -- the other order resurrects a
-      // deleted card from one of its older rows (ADR-0005 §1, and
-      // `newestVisible` in `Doc/Data.elm`).
-      const cards = newestVersionPerId(rows).filter((c) => !c.deleted);
-
       // The snapshot is stamped with the moment it was taken: the newest row
       // in the log, which for a save that deletes is the deletion row itself.
       // Reading it off the snapshot's own rows instead would stamp a
       // post-deletion snapshot with an older timestamp and, `tree_snapshots`
       // being keyed by that id, overwrite the history entry that still had the
       // card.
-      const lastUpdatedTime = maxStamp(rows.map((c) => c.updatedAt)).split(':')[0];
-      const snapshotId = `${lastUpdatedTime}:${treeId}`;
-      const snapshotData = cards.map((c) => ({ ...c, snapshot: snapshotId, delta: 0}));
-      const snapshot = { snapshot: snapshotId, treeId: treeId, data: snapshotData, local: true, ts: Number(lastUpdatedTime)};
-      await db.tree_snapshots.put(snapshot);
+      //
+      // An empty log has no newest row, and reading `.split` off that threw
+      // from inside the `try` below -- turning a save that had already written
+      // its cards into "Error saving data!" and skipping the timestamp that
+      // sends them to the server. Nothing can be snapshotted without rows, so
+      // that is all this skips.
+      const newestStamp = maxStamp(rows.map((c) => c.updatedAt));
+      if (newestStamp === undefined) {
+        console.error("save: no rows to snapshot for document", treeId);
+      } else {
+        const lastUpdatedTime = newestStamp.split(':')[0];
+        const snapshotId = `${lastUpdatedTime}:${treeId}`;
+        // `visibleCards` dedupes and *then* drops the deleted -- the other
+        // order resurrects a deleted card from one of its older rows
+        // (ADR-0005 §1, and `newestVisible` in `Doc/Data.elm`).
+        const snapshotData = visibleCards(rows).map((c) => ({ ...c, snapshot: snapshotId, delta: 0}));
+        const snapshot = { snapshot: snapshotId, treeId: treeId, data: snapshotData, local: true, ts: Number(lastUpdatedTime)};
+        await db.tree_snapshots.put(snapshot);
+      }
     }
     // An import's two port messages are unordered, so this can run before
     // `SaveImportedTree` has added the row. Dexie's `update` on a key that is
