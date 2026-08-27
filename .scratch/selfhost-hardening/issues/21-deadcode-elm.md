@@ -21,6 +21,12 @@ Comments instead.
 `SidebarMenuState.Account` are confirmed zero-producer after the logout
 control landed — remove with the rest.
 
+**Added scope (from ticket 24's resolution):** now zero-caller after its
+refactors: `Translation.timeDistInWords` + the `gingko/time-distance`
+package + six save-state `TranslationId`s; `Metadata.encode`'s only caller
+was already on this ticket's list; `Conflict.opToValue`/`opDecoder` were
+deliberately left for this ticket's deletion of that module.
+
 ## Acceptance criteria
 
 - [ ] All §6 Elm items removed (or individually justified in Comments).
