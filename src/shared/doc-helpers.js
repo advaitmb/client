@@ -42,18 +42,18 @@ const CARD_DATA = Symbol.for("cardbased");
  * silently either way (CODE_REVIEW.md S5). The DOM change itself is the signal,
  * and a MutationObserver is how you hear it.
  *
- * Two properties both callers depend on:
+ * Two properties its callers depend on:
  *
- *   - `fn` never runs synchronously, even when `isReady()` is already true. Both
- *     call sites are reached from inside Elm's update cycle, and one of them
+ *   - `fn` never runs synchronously, even when `isReady()` is already true.
+ *     Every call site is reached from inside Elm's update cycle, and one of them
  *     dispatches an event Elm listens to; re-entering Elm from its own port
  *     handler is what the original `setTimeout(…, 0)` was avoiding, and an
  *     animation frame keeps that while also being after the render. (Which
- *     also means a hidden tab waits until it is looked at — both callers move
+ *     also means a hidden tab waits until it is looked at — every caller moves
  *     something on screen, so there is nothing to do until then.)
  *   - It runs exactly once, and after `timeoutMs` it runs even if the element
- *     never came. The callers re-check the element themselves, so running late
- *     is how they learn it is not there -- and it means no observer is left
+ *     never came. The callers re-check the DOM themselves, so running late is
+ *     how they learn it is not there -- and it means no observer is left
  *     watching the document for the rest of the session.
  *
  * @param {Function} isReady   cheap predicate over the DOM.

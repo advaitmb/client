@@ -864,8 +864,8 @@ const fromElm = (msg, elmData) => {
     // Most handlers are `async`, so their failures arrive as a rejected promise
     // that the `try` around the call never sees -- which was every Dexie write
     // in the table (S7).
-    if (result != null && typeof result.then === "function") {
-      result.then(undefined, (err) => reportPortFailure(msg, elmData, err));
+    if (result != null && typeof result.catch === "function") {
+      result.catch((err) => reportPortFailure(msg, elmData, err));
     }
   } catch (err) {
     reportPortFailure(msg, elmData, err);
