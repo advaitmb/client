@@ -22,6 +22,16 @@ Vocabulary used in code, issues, and tests. Full system description:
   (up absorbs the card above, down the one below) decides only the order the
   two texts and the two child lists are joined in.
 
+- **Card drag / external drag** — the two drags the app can see, and they are
+  not the same thing: a card being moved inside the tree, which `<gw-tree>`
+  owns end to end (`gw-drag-start` → `gw-drop` → `gw-drag-end`), and text
+  dragged in from outside the app, which only the port layer can see
+  (`src/shared/drag.js`).
+- **Drop placement** — where a dropped card lands: the parent and the index
+  among that parent's children, read on the tree the dragged card has been
+  pruned out of, because that is the tree it is re-inserted into. A drop with
+  no placement (into the card's own subtree) is no move at all.
+
 ## Persistence and sync
 
 - **Version row** — one immutable row in the Dexie `cards` table describing a
@@ -93,3 +103,5 @@ Vocabulary used in code, issues, and tests. Full system description:
    the client asks the server to create an account with.
 8. Routing (Elm, pure): `Route.loggedInLanding` / `Route.guestLanding` — which
    page a URL names, and `Route.toString` round-tripping back to it.
+9. Drop placement (Elm, pure): `Doc.TreeStructure.dropPlacement` — where a
+   dragged card lands, and which drops are no move at all.

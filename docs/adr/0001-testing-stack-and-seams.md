@@ -31,8 +31,12 @@
    DOM and emitted `CustomEvent`s. No reaching into private fields.
 4. Session-level sequences extracted from `doc.js` — added by ticket 04 for
    the logout sequence, extended by ticket 13 with adopting the server's
-   account on boot (`src/shared/session.js`), and by ticket 08 with the local
-   half of a save (`src/shared/save.js`). These are not pure, so
+   account on boot (`src/shared/session.js`), by ticket 08 with the local
+   half of a save (`src/shared/save.js`), and by ticket 16 with the drag
+   lifecycle (`src/shared/drag.js`: which drag is in progress, what Elm is
+   told, and drag auto-scroll — observed through dispatched DOM events,
+   whether the browser's own drop handling was prevented, and injected
+   timers, so an autoscroll is a callback the test runs). These are not pure, so
    seam 2 does not cover them: the rule is the same extraction (nothing in
    `doc.js` itself is importable, it boots the app at module load) but they
    are observed through the boundaries they actually cross — a faked `fetch`,
