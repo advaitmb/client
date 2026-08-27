@@ -43,9 +43,9 @@ Six fixes, one commit each, all on `selfhost`:
 | E14 | `02e8a21` | `Translation.elm`: `AltKey` → "Alt", `ParenNumber` → "(1-6)", `SetHeadingLevel` → "to Set Title Level" |
 | E13 | `068056d` | `Page/Doc/Export.elm`: leaves/column exports go through `stringFn`; `toMimeType` replaces the MIME literals |
 | E6 | `5b4825e` | `Page/Doc/Incoming.elm`: `fromOutside` extracted + `FullscreenChanged` branch; `Page/Doc.elm` exits fullscreen editing on it |
-| E11 | `2b771c8` | `Page/Doc.elm` records a session-start wordcount; `Doc/UI.elm` gains `documentWordcount`; `Page/App.elm` passes it to the modal |
-| E5 | `f458f32` | `Page/Doc.elm`: `preventIfBlocked` moved last in `changeMode`'s two guarded branches |
-| added (07) | `dce2eb7` | `doc-helpers.js`: `observedAttributes` watches `disabled` |
+| E11 | `0e918da` | `Page/Doc.elm` records a session-start wordcount; `Doc/UI.elm` gains `documentWordcount`; `Page/App.elm` passes it to the modal |
+| E5 | `da24846` | `Page/Doc.elm`: `preventIfBlocked` moved last in `changeMode`'s two guarded branches |
+| added (07) | `d7986f6` | `doc-helpers.js`: `observedAttributes` watches `disabled` |
 
 **E5** — `changeMode`'s `(Normal, Editing)` and `(Editing, Editing)` branches
 ran the guard and *then* appended the broadcast with `andThen`, so a blocked
@@ -161,6 +161,12 @@ recording that whether a port command is sent at all is out of reach there.
 `bun run newbuild` exit 0, `bun run config-check` exit 0, all on the rebased
 tree carrying tickets 16, 28 and 30 (which is where those totals come from:
 this ticket's own share is the 37 above).
+
+CI green on `selfhost` for the whole of it: run
+<https://github.com/advaitmb/client/actions/runs/33075684753> (`7cd684d`, the
+head carrying all six fixes and this write-up), and run
+<https://github.com/advaitmb/client/actions/runs/33074291392> (`0815d71`, the
+first three landed on their own).
 
 ## Comments
 
