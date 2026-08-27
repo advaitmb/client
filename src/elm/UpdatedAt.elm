@@ -87,11 +87,32 @@ unique l =
         |> ListExtra.uniqueBy toString
 
 
+{-| The newest of a list of stamps, in one pass.
+
+It used to sort the whole list and take the head, which is what every caller
+wanted a maximum for in the first place -- on the hot path (the save indicator's
+two timestamps, the push checkpoint) that is an O(n log n) sort per card-rows
+echo where an O(n) scan says the same thing (CODE_REVIEW.md P2). Two stamps that
+compare equal are equal in all three of their parts, so which one is kept cannot
+be observed.
+
+-}
 maximum : List UpdatedAt -> Maybe UpdatedAt
 maximum l =
-    l
-        |> sortNewestFirst identity
-        |> List.head
+    let
+        newer stamp newestSoFar =
+            case newestSoFar of
+                Just newest ->
+                    if compareUpdatedAt newest stamp == LT then
+                        Just stamp
+
+                    else
+                        newestSoFar
+
+                Nothing ->
+                    Just stamp
+    in
+    List.foldl newer Nothing l
 
 
 isLTE : UpdatedAt -> UpdatedAt -> Bool

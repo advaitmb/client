@@ -241,8 +241,7 @@ lastSavedTime model =
                         identity
                    )
                 |> List.map .updatedAt
-                |> UpdatedAt.sortNewestFirst identity
-                |> List.head
+                |> UpdatedAt.maximum
                 |> Maybe.map UpdatedAt.getTimestamp
 
 lastSyncedTime : Model -> Maybe Int
@@ -252,8 +251,7 @@ lastSyncedTime model =
             data
                 |> List.filter .synced
                 |> List.map .updatedAt
-                |> UpdatedAt.sortNewestFirst identity
-                |> List.head
+                |> UpdatedAt.maximum
                 |> Maybe.map UpdatedAt.getTimestamp
 
 {-| The `cards` rows of the open document, as the Dexie liveQuery hands them
