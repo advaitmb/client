@@ -29,6 +29,11 @@ whose newest row is a deletion, and its `treeHelper` filters only on
 `parentId`. Low stakes (write-only backup) but fix while hardening the file:
 drop deleted cards after the dedupe.
 
+**Added scope (from ticket 18's resolution):** the swallows ticket 18 left
+as yours: `fromElm`'s dispatch catch (S7's site), the `window` error handler,
+and the `InitDocument`/`LoadDocument` catches. Also note ticket 18's new
+modules (`ws-errors.js`, `clipboard.js`) — extend, don't duplicate.
+
 ## Acceptance criteria
 
 - [ ] No anonymous-listener accumulation on `ScrollCards` (verifiable by
