@@ -172,7 +172,10 @@ across 8 files, `bun run newbuild` succeeds, `node config-check.js` exit 0.
 `elm-format --validate` reports the same three files as before the change (the
 repo's docstrings use `*emphasis*` where elm-format 0.8.8 wants `_emphasis_`);
 diffing each file against its formatted copy shows no new deviation from the new
-code.
+code. CI green on `selfhost`: run
+<https://github.com/advaitmb/client/actions/runs/33070405652> (`34d92c7`, the
+code) and <https://github.com/advaitmb/client/actions/runs/33070525250>
+(`78fbce3`, the tracker).
 
 ## Comments
 
