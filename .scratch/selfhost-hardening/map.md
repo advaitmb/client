@@ -323,6 +323,28 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   the rows of the account that logged out. 10 tests at seam 4, 3 red first;
   `CONTEXT.md` gains **document metadata**. Details in
   `issues/09-offline-metadata-resend.md`.
+- Ticket 17 resolved — E10 and E12 were one shape twice: a value crossing a
+  boundary and a reader replacing it with a constant on the way back. E10: the
+  per-document theme is read back off the localStore blob a document load
+  attaches to its card rows — the ride `last-actives` already takes — through
+  `Theme.fromLocalStore` (*the theme a card-data message names, or the one
+  already in effect*, since only the first message of a load carries settings
+  and every liveQuery echo after it must change nothing); `decoder` stops being
+  exposed, because an exported decoder with no importers is how E10 hid.
+  **Its write half is still unreachable**: the theme picker was removed in
+  `a203a9c`, so `ThemeChanged`/`SaveThemeSetting` have no producer and the
+  restored value can only come from an older build's store — restoring a picker
+  or removing the ring is an owner call for 21/22. E12: `<gw-header>`'s title
+  input is no longer rebuilt at all. Guarding attributes one at a time could
+  not work (`menu`, `export-settings` and `history` rebuilt the field too), so
+  the `#title` span is built once and kept while everything after it is
+  replaced, and the field's value is written only while it lacks focus.
+  `replaceChildren()` detaches even a node that goes straight back, taking
+  focus, caret, selection, undo stack and IME with it — the old code
+  hand-restored two of six — and dropping the re-`focus()` also ends the tick's
+  phantom `gw-title-focus`, which Elm answered with `SelectAll`. 25 tests
+  (15 at seam 10, 10 at seam 3), 12 red first. Details in
+  `issues/17-theme-and-title.md`.
 
 ## Owner decisions (answered 2026-08-27)
 
