@@ -36,7 +36,12 @@
    lifecycle (`src/shared/drag.js`: which drag is in progress, what Elm is
    told, and drag auto-scroll — observed through dispatched DOM events,
    whether the browser's own drop handling was prevented, and injected
-   timers, so an autoscroll is a callback the test runs). These are not pure, so
+   timers, so an autoscroll is a callback the test runs), and by ticket 09
+   with document metadata going out (`src/shared/metadata.js`: which `trees`
+   rows the server has not acknowledged, and when they go — driven by the two
+   events the port layer reports, a liveQuery emission and the socket opening,
+   against an injected fake socket, and observed through the messages it asks
+   to be sent). These are not pure, so
    seam 2 does not cover them: the rule is the same extraction (nothing in
    `doc.js` itself is importable, it boots the app at module load) but they
    are observed through the boundaries they actually cross — a faked `fetch`,

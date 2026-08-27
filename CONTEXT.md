@@ -59,6 +59,12 @@ Vocabulary used in code, issues, and tests. Full system description:
   `pushOk` or reports `cardsConflict`.
 - **Snapshot** — a full non-deleted card set stored in `tree_snapshots` on
   every content save; powers the history slider and restore.
+- **Document metadata** — the `trees` row behind a document: name, `deletedAt`,
+  location, timestamp. It syncs on its own channel (the `trees` message), not
+  as cards — a rename or a delete produces no card. Unsynced rows are
+  re-derived from the newest `trees` snapshot and sent on every liveQuery
+  emission *and* on every reconnect, never queued: what the server needs is
+  their state, not the states they passed through (`src/shared/metadata.js`).
 
 ## Application layers
 
@@ -90,8 +96,11 @@ Vocabulary used in code, issues, and tests. Full system description:
    environment.
 4. Session and port sequences extracted from `doc.js` (`src/shared/session.js`:
    logout, adopting the server's account on boot; `src/shared/save.js`:
-   applying a save) — faked `fetch`, real `localStorage`, injected callbacks
-   and, for a database writer, an injected in-memory fake of the tables.
+   applying a save; `src/shared/drag.js`: the drag lifecycle;
+   `src/shared/metadata.js`: which document rows the server has not
+   acknowledged, and when they go out) — faked `fetch`, real `localStorage`,
+   injected callbacks, an injected fake socket and, for a database writer, an
+   injected in-memory fake of the tables.
 5. `Session`'s stored-blob surface (Elm, pure): `decode`/`encode` of the
    session blob and `responseDecoder` for a login answer — the preferences
    this client persists.

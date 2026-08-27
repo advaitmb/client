@@ -51,6 +51,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/session.js` | The session blob's key and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/shared/save.js` | The local half of a save: apply a `SaveCardBased` payload to the document it names (cards, snapshot, tree timestamp) |
 | `src/shared/drag.js` | The drag lifecycle: which drag is in progress (a card, or text from outside the app), what Elm is told about it, and drag auto-scroll |
+| `src/shared/metadata.js` | Document metadata going out: which `trees` rows the server has not acknowledged, and when they go — on a liveQuery emission, and again when the socket comes back |
 | `src/ui/` | TypeScript custom elements (the interface layer) + its README |
 | `src/web/container-web.js` | Web build's "container" (per-doc localStorage store); aliased as `require("Container")` |
 | `src/web/database-download.js` | Standalone IndexedDB export page (bundled to `web/database-download.js`, loaded by `database-download.html`) |
@@ -348,9 +349,10 @@ next/prev in column, descendants, scroll-position calculation, `sha1` ids).
 2. **Auto-login**: if there is no stored email or the local `trees` table is
    empty, fetch `/me`, merge the response into the session blob, and seed
    Dexie with the server's document list.
-3. `setUserDbs(email)`: open the WebSocket, subscribe a Dexie `liveQuery` on
-   `trees` that pushes `documentListChanged` to Elm and sends unsynced
-   metadata to the server.
+3. `setUserDbs(email)`: start the session's metadata sync
+   (`src/shared/metadata.js`), open the WebSocket, and subscribe a Dexie
+   `liveQuery` on `trees` that pushes `documentListChanged` to Elm and hands
+   each snapshot to that sync, which sends the unsynced rows (§6.3).
 4. `Elm.Main.init({flags})`, then subscribe `gingko.ports.infoForOutside` to
    the `fromElm(tag, data)` dispatch table.
 5. Global listeners: `window.checkboxClicked` (used by rendered markdown),
@@ -384,9 +386,20 @@ Server → client: `user` (settings sync), `cards` (bulk-put synced rows),
 `historyMeta`/`history`, `rt`/`rt:users` (collaborator state), `removedFrom`,
 `pong`.
 
-On reconnect: the send queue drains, `rt:join` is re-sent for the open
-document, and Elm gets `SocketConnected` (which re-triggers a push of
-unsynced deltas).
+On reconnect: the send queue drains, the unsynced `trees` rows are re-sent,
+`rt:join` is re-sent for the open document, and Elm gets `SocketConnected`
+(which re-triggers a push of unsynced deltas).
+
+The queue and the metadata resend are two different mechanisms on purpose. The
+queue holds messages that are **events** (`pull`, `pullHistoryMeta`,
+`rt:join`), asked for while the socket was down and sent verbatim when it
+returns. Document metadata is **state**: `src/shared/metadata.js` keeps the
+newest `trees` snapshot the liveQuery emitted and derives the message from it
+at send time, so a reconnect sends one message however long it was away and can
+never carry a name the document has already been renamed away from. Queueing
+one snapshot per emission would do exactly that, and a server taking the last
+message it received at face value would echo the older name back into Dexie
+over the newer row.
 
 ### 6.4 The editor element
 
@@ -470,5 +483,6 @@ the phantom `@playwright/test` devDependency.
 Tests live in `tests/`: `*.elm` for elm-test (`Doc.Data`, `Session`) and
 `*.test.ts` for bun test (custom elements against jsdom, the extracted
 sequences in `src/shared/stamps.js`, `src/shared/session.js`,
-`src/shared/save.js` and `src/shared/drag.js`, and the build's `config-check`
-/ `elm-postprocess` seams). The pre-agreed seams are ADR-0001's.
+`src/shared/save.js`, `src/shared/drag.js` and `src/shared/metadata.js`, and
+the build's `config-check` / `elm-postprocess` seams). The pre-agreed seams are
+ADR-0001's.
