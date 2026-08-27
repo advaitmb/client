@@ -45,6 +45,11 @@ const { installDragHandlers } = require("./drag");
 // Same reason: which document rows the server has not acknowledged, and when
 // they go out -- including on reconnect, which nothing used to do (D6).
 const { createMetadataSync } = require("./metadata");
+// Which failed websocket messages the user has to hear about, and which stay in
+// the console. See ws-errors.js for the policy and why it is an allowlist (E16).
+const { wsMessageFailure } = require("./ws-errors");
+// Clipboard failures, the same in all three places they can happen (E16).
+const { clipboardErrorMessage, copyText } = require("./clipboard");
 //import { Elm } from "../elm/Main";
 
 /* === Global Variables === */
@@ -228,6 +233,28 @@ function stopSyncing() {
 }
 
 
+/**
+ * One failed websocket message: always a console line, and a visible error
+ * state when the failure means data did not reach this device.
+ *
+ * `ws-errors.js` decides which of those it is, per message type. The user-facing
+ * half goes through `ErrorAlert`, the same channel the push-failure paths above
+ * use, which shows a persistent toast and sets Elm's error state.
+ *
+ * @param {string|null} messageType  the message's `t`, or null if the frame did
+ *   not parse.
+ */
+function reportWsFailure(messageType, error) {
+  const failure = wsMessageFailure(messageType, error);
+
+  console.error(failure.consoleMessage, error);
+
+  if (failure.userMessage !== null) {
+    toElm(failure.userMessage, 'appMsgs', 'ErrorAlert');
+  }
+}
+
+
 function initWebSocket () {
   const wsUrl = window.location.origin.replace('http', 'ws')+'/ws'
   ws = new PersistentWebSocket(wsUrl, {pingTimeout: 30000 + 2000})
@@ -259,7 +286,16 @@ function initWebSocket () {
       return
     }
 
-    const data = JSON.parse(e.data)
+    // Parsing used to sit outside the try, so a frame the server sent that was
+    // not JSON rejected this async handler with nobody listening (E16).
+    let data
+    try {
+      data = JSON.parse(e.data)
+    } catch (err) {
+      reportWsFailure(null, err)
+      return
+    }
+
     try {
       switch (data.t) {
         case 'user':
@@ -336,10 +372,21 @@ function initWebSocket () {
           try {
             await dexie.tree_snapshots.bulkAdd(snapshotData)
           } catch (e) {
-            const errorNames = e.failures.map(f => f.name)
-            if (errorNames.every(n => n === 'ConstraintError')) {
-              // Ignore
-            } else {
+            // A snapshot this client already has is the expected case: the
+            // server re-announces the whole history, and `bulkAdd` reports one
+            // ConstraintError per row that is already there.
+            //
+            // Anything else is rethrown for the handler-level report. The check
+            // used to read `e.failures` unguarded, so an error that was not a
+            // BulkError -- the database being closed, say -- threw a TypeError
+            // from inside this catch and lost the real reason (E16). An empty
+            // `failures` list is likewise not proof that every failure was
+            // benign.
+            const failures = Array.isArray(e.failures) ? e.failures : []
+            const allAlreadyPresent =
+              failures.length > 0 && failures.every(f => f.name === 'ConstraintError')
+
+            if (!allAlreadyPresent) {
               throw e
             }
           }
@@ -376,8 +423,8 @@ function initWebSocket () {
           }
           break;
       }
-    } catch (e) {
-      console.log(e)
+    } catch (err) {
+      reportWsFailure(data.t, err)
     }
   }
 
@@ -627,7 +674,12 @@ const fromElm = (msg, elmData) => {
     },
 
     CopyToClipboard: () => {
-      navigator.clipboard.writeText(elmData.content);
+      // Reported rather than an unhandled rejection (E16). The flash below is
+      // still optimistic, which is fine: an alert lands on top of it.
+      copyText(elmData.content, {
+        clipboard: navigator.clipboard,
+        onError: (message) => alert(message),
+      });
 
       let addFlashClass = function () {
         document.querySelectorAll(elmData.element).forEach((e) => {e.classList.add("flash")});
@@ -977,12 +1029,15 @@ Mousetrap.bind(helpers.shortcuts, function (e, s) {
             let clipObj = JSON.parse(clipString);
             toElm(clipObj, "docMsgs", elmTag)
           } catch {
+            // Not a card subtree, so it is text: paste it as it is.
             toElm(clipString, "docMsgs", elmTag)
           }
         }).catch(err => {
-          if (err.message.includes("denied")) {
-            alert("Clipboard access denied. Click on the padlock icon in the address bar and allow clipboard access.")
-          }
+          // Every failure is reported now, not only the ones whose message
+          // happened to contain "denied" -- and reading the message is guarded,
+          // because this used to throw a second time inside the catch for an
+          // error that had none (E16).
+          alert(clipboardErrorMessage("read", err))
         });
       break;
 

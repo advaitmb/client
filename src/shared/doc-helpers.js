@@ -1,5 +1,7 @@
 const _ = require("lodash");
 const { gsap } = require("gsap");
+// Clipboard failures, the same in all three places they can happen (E16).
+const { copyText } = require("./clipboard");
 
 /* ==== Utility functions ===== */
 
@@ -616,7 +618,13 @@ var casesShared = (elmData, params) => {
     },
 
     CopyCurrentSubtree: () => {
-      navigator.clipboard.writeText(JSON.stringify(elmData))
+      // Reported rather than an unhandled rejection (E16): a refused copy left
+      // the user with a flash animation and an empty clipboard.
+      copyText(JSON.stringify(elmData), {
+        clipboard: navigator.clipboard,
+        onError: (message) => alert(message),
+      })
+
       const addFlashClass = function () {
         const activeCard = document.querySelectorAll('.card.active')
         const activeDescendants = document.querySelectorAll('.group.active-descendant')
