@@ -85,6 +85,39 @@ function reparent(doc: HTMLElement, card: HTMLElement) {
   return column;
 }
 
+/**
+ * The DOM Doc/Fullscreen.elm builds for one card of the fullscreen editor:
+ * div.group-fullscreen > div.card-fullscreen > gw-textarea, with
+ * `isFullscreen` set as a property (A.property "isFullscreen") rather than an
+ * attribute. `disabled` arrives on the element only while a collaborator is
+ * editing that card.
+ */
+function mountFullscreenCard(
+  cardId: string,
+  content: string,
+  { disabled = false }: { disabled?: boolean } = {},
+) {
+  const group = document.createElement("div");
+  group.className = "group-fullscreen";
+  const card = document.createElement("div");
+  card.className = "card-fullscreen";
+  card.id = `card-${cardId}`;
+  const el = document.createElement("gw-textarea");
+  el.setAttribute("card-id", cardId);
+  el.setAttribute("class", "edit mousetrap");
+  el.setAttribute("dir", "auto");
+  el.setAttribute("data-private", "lipsum");
+  el.setAttribute("data-gramm", "false");
+  el.setAttribute("start-value", content);
+  (el as unknown as { isFullscreen: boolean }).isFullscreen = true;
+  if (disabled) el.setAttribute("disabled", "true");
+
+  card.append(el);
+  group.append(card);
+  document.body.append(group);
+  return { group, card, el };
+}
+
 function textareaOf(el: Element): HTMLTextAreaElement {
   const ta = el.querySelector("textarea");
   if (!ta) throw new Error("gw-textarea rendered no textarea");
@@ -195,4 +228,36 @@ test("a card that leaves the DOM stops reporting to Elm", () => {
   clickOutsideCard(column);
 
   expect(sent).toEqual([]);
+});
+
+
+/**
+ * `disabled` is how the fullscreen view says "a collaborator is editing this
+ * card" (Doc/Fullscreen.elm's `editingByCollab`). It arrives and leaves while
+ * the element is already on screen -- a collaborator opens the card, then
+ * closes it -- so the inner textarea has to follow it both ways.
+ */
+test("a collaborator taking a card disables its textarea", () => {
+  const { el } = mountFullscreenCard("1", "a card someone else is editing");
+
+  el.setAttribute("disabled", "true");
+
+  expect(textareaOf(el).disabled).toBe(true);
+});
+
+test("a collaborator leaving a card gives its textarea back", () => {
+  const { el } = mountFullscreenCard("1", "a card someone else was editing");
+  el.setAttribute("disabled", "true");
+
+  el.removeAttribute("disabled");
+
+  expect(textareaOf(el).disabled).toBe(false);
+});
+
+test("a card already taken when it is rendered starts disabled", () => {
+  const { el } = mountFullscreenCard("1", "taken before it was drawn", {
+    disabled: true,
+  });
+
+  expect(textareaOf(el).disabled).toBe(true);
 });

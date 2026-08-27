@@ -62,7 +62,11 @@ const defineCustomTextarea = (toElmFn, getDataTypeFn) => {
     get isFullscreen() {
       return this._isFullscreen;
     }
-    static get observedAttributes() { return ['start-value']; }
+    // `disabled` is watched, not just read on connect: the fullscreen view sets
+    // and clears it while the element is on screen, as a collaborator opens and
+    // closes the card (Doc/Fullscreen.elm's editingByCollab). Without it here,
+    // attributeChangedCallback's branch for it never ran.
+    static get observedAttributes() { return ['start-value', 'disabled']; }
 
     attributeChangedCallback(name, oldValue, newValue) {
       if (name === 'start-value' && !this._isActive() && this.textarea_.value !== newValue ) {
