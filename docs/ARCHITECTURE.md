@@ -318,11 +318,14 @@ The legacy git-era conflict machinery (`Doc/Data/Conflict.elm`, `Diff3.elm`,
 ### 5.5 History
 
 JS snapshots the full non-deleted card set on every content save
-(`tree_snapshots` table, id `"<ts>:<treeId>"`), and pulls server-side history
-metadata (`pullHistoryMeta`/`pullHistory`). `Doc.History` wraps the snapshot
-list in a zipper for the header's history slider; restore diffs the current
-card set against the chosen snapshot and emits add/delete rows through the
-normal save path.
+(`tree_snapshots` table, id `"<ts>:<treeId>"`): the newest version row per card
+id, then the deleted cards dropped (ADR-0005 §1), stamped with the newest row
+in the document's log — so a save that deletes a card gets a history entry of
+its own instead of overwriting the one that still had the card. JS also pulls
+server-side history metadata (`pullHistoryMeta`/`pullHistory`). `Doc.History`
+wraps the snapshot list in a zipper for the header's history slider; restore
+diffs the current card set against the chosen snapshot and emits add/delete
+rows through the normal save path.
 
 ### 5.6 Trees in memory
 

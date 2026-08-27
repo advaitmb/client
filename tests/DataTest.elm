@@ -113,8 +113,9 @@ encodeRows rows =
 
 {-| History snapshots as `src/shared/doc.js` hands them to Elm: one entry per
 snapshot, its `data` the card rows alive when it was taken. The port builds a
-snapshot from `deleted: 0` rows only and forces `deleted = 0` on every row it
-passes on, so a deleted card is simply absent from a snapshot.
+snapshot from the newest row per card id with the deleted cards dropped, and
+forces `deleted = 0` on every row it passes on, so a deleted card is simply
+absent from a snapshot.
 -}
 encodeHistory : List ( String, Int, List (Data.Card_tests_only UpdatedAt) ) -> Enc.Value
 encodeHistory snapshots =

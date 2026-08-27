@@ -80,11 +80,25 @@ function fakeDexie(seed: { cards?: CardRow[]; trees?: TreeRow[]; snapshots?: Sna
           if (at !== -1) cards.splice(at, 1);
         });
       },
-      where(criteria: { treeId: string; deleted: number }) {
+      /**
+       * Dexie answers a `where({...})` only through a declared index, and
+       * `cards` declares `treeId` and `[treeId+deleted]`
+       * (docs/ARCHITECTURE.md §5.1): a query for the whole log of one document
+       * and a query pre-filtered per row on `deleted` are both indexed, and
+       * anything else is a schema error rather than a slow scan.
+       */
+      where(criteria: { treeId: string; deleted?: number }) {
+        const index = Object.keys(criteria).sort().join("+");
+        if (index !== "treeId" && index !== "deleted+treeId") {
+          throw new Error(`SchemaError: KeyPath ${index} is not indexed on object store cards`);
+        }
         const treeId = asKey(criteria.treeId);
         return {
           toArray: async () =>
-            cards.filter((row) => row.treeId === treeId && row.deleted === criteria.deleted),
+            cards.filter(
+              (row) =>
+                row.treeId === treeId && (criteria.deleted === undefined || row.deleted === criteria.deleted)
+            ),
         };
       },
     },
@@ -175,8 +189,10 @@ test("the snapshot holds the named document's cards and nothing else", async () 
 
   await applyCardBasedSave(importPayload(IMPORTED_DOC), deps(db));
 
+  // Compared as a set: a snapshot's row order is not meaningful, since Elm
+  // rebuilds the tree from `parentId` and sorts siblings by position.
   const imported = db.contents.snapshots.find((s) => s.treeId === IMPORTED_DOC);
-  expect((imported?.data as CardRow[] | undefined)?.map((c) => c.id)).toEqual(["i1", "i2"]);
+  expect((imported?.data as CardRow[] | undefined)?.map((c) => c.id).sort()).toEqual(["i1", "i2"]);
 });
 
 test("stamps the named document's row unsynced and leaves every other one alone", async () => {
@@ -262,4 +278,106 @@ test("a save that names no document is refused rather than guessed at", async ()
     errorCount: 1,
     cards: ["a", "b"],
   });
+});
+
+// What a snapshot holds is the card set, and the `cards` table is a log of
+// version rows rather than a card set: rows a card has outgrown stay in it
+// until fast-forward (CONTEXT.md), so only the newest row per id says what the
+// document holds now. A snapshot built by filtering rows one at a time reads
+// the log as though it were the card set, and the history slider then offers a
+// state the document was never in -- restoring it undeletes a card, because
+// doc.js hands every snapshot row to Elm as `deleted: 0`.
+
+/**
+ * A document whose version log has outlived the states it records: since the
+ * server last saw it, `a` was edited and then deleted, `b` was edited, and `d`
+ * was deleted and then brought back by a restore. Every one of those rows is
+ * still in the table; the cards the document holds are `r`, `b` (edited) and
+ * `d` (back), and `a` is gone.
+ */
+function documentEditedOffline() {
+  return {
+    cards: [
+      { updatedAt: "1000:0:r", id: "r", treeId: OPEN_DOC, content: "Root", deleted: 0, synced: true },
+      { updatedAt: "1000:1:d", id: "d", treeId: OPEN_DOC, content: "A card I deleted", deleted: 0, synced: true },
+      { updatedAt: "1050:0:b", id: "b", treeId: OPEN_DOC, content: "B, as the server has it", deleted: 0, synced: true },
+      { updatedAt: "1100:0:a", id: "a", treeId: OPEN_DOC, content: "A, edited just before I deleted it", deleted: 0, synced: false },
+      { updatedAt: "1200:0:adel", id: "a", treeId: OPEN_DOC, content: "A, edited just before I deleted it", deleted: 1, synced: false },
+      { updatedAt: "1300:0:b2", id: "b", treeId: OPEN_DOC, content: "B, edited since", deleted: 0, synced: false },
+      { updatedAt: "1400:0:ddel", id: "d", treeId: OPEN_DOC, content: "A card I deleted", deleted: 1, synced: false },
+      { updatedAt: "1500:0:dundel", id: "d", treeId: OPEN_DOC, content: "A card I deleted, then restored", deleted: 0, synced: false },
+    ],
+    trees: [{ id: OPEN_DOC, name: "The document I was working on", updatedAt: 1500 }],
+    snapshots: [{ snapshot: "1500:open-doc", treeId: OPEN_DOC, data: [], local: true, ts: 1500 }],
+  };
+}
+
+/** The save that types one more card into that document, and snapshots it. */
+function typedOneMoreCard() {
+  return {
+    treeId: OPEN_DOC,
+    toAdd: [stagedCard("e", OPEN_DOC, "A card I just typed")],
+    toMarkSynced: [],
+    toMarkDeleted: [],
+    toRemove: [],
+  };
+}
+
+/** A deletion row as Elm stages it (`{ card | deleted = True } |> asUnsynced`). */
+function stagedDeletion(id: string, treeId: string, content: string) {
+  return { id, treeId, content, parentId: null, position: 1, deleted: 1, synced: false, updatedAt: "" };
+}
+
+/** The rows of one snapshot, as `[id, content]` pairs: which version of what. */
+function snapshotCards(db: ReturnType<typeof fakeDexie>, snapshot: string) {
+  const written = db.contents.snapshots.find((s) => s.snapshot === snapshot);
+  return ((written?.data ?? []) as CardRow[]).map((c) => [c.id, c.content]).sort();
+}
+
+test("a card whose newest row is a deletion is left out of the snapshot", async () => {
+  const db = fakeDexie(documentEditedOffline());
+
+  await applyCardBasedSave(typedOneMoreCard(), deps(db));
+
+  expect(snapshotCards(db, "2000:open-doc").filter(([id]) => id === "a")).toEqual([]);
+});
+
+test("every card the document still holds contributes exactly its newest row", async () => {
+  const db = fakeDexie(documentEditedOffline());
+
+  await applyCardBasedSave(typedOneMoreCard(), deps(db));
+
+  expect(snapshotCards(db, "2000:open-doc")).toEqual([
+    ["b", "B, edited since"],
+    ["d", "A card I deleted, then restored"],
+    ["e", "A card I just typed"],
+    ["r", "Root"],
+  ]);
+});
+
+test("a card deleted and then brought back is in the snapshot, at the row that brought it back", async () => {
+  const db = fakeDexie(documentEditedOffline());
+
+  await applyCardBasedSave(typedOneMoreCard(), deps(db));
+
+  expect(snapshotCards(db, "2000:open-doc").filter(([id]) => id === "d")).toEqual([
+    ["d", "A card I deleted, then restored"],
+  ]);
+});
+
+test("a save that deletes a card leaves the history entry that still had it", async () => {
+  const db = fakeDexie(documentEditedOffline());
+
+  await applyCardBasedSave(
+    {
+      treeId: OPEN_DOC,
+      toAdd: [],
+      toMarkSynced: [],
+      toMarkDeleted: [stagedDeletion("b", OPEN_DOC, "B, edited since")],
+      toRemove: [],
+    },
+    deps(db)
+  );
+
+  expect(db.contents.snapshots.map((s) => s.snapshot)).toEqual(["1500:open-doc", "5000:open-doc"]);
 });

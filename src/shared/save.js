@@ -16,6 +16,8 @@
  * the port layer owns (the dirty flag and telling the user).
  */
 
+const { maxStamp, newestVersionPerId } = require("./stamps");
+
 /**
  * Everything about a save that can be decided without touching the database.
  *
@@ -92,13 +94,29 @@ async function applyCardBasedSave(payload, deps) {
         return;
       }
 
-      // KNOWN GAP, moved here unchanged: these are raw rows, not the newest
-      // row per card id, so a deleted card still contributes its stale
-      // pre-deletion row and restoring this snapshot undeletes it. ADR-0005 §1
-      // applies to the JS side too; `.scratch/selfhost-hardening/issues/
-      // 28-local-snapshot-newest-per-id.md` owns the fix.
-      const cards = await db.cards.where({ treeId: treeId, deleted: 0 }).toArray();
-      const lastUpdatedTime = cards.map((c) => c.updatedAt.split(':')[0]).reduce((a, b) => Math.max(a, b));
+      // Every version row this document has, deletions included: what a
+      // snapshot holds is the *card set*, and which row is a card is a fact
+      // about the whole log, not about one row. The `[treeId+deleted]` index
+      // cannot answer it -- filtering per row (`{treeId, deleted: 0}`, which
+      // this did) hides a deleted card's newest row behind its own stale
+      // pre-deletion row, so the snapshot kept a card the document had lost
+      // and restoring it brought the card back (`doc.js` hands Elm every
+      // snapshot row as `deleted: 0`). Cost: one sort of the document's rows
+      // per content save, over a log fast-forward keeps near one row per card.
+      const rows = await db.cards.where({ treeId: treeId }).toArray();
+
+      // Dedupe first, then drop the deleted -- the other order resurrects a
+      // deleted card from one of its older rows (ADR-0005 §1, and
+      // `newestVisible` in `Doc/Data.elm`).
+      const cards = newestVersionPerId(rows).filter((c) => !c.deleted);
+
+      // The snapshot is stamped with the moment it was taken: the newest row
+      // in the log, which for a save that deletes is the deletion row itself.
+      // Reading it off the snapshot's own rows instead would stamp a
+      // post-deletion snapshot with an older timestamp and, `tree_snapshots`
+      // being keyed by that id, overwrite the history entry that still had the
+      // card.
+      const lastUpdatedTime = maxStamp(rows.map((c) => c.updatedAt)).split(':')[0];
       const snapshotId = `${lastUpdatedTime}:${treeId}`;
       const snapshotData = cards.map((c) => ({ ...c, snapshot: snapshotId, delta: 0}));
       const snapshot = { snapshot: snapshotId, treeId: treeId, data: snapshotData, local: true, ts: Number(lastUpdatedTime)};
