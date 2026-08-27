@@ -61,19 +61,45 @@ function rootCardId(rows) {
  * orphan cannot reappear as a root card either.
  */
 function backupSnapshotText(rows) {
-  return treeHelper(visibleCards(rows), null).map(treeToGkw).join("\n");
+  const cards = visibleCards(rows);
+  return treeHelper(childrenByParentId(cards), null).map(treeToGkw).join("\n");
 }
 
 /* === Private === */
 
-function treeHelper(cards, parentId) {
-  return cards
-    .filter((card) => card.parentId === parentId)
+/**
+ * The cards grouped by their `parentId`, so that building the tree below costs
+ * one lookup per card instead of one scan of the whole document.
+ *
+ * The Elm half of this rule (`ChildIndex` in `Doc/Data.elm`) exists for the
+ * same reason: this runs on every Dexie liveQuery emission -- every save's
+ * round trip -- and a filter per node made it quadratic in the size of the
+ * document (CODE_REVIEW.md P1).
+ *
+ * Each group keeps the order its cards came in, which is what the stable sort
+ * by position in `treeHelper` leaves standing for cards that tie.
+ */
+function childrenByParentId(cards) {
+  const index = new Map();
+  for (const card of cards) {
+    const siblings = index.get(card.parentId);
+    if (siblings === undefined) {
+      index.set(card.parentId, [card]);
+    } else {
+      siblings.push(card);
+    }
+  }
+  return index;
+}
+
+function treeHelper(index, parentId) {
+  return (index.get(parentId) ?? [])
+    .slice()
     .sort((a, b) => a.position - b.position)
     .map((card) => ({
       id: card.id,
       content: card.content,
-      children: treeHelper(cards, card.id),
+      children: treeHelper(index, card.id),
     }));
 }
 
