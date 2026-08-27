@@ -345,6 +345,22 @@ correct under tests, CI is real and green, and the strip-down residue is gone.
   phantom `gw-title-focus`, which Elm answered with `SelectAll`. 25 tests
   (15 at seam 10, 10 at seam 3), 12 red first. Details in
   `issues/17-theme-and-title.md`.
+- Ticket 18 resolved — E16 closed: every swallowed error surfaces, none needed
+  a silence exemption. The three `Doc.Data` payload readers answered an
+  unreadable payload the same way they answer "nothing changed", so they now
+  carry the decoder's reason out (`cardDataReceived` gains a third answer:
+  `Err` / `Ok Nothing` / `Ok (Just …)`) and `Page.App` turns each into a
+  persistent toast plus a console line. Toast text is **fixed per site** and the
+  reason goes to the console, for two reasons that both bind: `Toast.addUnique`
+  dedupes on content, and `Doc.UI.viewToast` renders a message through
+  `Markdown.Parser` with `<parse error>` as the fallback — so no filename, URL
+  or server body may be interpolated into one. `ws.onmessage`'s catch-all is now
+  judged per message type (`src/shared/ws-errors.js`, an allowlist of the benign
+  types so a new case is loud by default; `cards` — lost incoming sync data — is
+  surfaced), `JSON.parse` moved inside the try it belonged in, and all three
+  clipboard sites share `src/shared/clipboard.js`. New ADR-0001 **seam 12**.
+  A push ack that does not parse no longer counts as a successful sync. 158
+  elm-test + 143 bun test. Details in `issues/18-error-surfacing.md`.
 
 ## Owner decisions (answered 2026-08-27)
 

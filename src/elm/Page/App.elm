@@ -1498,9 +1498,19 @@ for, where asking again is the whole of the retry.
 -}
 errorToast : ToastPersistence -> String -> String -> Cmd Msg
 errorToast persistence userMessage reason =
+    let
+        -- Not every failure has a reason to add: an `Http.Timeout` says
+        -- everything it has to say in the sentence above.
+        consoleLine =
+            if String.isEmpty reason then
+                userMessage
+
+            else
+                userMessage ++ "\n" ++ reason
+    in
     Cmd.batch
         [ delay 0 (AddToast persistence (Toast Error userMessage))
-        , send <| ConsoleLogRequested (userMessage ++ "\n" ++ reason)
+        , send <| ConsoleLogRequested consoleLine
         ]
 
 
