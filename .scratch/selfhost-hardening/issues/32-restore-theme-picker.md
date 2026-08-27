@@ -1,6 +1,6 @@
 # 32: Restore the theme picker
 
-Part of `../map.md`. **Type:** task · **Status:** ready-for-agent
+Part of `../map.md`. **Type:** task · **Status:** claimed
 
 **Blocked by:** 17 (resolved) · 24 (touches header.ts concurrently — wait for
 it to resolve)
