@@ -16,9 +16,10 @@ fi
 cd "$CLAUDE_PROJECT_DIR" || exit 0
 
 # npm, not bun: bun is present in cloud sessions but its package fetching
-# goes through a proxy it does not handle. The BUILD still needs bun --
-# esbuild.mjs uses import.meta.dir, which is Bun-only -- so use
-# `bun run newbuild` once the dependencies are on disk.
+# goes through a proxy it does not handle. Bun is still the canonical
+# runtime (ADR-0004), so use `bun run newbuild` and `bun test` once the
+# dependencies are on disk -- and remember that a package.json change has
+# to be mirrored into bun.lockb, which CI checks.
 npm install --no-fund --no-audit || true
 
 # Elm packages can't be downloaded by the elm compiler here (the proxy

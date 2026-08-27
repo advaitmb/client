@@ -38,19 +38,24 @@ change. `bun run config-check` verifies your `config.js` has exactly the keys
 `config-example.js` declares.
 
 The build writes the whole deployable site to `web/` (gitignored):
-`index.html`, `elm.js`, `doc.js`, `ui.js`, `style.css`, `theme.css`, fonts, and
-`templates/`.
+`index.html`, `elm.js`, `doc.js`, `ui.js`, `style.css`, `theme.css`,
+`database-download.{html,js}`, fonts, and `templates/`.
+
+If `newbuild` stalls at `elm make`, your network is blocking Elm 0.19's package
+downloads (it fetches GitHub *zipballs*, which some proxies reject). Run
+`bash scripts/install_elm_pkgs.sh` once to populate the repo-local package
+cache from plain `git clone`s, then re-run `bun run newbuild`.
 
 ### Serving it
 
 `web/` is a static directory, but it is not standalone: the client makes
 **same-origin** requests for authentication (`/login`, `/signup`, `/logout`),
 the session probe (`/me`), document sync (`/sync` and the `/ws` WebSocket),
-image upload, docx export, and the starter templates. So `web/` has to be served as the
-document root of [gingko/server](https://github.com/gingko/server) (follow that
-repo's README for the server itself) — not from a separate static host. The
-full port and endpoint contract is in
-[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+image upload, docx export, and the starter templates. So `web/` has to be
+served as the document root of
+[gingko/server](https://github.com/gingko/server) (follow that repo's README
+for the server itself) — not from a separate static host. The full port and
+endpoint contract is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 Then open the address the server prints (`http://localhost:3000` by default).
 
