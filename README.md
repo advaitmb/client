@@ -50,7 +50,8 @@ cache from plain `git clone`s, then re-run `bun run newbuild`.
 
 `web/` is a static directory, but it is not standalone: the client makes
 **same-origin** requests for authentication (`/login`, `/signup`, `/logout`),
-the session probe (`/me`), document sync (`/sync` and the `/ws` WebSocket),
+the optional session probe (`/me`), document sync (`/sync` and the `/ws`
+WebSocket),
 image upload, docx export, and the starter templates. So `web/` has to be
 served as the document root of
 [gingko/server](https://github.com/gingko/server) (follow that repo's README

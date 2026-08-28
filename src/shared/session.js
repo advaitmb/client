@@ -130,6 +130,80 @@ function mergeUserIntoSession(stored, fromServer) {
 }
 
 /**
+ * What the server says this browser is logged in as, on boot.
+ *
+ * `/me` is the self-host session probe (§6.1 step 3): with no login screen in
+ * the way, its answer is what names the account whose database to open and
+ * whose document list to seed. But it is an *optional* endpoint — gingko/server
+ * master does not implement it, and its last route is `app.get('*')`, which
+ * answers every unknown path with the app's own index.html and a 200. So
+ * `res.ok` says nothing about whether there is an account in the body, and
+ * calling `res.json()` on the strength of it put
+ * `auto-login failed SyntaxError: Unexpected token '<'` on the console of every
+ * boot of a perfectly working install (ticket 38).
+ *
+ * Hence: read the body as JSON only when the answer says it is JSON, and
+ * classify everything else rather than throwing. A server without the endpoint
+ * and a server with no session for this browser are both ordinary; only a
+ * server that was supposed to answer and could not is worth telling anyone
+ * about.
+ *
+ * @param {function(string): Promise<Response>} fetchFn  `fetch`, injected.
+ * @returns {Promise<{status: string, account?: Object, reason?: string}>}
+ *   `account`      — a JSON body: the account to adopt, in `account`.
+ *   `no-endpoint`  — 404, or a 200 that is not JSON: this server has no `/me`.
+ *   `no-session`   — 401/403: it has one, and nobody is logged in here.
+ *   `unavailable`  — anything else, with a `reason` for the console.
+ */
+async function fetchAccount(fetchFn) {
+  let res;
+  try {
+    res = await fetchFn("/me");
+  } catch (err) {
+    return { status: "unavailable", reason: errorText(err) };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    return { status: "no-session" };
+  }
+  if (res.status === 404) {
+    return { status: "no-endpoint" };
+  }
+  if (!res.ok) {
+    return { status: "unavailable", reason: "the server answered " + res.status };
+  }
+
+  const contentType =
+    (res.headers && typeof res.headers.get === "function"
+      ? res.headers.get("content-type")
+      : null) || "";
+  if (contentType.toLowerCase().indexOf("json") === -1) {
+    return { status: "no-endpoint" };
+  }
+
+  let account;
+  try {
+    account = await res.json();
+  } catch (err) {
+    return { status: "unavailable", reason: errorText(err) };
+  }
+
+  if (!account || typeof account !== "object" || Array.isArray(account)) {
+    return { status: "unavailable", reason: "the answer was not an account object" };
+  }
+
+  return { status: "account", account: account };
+}
+
+/** A thrown value as one line, for a `reason`. */
+function errorText(err) {
+  if (err && typeof err.message === "string" && err.message) {
+    return err.message;
+  }
+  return String(err);
+}
+
+/**
  * End the session, everywhere: the server's, then the local one, then the
  * connections that were syncing as that user, and finally hand control back
  * to Elm (`userLoggedOutMsg` → Main.UserLoggedOut → the login page).
@@ -189,4 +263,5 @@ module.exports = {
   writeSessionData: writeSessionData,
   logoutUser: logoutUser,
   mergeUserIntoSession: mergeUserIntoSession,
+  fetchAccount: fetchAccount,
 };

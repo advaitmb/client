@@ -48,7 +48,7 @@ Elm ───────────────────────▶ gw-
 | `src/shared/doc.js` | JS side of the Elm ports: storage, sync, dispatch table |
 | `src/shared/doc-helpers.js` | Shared helpers + the `gw-textarea` custom element |
 | `src/shared/stamps.js` | Stamp (HLC) ordering and the pure sync helpers built on it: checkpoint, backup selection |
-| `src/shared/session.js` | The session blob: its key, reading it back (a corrupt one is a guest, not a blank page), and the logout sequence (POST /logout, clear, hand back to Elm) |
+| `src/shared/session.js` | The session blob: its key, reading it back (a corrupt one is a guest, not a blank page), the boot probe of the optional `/me` (`fetchAccount`), and the logout sequence (POST /logout, clear, hand back to Elm) |
 | `src/shared/cards.js` | Reading the card log: one row per id, the newest, deletions dropped — the document's cards, its root card, and the ImmortalDB backup text |
 | `src/shared/documents.js` | Document-level writes: renaming, once, however many times Elm asks |
 | `src/shared/local-db.js` | Which Dexie database this account's documents live in: the name derived from the email, and the single account that adopts the legacy `"db"` |
@@ -108,8 +108,10 @@ external requests by design).
 
 **Self-hosting checklist:** install Bun; `cp config-example.js config.js` and
 set the four values; `bun i`; `bun run newbuild`; serve `web/` behind
-`gingko/server` (which provides `/login`, `/signup`, `/me`, `/export-docx`,
-`/templates/*.json` passthrough, and the `/ws` WebSocket).
+`gingko/server` (which provides `/login`, `/signup`, `/export-docx`,
+`/templates/*.json` passthrough, and the `/ws` WebSocket). `/me` is optional —
+see §6.1 step 3: master does not implement it, and the client's boot treats a
+server without it as "nobody is logged in here".
 
 ---
 
@@ -163,10 +165,13 @@ button → the `LogoutUser` port → the sequence in `src/shared/session.js`
 (POST `/logout`, blob cleared, then doc.js's `stopSyncing`) →
 `userLoggedOutMsg` → the login page (§7).
 
-On selfhost the Elm login screen is normally skipped entirely: `doc.js`
-auto-logs-in against `/me` at boot and seeds the local database before Elm
-starts (see §6.1). That is also why logging out hands back to Elm instead of
-reloading `/login`: a reload would ask `/me` again.
+A server that implements `/me` skips the Elm login screen entirely: `doc.js`
+auto-logs-in against it at boot and seeds the local database before Elm starts
+(see §6.1). That is also why logging out hands back to Elm instead of reloading
+`/login`: a reload would ask `/me` again. `gingko/server` master has no such
+route — its last route is `app.get('*')`, which answers `/me` with this app's
+own index.html — so against master the login screen is what a first boot shows,
+and that is a supported deployment, not a failure (ticket 38).
 
 `GlobalData` is `{ seed, currentTime, isMac }`; time ticks every 9 s from
 `Page.App`, and the random seed is threaded through card-id generation.
@@ -388,9 +393,14 @@ next/prev in column, descendants, scroll-position calculation, `sha1` ids).
    no database before an account is known, so the `trees` count in step 3 is
    skipped when there is no stored email.
 3. **Auto-login**: if there is no stored email or the local `trees` table is
-   empty, fetch `/me`, merge the response into the session blob, open the
-   database of the account it names, and seed it with the server's document
-   list.
+   empty, ask `/me` (`session.js`'s `fetchAccount`), merge an account answer
+   into the session blob, open the database of the account it names, and seed it
+   with the server's document list. The answer is classified rather than
+   trusted: JSON is an account; a 200 that is not JSON, or a 404, is a server
+   without the endpoint; 401/403 is a server that has it and no session here;
+   anything else is reported on the console once. Only the last of those is
+   worth telling anyone about — the rest boot to the login page, which is a
+   working app (ticket 38).
 4. `setUserDbs(email)`: open this account's database (again — idempotent by
    name, and the switch point when the account has changed), start the
    session's metadata sync

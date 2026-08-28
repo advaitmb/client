@@ -87,7 +87,7 @@ function openUserDb(eml) {
 }
 
 const helpers = require("./doc-helpers");
-const { logoutUser, mergeUserIntoSession, readSessionData, writeSessionData } = require("./session");
+const { fetchAccount, logoutUser, mergeUserIntoSession, readSessionData, writeSessionData } = require("./session");
 // The local half of a save, extracted for the same reason as session.js:
 // nothing in this file is importable by a test (ADR-0001 seam 4).
 const { applyCardBasedSave } = require("./save");
@@ -194,27 +194,30 @@ async function initElmAndPorts() {
   }
 
   if (!flags.email || treeCount === 0) {
-    try {
-      const res = await fetch("/me");
-      if (res.ok) {
-        const me = await res.json();
-        writeSessionData(mergeUserIntoSession(readSessionData(), me), "AutoLogin");
-        flags = getFlags();
-        // /me may have named an account this client had not stored, or a
-        // different one: its database has to be open before the seed writes a
-        // row into it. (No account, no database — and no app either: Elm boots
-        // to the login page.)
-        if (flags.email) {
-          openUserDb(flags.email);
-          if (Array.isArray(me.documents) && me.documents.length > 0) {
-            await userDb().trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
-          }
+    // `fetchAccount` classifies the answer rather than trusting `res.ok`: a
+    // server that does not implement /me answers it with the app's own
+    // index.html and a 200 (ticket 38).
+    const probe = await fetchAccount(fetch);
+    if (probe.status === "account") {
+      const me = probe.account;
+      writeSessionData(mergeUserIntoSession(readSessionData(), me), "AutoLogin");
+      flags = getFlags();
+      // /me may have named an account this client had not stored, or a
+      // different one: its database has to be open before the seed writes a
+      // row into it. (No account, no database — and no app either: Elm boots
+      // to the login page.)
+      if (flags.email) {
+        openUserDb(flags.email);
+        if (Array.isArray(me.documents) && me.documents.length > 0) {
+          await userDb().trees.bulkPut(me.documents.map((t) => ({ ...t, synced: true })));
         }
-      } else {
-        console.error("auto-login: /me returned", res.status);
       }
-    } catch (e) {
-      console.error("auto-login failed", e);
+    } else if (probe.status === "unavailable") {
+      // The one case worth a line: the endpoint answered, and not with an
+      // account. `no-endpoint` and `no-session` are ordinary — a self-host
+      // without the probe, or a browser nobody has logged in on — and Elm's
+      // login page is the whole of the handling.
+      console.warn("auto-login: could not read /me —", probe.reason);
     }
   }
 

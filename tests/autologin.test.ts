@@ -62,3 +62,88 @@ test("a first boot with nothing stored keeps what the server sent", () => {
 
   expect(merged).toEqual({ email: "user@example.com" });
 });
+
+/**
+ * The probe itself: what the client concludes from the answer to `/me`.
+ *
+ * A self-hosted server need not implement it. gingko/server master does not:
+ * its last route is `app.get('*')`, which serves the app's own index.html, so
+ * `/me` answers 200 with HTML. The old code read `res.ok` as "this is an
+ * account" and let `res.json()` throw, which put
+ * `auto-login failed SyntaxError: Unexpected token '<'` on the console of
+ * every boot of a working install (ticket 38). "OK" is not "JSON".
+ */
+import { fetchAccount } from "../src/shared/session";
+
+/** A `fetch` that answers once with the given status, content type and body. */
+function answering(
+  status: number,
+  contentType: string,
+  body: string,
+): (url: string) => Promise<Response> {
+  return async () =>
+    ({
+      status,
+      ok: status >= 200 && status < 300,
+      headers: { get: (h: string) => (h.toLowerCase() === "content-type" ? contentType : null) },
+      json: async () => JSON.parse(body),
+    }) as unknown as Response;
+}
+
+test("a JSON account is adopted", async () => {
+  const probe = await fetchAccount(
+    answering(200, "application/json; charset=utf-8", '{"email":"user@example.com"}'),
+  );
+  expect(probe).toEqual({ status: "account", account: { email: "user@example.com" } });
+});
+
+test("a server without /me serves its index.html, which is not an account", async () => {
+  const probe = await fetchAccount(
+    answering(200, "text/html; charset=UTF-8", "<!DOCTYPE html><html></html>"),
+  );
+  expect(probe).toEqual({ status: "no-endpoint" });
+});
+
+test("404 is a server without /me too", async () => {
+  expect(await fetchAccount(answering(404, "text/html", "Not Found"))).toEqual({
+    status: "no-endpoint",
+  });
+});
+
+test("401 is a server with /me that says nobody is logged in", async () => {
+  expect(await fetchAccount(answering(401, "application/json", "{}"))).toEqual({
+    status: "no-session",
+  });
+});
+
+test("a 500 is worth reporting, with the status in the reason", async () => {
+  const probe = await fetchAccount(answering(500, "text/html", "oops"));
+  expect(probe.status).toBe("unavailable");
+  expect(probe.reason).toContain("500");
+});
+
+test("JSON that does not parse is reported, not thrown", async () => {
+  const probe = await fetchAccount(answering(200, "application/json", "{not json"));
+  expect(probe.status).toBe("unavailable");
+  expect(probe.reason).toBeTruthy();
+});
+
+test("a body that parses to something that is not an account is reported", async () => {
+  const probe = await fetchAccount(answering(200, "application/json", '"a string"'));
+  expect(probe.status).toBe("unavailable");
+});
+
+test("an unreachable server is reported, not thrown", async () => {
+  const probe = await fetchAccount(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+  expect(probe.status).toBe("unavailable");
+  expect(probe.reason).toContain("Failed to fetch");
+});
+
+test("a missing content-type is not read as JSON", async () => {
+  const probe = await fetchAccount(async () =>
+    ({ status: 200, ok: true, headers: { get: () => null }, json: async () => ({}) }) as unknown as Response,
+  );
+  expect(probe).toEqual({ status: "no-endpoint" });
+});
