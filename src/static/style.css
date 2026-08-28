@@ -1213,6 +1213,11 @@ a.sidebar-menu-item, a.sidebar-menu-item:visited {
   display: grid;
   grid-template-columns: minmax(200px, 800px);
   z-index: 100;
+  /* .max-width-grid is pointer-events: none so the app behind it stays
+     clickable; every modal inside it has to opt back in, or its own controls
+     are pointer-transparent and clicks land on .modal-overlay, which closes
+     it. .help-modal had its own `pointer-events: all`; nothing else did. */
+  pointer-events: auto;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%); /* Use this for centering if unknown width/height */
