@@ -67,3 +67,4 @@ Verified in headless Chromium against the real `gingko/server`:
 - The endpoint is genuinely optional, so this is deliberately not a "fix the
   server" ticket. Anyone who does add `/me` to their deployment gets the
   auto-login path back with no client change.
+- CI green on `selfhost`: `1182ab8` — <https://github.com/advaitmb/client/actions/runs/33156500375>

@@ -65,3 +65,4 @@ became reachable.
   setup (see the session's notes: the server needs redis, a newer
   `better-sqlite3` for Node 22, `../client/web` and `../data/` relative to its
   CWD, and it has no `GET /me`).
+- CI green on `selfhost`: `010d078` — <https://github.com/advaitmb/client/actions/runs/33155127723>
